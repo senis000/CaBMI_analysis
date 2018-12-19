@@ -179,7 +179,7 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
             # fill the mmap file
             for ind in np.arange(auxlen):
                 if first_images_left > 0:
-                    new_img = imb1[int(plane+ind*num_planes_total), :, :]
+                    new_img = imb1[int(plane+(ind + lim_bf*nf)*num_planes_total), :, :]
                     first_images_left -= 1
                 else:
                     new_img = imb2[int(plane+(ind - int(imb1.shape[0]/num_planes_total) + lim_bf*nf)*num_planes_total), :, :]
