@@ -106,11 +106,12 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
                 len_im -= lim_bf
             else:
                 auxlen = len_im
+                len_im = 0
             big_file = np.memmap(fnamemm, mode='w+', dtype=np.int16, shape=(np.prod(dims[1:]), auxlen), order=order)
                 
             # fill the mmap file
             for ind in np.arange(auxlen):
-                new_img = im[int(plane+ind*num_planes_total), :, :]
+                new_img = im[int((len_im + ind)*num_planes_total + plane), :, :]
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             big_file.flush()
