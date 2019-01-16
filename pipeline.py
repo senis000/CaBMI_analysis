@@ -368,39 +368,32 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4
     print('... done') 
         
         
-def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_planes_total=6, sec_var=''):       
+def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_planes_total=6, sec_var='', toplot=True):       
+    # Folder to load/save
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
-    folder_dest = folder + 'processed/' + animal + '/' + day + '/'
+    folder_dest = folder + 'processed/' + animal + '/'
+    folder_dest_anal = folder + 'processed/' + animal + '/analysis/'
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
+    if not os.path.exists(folder_dest_anal):
+        os.makedirs(folder_dest)
+    
+    # Load information
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
     fr = matinfo['fr'][0][0]   
     planes_val = np.asarray(matinfo['Zplanes'][0])
-    # to get red channel expression
     folder_red = folder + 'raw/' + animal + '/' + day + '/'
     fmat = folder_red + 'red.mat' 
     redinfo = scipy.io.loadmat(fmat)
     red = redinfo['red'][0]
     com_list = []
-
     for plane in np.arange(number_planes): 
         try:
             f = h5py.File(folder_path + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'r')
         except OSError:
-            # Robust searching
-            eflag = True
-            for fil in os.listdir(folder_path):
-                if fil.find(str(plane) +'.hdf5') != -1:
-                    f = h5py.File(folder_path + fil, 'r')
-                    eflag = False
-            if eflag:               
-                break
-        auxb = np.asarray(f['base_im'])[:,1]
-        bdim = int(np.sqrt(auxb.shape[0]))
-        base_im = np.transpose(np.reshape(auxb, [bdim,bdim]))
-        fred = folder_path + 'red' + str(plane) + '.tif'
-        red_im = tifffile.imread(fred)
+            break
+        base_im = np.asarray(f['base_im'])
         if plane == 0:
             all_dff = np.asarray(f['dff'])
             all_C = np.asarray(f['C'])
@@ -409,7 +402,6 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
             g = f['Nsparse']
             all_neuron_shape = scipy.sparse.csr_matrix((g['data'][:], g['indices'][:], g['indptr'][:]), g.attrs['shape'])
             all_base_im = np.ones((base_im.shape[0], base_im.shape[1], number_planes)) *np.nan
-            all_red_im = np.ones((red_im.shape[0], red_im.shape[1], number_planes)) *np.nan
             all_neuron_act = np.asarray(f['neuron_act'])
         else:
             all_dff = np.concatenate((all_dff, np.asarray(f['dff'])), 0)
@@ -421,47 +413,33 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
             all_neuron_shape = scipy.sparse.hstack([all_neuron_shape, gaux])
             all_neuron_act = np.concatenate((all_neuron_act, np.asarray(f['neuron_act'])), 0)
         all_base_im[:, :, plane] = base_im
-        all_red_im[:, :, plane] = red_im
         f.close()
     
     auxZ = np.zeros((all_com.shape))
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
     all_com += auxZ
     
-    try:
-        fall = h5py.File(folder_dest + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'w-')
-    except IOError:
-        print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
-        
+    fanal = folder + 'raw/' + animal + '/' + day + '/analysis/'
+    Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
+    dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), Asparse.shape[1]]
+    Afull = np.reshape(A.toarray(),dims)
+    
+    # obtain the real position of components A
+    com = obtain_real_com(fanal, Afull, all_com)
+    
+    # identify ens_neur (it already plots sanity check in raw/analysis
     online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
     mask = matinfo['allmask']
-    fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' + str(plane) + '/'
+    
     if not os.path.exists(fpath):
         os.makedirs(fpath)
-    ens_neur = detect_ensemble_neurons(folder_path + 'analysis/', all_dff, online_data, len(online_data.keys())-2,
+    ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
                                              all_com,matinfo['allmask'], num_planes_total, len_base)
     
-    Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
+    
+    # obtain trials hits and miss
     trial_end = matinfo['trialEnd'][0] + len_base
     trial_start = matinfo['trialStart'][0] + len_base
-    
-    fall.create_dataset('dff', data = all_dff)
-    fall.create_dataset('C', data = all_C)
-    fall.create_dataset('com', data = all_com)
-    fall.attrs['blen'] = len_base
-    gall = fall.create_group('Nsparse')
-    gall.create_dataset('data', data = Asparse.data)
-    gall.create_dataset('indptr', data = Asparse.indptr)
-    gall.create_dataset('indices', data = Asparse.indices)
-    gall.attrs['shape'] = Asparse.shape
-    fall.create_dataset('neuron_act', data = all_neuron_act)
-    fall.create_dataset('base_im', data = all_base_im)
-    fall.create_dataset('red_im', data = all_red_im)
-    fall.create_dataset('online_data', data = online_data)
-    fall.create_dataset('ens_neur', data = ens_neur)    
-    fall.create_dataset('trial_end', data = trial_end)
-    fall.create_dataset('trial_start', data = trial_start)
-    fall.attrs['fr'] =  matinfo['fr'][0][0]
     if len(matinfo['hits']) > 0 : 
         hits = matinfo['hits'][0] + len_base
     else:
@@ -475,9 +453,49 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
     for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
-    nerden = neurons_vs_dend(all_neuron_shape)
-    redlabel = red_channel(red, com_list, all_red_im, folder_path, number_planes)*nerden
     
+    # separates "real" neurons from dendrites
+    nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
+    
+    # obtain the neurons label as red (controlling for dendrites)
+    redlabel = red_channel(red, com_list, number_planes)*nerden
+    
+    # obtain the frequency
+    frequency = obtainfreq(matinfo['frequency'][0], len_bmi)
+    
+    # sanity checks
+    if toplot:
+        plt.plot(np.nanmean(dff,0))
+        plt.title('DFFs')
+        plt.savefig(folder_dest_anal + animal + '_' + day + 'dff.png', bbox_inches="tight")
+        plt.plot(matinfo['cursor'][0])
+        plt.title('cursor')
+        plt.savefig(folder_dest_anal + animal + '_' + day + 'cursor.png', bbox_inches="tight")
+
+
+
+    #fill the file with all the correct data!
+    try:
+        fall = h5py.File(folder_dest + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'w-')
+    except IOError:
+        print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
+        
+    fall.create_dataset('dff', data = all_dff)
+    fall.create_dataset('C', data = all_C)
+    fall.create_dataset('com_cm', data = all_com)
+    fall.attrs['blen'] = len_base
+    gall = fall.create_group('Nsparse')
+    gall.create_dataset('data', data = Asparse.data)
+    gall.create_dataset('indptr', data = Asparse.indptr)
+    gall.create_dataset('indices', data = Asparse.indices)
+    gall.attrs['shape'] = Asparse.shape
+    fall.create_dataset('neuron_act', data = all_neuron_act)
+    fall.create_dataset('base_im', data = all_base_im)
+    fall.create_dataset('online_data', data = online_data)
+    fall.create_dataset('ens_neur', data = ens_neur)    
+    fall.create_dataset('trial_end', data = trial_end)
+    fall.create_dataset('trial_start', data = trial_start)
+    fall.attrs['fr'] =  matinfo['fr'][0][0]
     fall.create_dataset('redlabel', data = redlabel)
     fall.create_dataset('nerden', data = nerden)
     fall.create_dataset('hits', data = hits)
@@ -485,8 +503,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
     fall.create_dataset('array_t1', data = array_t1)
     fall.create_dataset('array_miss', data = array_miss)
     fall.create_dataset('cursor', data = matinfo['cursor'][0])
-    frequency = obtainfreq(matinfo['frequency'][0], len_bmi)
     fall.create_dataset('freq', data = frequency)
+    
     fall.close()
     
 
@@ -546,6 +564,23 @@ def neurons_vs_dend(A, tol=0.1, minsize=25):
         if np.nansum(auxA)>minsize:
             nerden[ind] = True
     return nerden
+
+
+def obtain_real_com(fanal, Afull, all_com, toplot=True, img_size = 20):
+    #function to obtain the real values of com
+    folder_path = fanal + '/Aplot/'
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    new_com = np.zeros((Afull.shape[2], 3))
+    for neur in np.arange(Afull.shape[2]):
+        center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>0.1)
+        new_com[neur,:] = [center_mass[1], center_mass[0], all_com[neur,2]]
+        img = Afull[int(center_mass[0]-img_size):int(center_mass[0]+img_size),int(center_mass[1]-img_size):int(center_mass[1]+img_size),neur]
+        fig1 = plt.figure()
+        ax1 = fig1.add_subplot(121)
+        ax1.imshow(img)
+        ax2 = fig1.add_subplot(122)
+        ax2.imshow(img>0.1)
                 
 
 def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, save_results=False):
