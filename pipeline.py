@@ -451,16 +451,49 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     
     
     # obtain trials hits and miss
-    trial_end = matinfo['trialEnd'][0] + len_base
-    trial_start = matinfo['trialStart'][0] + len_base
+    trial_end = (matinfo['trialEnd'][0] + len_base).astype('int')
+    trial_start = (matinfo['trialStart'][0] + len_base).astype('int')
     if len(matinfo['hits']) > 0 : 
-        hits = matinfo['hits'][0] + len_base
+        hits = (matinfo['hits'][0] + len_base).astype('float')
     else:
         hits = []
     if len(matinfo['miss']) > 0 : 
-        miss = matinfo['miss'][0] + len_base
+        miss = (matinfo['miss'][0] + len_base).astype('float')
     else:
         miss = []
+    # to remove false end of trials
+    ind = 0
+    while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
+        tokeep = np.ones(trial_end.shape[0]).astype('bool')
+        if (trial_end[ind] - trial_start[ind]) < 0 :            
+            hitloc = np.where(trial_end[ind]==hits)[0]
+            misloc = np.where(trial_end[ind]==miss)[0]
+            if len(hitloc) > 0:
+                hits[hitloc[0]] = np.nan
+            if len(misloc) > 0:
+                miss[misloc[0]] = np.nan
+            tokeep[ind]=False
+            trial_end = trial_end[tokeep]
+        else:
+            ind += 1
+
+    # to remove trials that ended in the same frame as they started
+    tokeep = np.ones(trial_start.shape[0]).astype('bool')
+    for ind in  np.arange(trial_start.shape[0]):
+        if (trial_end[ind] - trial_start[ind]) == 0 :
+            tokeep[ind]=False
+            hitloc = np.where(trial_end[ind]==hits)[0]
+            misloc = np.where(trial_end[ind]==miss)[0]
+            if len(hitloc) > 0:
+                hits[hitloc[0]] = np.nan
+            if len(misloc) > 0:
+                miss[misloc[0]] = np.nan
+    
+    hits = hits[~np.isnan(hits)]
+    miss = miss[~np.isnan(miss)]   
+    trial_end = trial_end[tokeep]
+    trial_start = trial_start[tokeep]
+    # preparing the arrays (number of trial for hits/miss)
     array_t1 = np.zeros(hits.shape[0], dtype=int)
     array_miss = np.zeros(miss.shape[0], dtype=int)
     for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
