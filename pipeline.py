@@ -115,7 +115,7 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
     #return num_files_b, len_base # Separates base only delete later
     
 
-def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, num_planes_total=6, order='F', lim_bf=9000):
+def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, number_planes_total=6, order='F', lim_bf=9000):
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'  
     fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
@@ -145,11 +145,11 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
     im = tifffile.imread(ffull[0])
     dims = im.shape
     print('Image loaded')
-    len_im = int(dims[0]/num_planes_total)
+    len_im = int(dims[0]/number_planes_total)
     num_files = int(np.ceil(len_im/lim_bf))
     
-    for plane in np.arange(num_planes_useful):
-        len_im = int(dims[0]/num_planes_total)
+    for plane in np.arange(number_planes):
+        len_im = int(dims[0]/number_planes_total)
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -163,7 +163,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
                 
             # fill the mmap file
             for ind in np.arange(auxlen):
-                new_img = im[int((ind + lim_bf*nf)*num_planes_total + plane), :, :]
+                new_img = im[int((ind + lim_bf*nf)*number_planes_total + plane), :, :]
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
@@ -180,8 +180,8 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
 
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(num_planes_useful):
-        len_im = int(dims[0]/num_planes_total)
+    for plane in np.arange(number_planes):
+        len_im = int(dims[0]/number_planes_total)
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -202,7 +202,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
             except OSError as e:  ## if failed, report it back to the user ##
                 print ("Error: %s - %s." % (e.filename, e.strerror))
     
-    len_im = int(dims[0]/num_planes_total)
+    len_im = int(dims[0]/number_planes_total)
     
     try:
         print('Swapping off')
@@ -220,7 +220,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', num_planes_useful=4, 
     return num_files, len_im
 
 
-def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='baseline', num_planes_useful=4, num_planes_total=6, order='F', lim_bf=10000):
+def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='baseline', number_planes=4, number_planes_total=6, order='F', lim_bf=10000):
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'       
     fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
@@ -239,12 +239,12 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     imb2 = io.imread(ffull2[0])
     dims = [imb1.shape[0] + imb2.shape[0], imb1.shape[1], imb1.shape[2]]
     print('Images loaded')
-    len_im = int(dims[0]/num_planes_total)
+    len_im = int(dims[0]/number_planes_total)
     num_files = int(np.ceil(len_im/lim_bf))
     
-    for plane in np.arange(num_planes_useful):
-        first_images_left = int(imb1.shape[0]/num_planes_total)
-        len_im = int(dims[0]/num_planes_total)
+    for plane in np.arange(number_planes):
+        first_images_left = int(imb1.shape[0]/number_planes_total)
+        len_im = int(dims[0]/number_planes_total)
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -259,10 +259,10 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
             # fill the mmap file
             for ind in np.arange(auxlen):
                 if first_images_left > 0:
-                    new_img = imb1[int(plane+(ind + lim_bf*nf)*num_planes_total), :, :]
+                    new_img = imb1[int(plane+(ind + lim_bf*nf)*number_planes_total), :, :]
                     first_images_left -= 1
                 else:
-                    new_img = imb2[int(plane+(ind - int(imb1.shape[0]/num_planes_total) + lim_bf*nf)*num_planes_total), :, :]
+                    new_img = imb2[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total), :, :]
                     
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
                 
@@ -281,8 +281,8 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(num_planes_useful):
-        len_im = int(dims[0]/num_planes_total)
+    for plane in np.arange(number_planes):
+        len_im = int(dims[0]/number_planes_total)
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -368,11 +368,12 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4
     print('... done') 
         
         
-def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_planes_total=6, sec_var='', toplot=True):       
+def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
     # Folder to load/save
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_dest = folder + 'processed/' + animal + '/'
     folder_dest_anal = folder + 'processed/' + animal + '/analysis/'
+    fanal = folder_path + 'analysis/'
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
     if not os.path.exists(folder_dest_anal):
@@ -393,7 +394,11 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
             f = h5py.File(folder_path + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'r')
         except OSError:
             break
-        base_im = np.asarray(f['base_im'])
+        auxb = np.asarray(f['base_im'])[:,1]
+        bdim = int(np.sqrt(auxb.shape[0]))  
+        base_im = np.transpose(np.reshape(auxb, [bdim,bdim])) 
+        fred = folder_path + 'red' + str(plane) + '.tif'
+        red_im = tifffile.imread(fred)  
         if plane == 0:
             all_dff = np.asarray(f['dff'])
             all_C = np.asarray(f['C'])
@@ -403,6 +408,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
             all_neuron_shape = scipy.sparse.csr_matrix((g['data'][:], g['indices'][:], g['indptr'][:]), g.attrs['shape'])
             all_base_im = np.ones((base_im.shape[0], base_im.shape[1], number_planes)) *np.nan
             all_neuron_act = np.asarray(f['neuron_act'])
+            all_red_im = np.ones((red_im.shape[0], red_im.shape[1], number_planes)) *np.nan 
         else:
             all_dff = np.concatenate((all_dff, np.asarray(f['dff'])), 0)
             all_C = np.concatenate((all_C, np.asarray(f['C'])), 0)
@@ -412,29 +418,36 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
             gaux = scipy.sparse.csr_matrix((g['data'][:], g['indices'][:], g['indptr'][:]), g.attrs['shape'])
             all_neuron_shape = scipy.sparse.hstack([all_neuron_shape, gaux])
             all_neuron_act = np.concatenate((all_neuron_act, np.asarray(f['neuron_act'])), 0)
+        all_red_im[:, :, plane] = red_im
         all_base_im[:, :, plane] = base_im
         f.close()
+        
+        
+        
+        
     
     auxZ = np.zeros((all_com.shape))
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
     all_com += auxZ
     
-    fanal = folder + 'raw/' + animal + '/' + day + '/analysis/'
+    #load red images
+    
+    
+    # separates "real" neurons from dendrites
+    nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
+    
+    # obtain the real position of components A
     Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
     dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), Asparse.shape[1]]
     Afull = np.reshape(A.toarray(),dims)
-    
-    # obtain the real position of components A
-    com = obtain_real_com(fanal, Afull, all_com)
+    new_com = obtain_real_com(fanal, Afull, all_com)
     
     # identify ens_neur (it already plots sanity check in raw/analysis
     online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
     mask = matinfo['allmask']
     
-    if not os.path.exists(fpath):
-        os.makedirs(fpath)
     ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
-                                             all_com,matinfo['allmask'], num_planes_total, len_base)
+                                             new_com,matinfo['allmask'], number_planes_total, len_base)
     
     
     # obtain trials hits and miss
@@ -454,11 +467,9 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
     
-    # separates "real" neurons from dendrites
-    nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, com_list, number_planes)*nerden
+    redlabel = red_channel(red, com_list, new_com, all_red_im, number_planes)*nerden
     
     # obtain the frequency
     frequency = obtainfreq(matinfo['frequency'][0], len_bmi)
@@ -491,6 +502,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
     gall.attrs['shape'] = Asparse.shape
     fall.create_dataset('neuron_act', data = all_neuron_act)
     fall.create_dataset('base_im', data = all_base_im)
+    fall.create_dataset('red_im', data = red_im)
     fall.create_dataset('online_data', data = online_data)
     fall.create_dataset('ens_neur', data = ens_neur)    
     fall.create_dataset('trial_end', data = trial_end)
@@ -506,28 +518,34 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, num_pl
     fall.create_dataset('freq', data = frequency)
     
     fall.close()
+
     
 
-def red_channel(red, com_list, all_red_im, folder_path, num_planes=4, maxdist=8):  
+def red_channel(red, com_list, new_com, all_red_im, folder_path, number_planes=4, maxdist=6):  
     #function to identify red neurons
     all_red = []
-
-    if len(red) < num_planes:
-        num_planes = len(red)
-    for plane in np.arange(num_planes):
+    ind_neur = 0
+    if len(red) < number_planes:
+        number_planes = len(red)
+    for plane in np.arange(number_planes):
         maskred = np.transpose(red[plane])
         mm = np.sum(maskred,1)
         maskred = maskred[~np.isnan(mm),:]
         red_im = all_red_im[:,:,plane]
         toplot = np.zeros((red_im.shape[0], red_im.shape[1]))
-        com = com_list[plane][:,0:2]
+        com = com_list[plane]
+        neur_plane = com.shape[0]
+        aux_nc = np.zeros(neur_plane)
+        aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
         redlabel = np.zeros(com.shape[0]).astype('bool')
-        dists = scipy.spatial.distance.cdist(com, maskred)
+        dists = np.zeros((neur_plane,maskred.shape[0]))
+        dists = scipy.spatial.distance.cdist(aux_nc, maskred)
         for neur in np.arange(com.shape[0]):
             redlabel[neur] = np.sum(dists[neur,:]<maxdist)
+        ind_neur += neur_plane
         redlabel[redlabel>0]=True
         all_red.append(redlabel)
-        auxtoplot = com[redlabel,:]
+        auxtoplot = aux_nc[redlabel,:]
 
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(1,2,1)
@@ -545,13 +563,10 @@ def red_channel(red, com_list, all_red_im, folder_path, num_planes=4, maxdist=8)
             toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
         ax2.imshow(red_im + toplot, vmax=np.nanmax(red_im))
         plt.savefig(folder_path + 'analysis/' + str(plane) + '/redneurmask.png', bbox_inches="tight")
-        plt.close("all")
-        
-
+        plt.close("all")     
         
     all_red = np.concatenate(all_red)
     return all_red
-
 
 
 def neurons_vs_dend(A, tol=0.1, minsize=25): 
@@ -566,22 +581,145 @@ def neurons_vs_dend(A, tol=0.1, minsize=25):
     return nerden
 
 
-def obtain_real_com(fanal, Afull, all_com, toplot=True, img_size = 20):
+def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, thres=0.1):
     #function to obtain the real values of com
-    folder_path = fanal + '/Aplot/'
+    folder_path = fanal + 'Aplot/'
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     new_com = np.zeros((Afull.shape[2], 3))
     for neur in np.arange(Afull.shape[2]):
-        center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>0.1)
-        new_com[neur,:] = [center_mass[1], center_mass[0], all_com[neur,2]]
-        img = Afull[int(center_mass[0]-img_size):int(center_mass[0]+img_size),int(center_mass[1]-img_size):int(center_mass[1]+img_size),neur]
+        if nerden[neur]:
+            center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>thres)
+            new_com[neur,:] = [center_mass[0], center_mass[1], all_com[neur,2]]
+            if (center_mass[0] + img_size) > Afull.shape[0]:
+                x2 = Afull.shape[0]
+            else:
+                x2 = int(center_mass[0]+img_size)
+            if (center_mass[0] - img_size) < 0:
+                x1 = 0
+            else:
+                x1 = int(center_mass[0]-img_size)
+            if (center_mass[1] + img_size) > Afull.shape[1]:
+                y2 = Afull.shape[1]
+            else:
+                y2 = int(center_mass[1]+img_size)
+            if (center_mass[1] - img_size) < 0:
+                y1 = 0
+            else:
+                y1 = int(center_mass[1]-img_size)
+                
+        else:
+            new_com[neur,:] = all_com[neur,:]
+            x1 = int(all_com[neur,0]-img_size)
+            x2 = int(all_com[neur,0]+img_size)
+            y1 = int(all_com[neur,1]-img_size)
+            y2 = int(all_com[neur,1]+img_size)
+            
+        img = Afull[x1:x2,y1:y2,neur]
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(121)
-        ax1.imshow(img)
+        ax1.imshow(np.transpose(img))
         ax2 = fig1.add_subplot(122)
-        ax2.imshow(img>0.1)
+        ax2.imshow(np.transpose(img>thres))
+        ax1.set_xlabel('neuron: ' + str(neur))
+        ax2.set_xlabel('nd: ' + str(nerden[neur]))
+        plt.savefig(folder_path + str(neur) + '.png', bbox_inches="tight")
+        plt.close('all')
+        
+    return new_com
+        
                 
+def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, number_planes_total, len_base, auxtol=10, cormin=0.1):
+    neurcor = np.ones((units, dff.shape[0])) * np.nan
+    finalcorr = np.zeros(units)
+    finalneur = np.zeros(units)
+    maxmask = np.nanmax(mask)
+    pmask = np.nansum(mask,2)
+    iter = 40
+    
+    for npro in np.arange(dff.shape[0]):
+        for non in np.arange(units): 
+            ens = (online_data.keys())[2+non]
+            frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base -1
+            neurcor[non, npro] = pd.DataFrame(np.transpose([dff[npro,frames], np.asarray(online_data[ens])])).corr()[0][1]
+    
+    neurcor[neurcor<cormin] = np.nan    
+    auxneur = copy.deepcopy(neurcor)
+    
+    
+    for un in np.arange(units):
+        print(['finding neuron: ' + str(un)])
+        tol = auxtol
+        centermass = np.reshape(np.asarray(scipy.ndimage.measurements.center_of_mass(mask[:,:, un])),[1,2])
+        not_good_enough = True
+        while not_good_enough:
+            if np.nansum(neurcor[un,:]) != 0:
+                if np.nansum(np.abs(neurcor[un, :])) > 0 :
+                    maxcor = np.nanmax(neurcor[un, :])
+                    indx = np.where(neurcor[un, :]==maxcor)[0][0]
+                    auxcom = np.reshape([com[indx,1], com[indx,0]], [1,2])
+                    dist = scipy.spatial.distance.cdist(centermass, auxcom)[0][0]
+                    not_good_enough =  dist > tol
+    
+                    finalcorr[un] = neurcor[un, indx]
+                    finalneur[un] = indx
+                    neurcor[un, indx] = np.nan
+                else:
+                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Reducing tolerance')
+                    if iter > 0:
+                        neurcor = auxneur
+                        tol *= 1.5
+                        iter -= 1
+                    else:
+                        print ('where are my neurons??')
+                        break
+            else:
+                auxcom = com[:,:2]
+                dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
+                indx = np.where(dist==np.nanmin(dist))[0][0]
+                finalcorr[un] = np.nan
+                finalneur[un] = indx
+                not_good_enough = False
+        print('tol value at: ', str(tol))
+
+                
+        auxp = com[finalneur[un].astype(int),:2].astype(int)
+        pmask[auxp[0], auxp[1]] = 2   #to detect
+    
+    print('Correlated with value', str(finalcorr) )
+    plt.figure()
+    plt.imshow(pmask)
+    plt.savefig(folder_path + 'ens_masks.png', bbox_inches="tight")
+    return finalneur
+    
+
+def calculate_zvalues(folder, plane, planes_val):
+#     Zmatrix = np.asarray([[np.linspace(planes_val[0],planes_val[1],256)][0],
+#                          [np.linspace(planes_val[1],planes_val[2],256)][0],
+#                          [np.linspace(planes_val[2],planes_val[3],256)][0],
+#                          [np.linspace(planes_val[3],planes_val[4],256)][0]])
+#     z = Zmatrix[plane, :]
+    finfo = folder + 'actuator.mat'  #file name of the mat 
+    actuator = scipy.io.loadmat(finfo)
+    options={ 0: 'yd1i',
+              1: 'yd2i',
+              2: 'yd3i',
+              3: 'yd4i'}
+    z = actuator[options[plane]][0]
+    
+    return z
+
+
+def obtainfreq(origfreq, len_bmi=36000, iterat=2):
+    freq = copy.deepcopy(origfreq)
+    freq[:np.where(~np.isnan(origfreq))[0][0]] = 0
+    if len_bmi<freq.shape[0]: freq = freq[:len_bmi]
+    for it in np.arange(iterat):
+        nanarray = np.where(np.isnan(freq))[0]
+        for inan in nanarray[-1::-1]:
+            freq[inan] = freq[inan-1]
+    return freq
+
 
 def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, save_results=False):
     
@@ -810,100 +948,8 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     else:
         com = cm.base.rois.com(cnm2.estimates.A,dims[0],dims[1], dims[2])        
         
-    return F_dff, com, cnm2
+    return F_dff, com, cnm2   
 
-
-def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, num_planes_total, len_base, auxtol=10, cormin=0.1):
-    neurcor = np.ones((units, dff.shape[0])) * np.nan
-    finalcorr = np.zeros(units)
-    finalneur = np.zeros(units)
-    maxmask = np.nanmax(mask)
-    pmask = np.nansum(mask,2)
-    iter = 40
-    
-    for npro in np.arange(dff.shape[0]):
-        for non in np.arange(units): 
-            ens = (online_data.keys())[2+non]
-            frames = (np.asarray(online_data['frameNumber']) / num_planes_total).astype('int') + len_base -1
-            neurcor[non, npro] = pd.DataFrame(np.transpose([dff[npro,frames], np.asarray(online_data[ens])])).corr()[0][1]
-    
-    neurcor[neurcor<cormin] = np.nan    
-    auxneur = copy.deepcopy(neurcor)
-    
-    
-    for un in np.arange(units):
-        print(['finding neuron: ' + str(un)])
-        tol = auxtol
-        centermass = np.reshape(np.asarray(scipy.ndimage.measurements.center_of_mass(mask[:,:, un])),[1,2])
-        not_good_enough = True
-        while not_good_enough:
-            if np.nansum(neurcor[un,:]) != 0:
-                if np.nansum(np.abs(neurcor[un, :])) > 0 :
-                    maxcor = np.nanmax(neurcor[un, :])
-                    indx = np.where(neurcor[un, :]==maxcor)[0][0]
-                    auxcom = np.reshape(com[indx,:2],[1,2])
-                    dist = scipy.spatial.distance.cdist(centermass, auxcom)[0][0]
-                    not_good_enough =  dist > tol
-    
-                    finalcorr[un] = neurcor[un, indx]
-                    finalneur[un] = indx
-                    neurcor[un, indx] = np.nan
-                else:
-                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Reducing tolerance')
-                    if iter > 0:
-                        neurcor = auxneur
-                        tol *= 1.5
-                        iter -= 1
-                    else:
-                        print ('where are my neurons??')
-                        break
-            else:
-                auxcom = com[:,:2]
-                dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
-                indx = np.where(dist==np.nanmin(dist))[0][0]
-                finalcorr[un] = np.nan
-                finalneur[un] = indx
-                not_good_enough = False
-        print('tol value at: ', str(tol))
-
-                
-        auxp = com[finalneur[un].astype(int),:2].astype(int)
-        pmask[auxp[0], auxp[1]] = 2   #to detect
-    
-    print('Correlated with value', str(finalcorr) )
-    plt.figure()
-    plt.imshow(pmask)
-    plt.savefig(folder_path + 'ens_masks.png', bbox_inches="tight")
-    return finalneur
-    
-
-def calculate_zvalues(folder, plane, planes_val):
-#     Zmatrix = np.asarray([[np.linspace(planes_val[0],planes_val[1],256)][0],
-#                          [np.linspace(planes_val[1],planes_val[2],256)][0],
-#                          [np.linspace(planes_val[2],planes_val[3],256)][0],
-#                          [np.linspace(planes_val[3],planes_val[4],256)][0]])
-#     z = Zmatrix[plane, :]
-    finfo = folder + 'actuator.mat'  #file name of the mat 
-    actuator = scipy.io.loadmat(finfo)
-    options={ 0: 'yd1i',
-              1: 'yd2i',
-              2: 'yd3i',
-              3: 'yd4i'}
-    z = actuator[options[plane]][0]
-    
-    return z
-
-
-def obtainfreq(origfreq, len_bmi=36000, iterat=2):
-    freq = copy.deepcopy(origfreq)
-    freq[:np.where(~np.isnan(origfreq))[0][0]] = 0
-    if len_bmi<freq.shape[0]: freq = freq[:len_bmi]
-    for it in np.arange(iterat):
-        nanarray = np.where(np.isnan(freq))[0]
-        for inan in nanarray[-1::-1]:
-            freq[inan] = freq[inan-1]
-    return freq
-   
 
 def load_movie(fname):    
     fname = [download_demo(fname)]     # the file will be downloaded if it doesn't already exist
