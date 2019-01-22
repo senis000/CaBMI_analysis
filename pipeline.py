@@ -442,6 +442,9 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     Afull = np.reshape(A.toarray(),dims)
     new_com = obtain_real_com(fanal, Afull, all_com)
     
+    # sanity check of the neuron's quality
+    plot_Cs(fanal, all_C, nerden)
+    
     # identify ens_neur (it already plots sanity check in raw/analysis
     online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
     mask = matinfo['allmask']
@@ -752,6 +755,21 @@ def obtainfreq(origfreq, len_bmi=36000, iterat=2):
         for inan in nanarray[-1::-1]:
             freq[inan] = freq[inan-1]
     return freq
+
+
+def plot_Cs(fanal, C, nerden):
+    #function to obtain the real values of com
+    folder_path = fanal + '/Cplot/'
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    for ind in np.arange(C.shape[0])
+        fig1 = plt.figure(figsize=(12,6))
+        ax1 = fig1.add_subplot(121)
+        ax1.plot(C[ind,:])
+        ax2 = fig1.add_subplot(122)
+        ax2.plot(C[ind,1000:2000])
+        ax2.set_xlabel(str(nerden[ind]))
+        fig1.savefig(folder_path + str(ind) + '.png', bbox_inches="tight")
 
 
 def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, save_results=False):
