@@ -14,6 +14,10 @@ CaBMI_Analysis
                     *signal.txt
                     |-- outputs
                         *results.mx
+        |-- SimKernel-master
+        |-- simulation
+        |-- gsl
+        |-- gsl-1.16
     *utils_gte.py
     *analysis_CaBMI.py
 ```
