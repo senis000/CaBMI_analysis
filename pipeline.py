@@ -69,7 +69,7 @@ interactive(True)
 def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
-    err_file = open("errlog.txt", 'a+')  # ERROR HANDLING
+    err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
     if not os.path.exists(folder_final):
         os.makedirs(folder_final)
     
@@ -90,6 +90,14 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
         sys.exit('Error in separate planes')
         
         
+    nam = folder_path + 'readme.txt'
+    readme = open(nam, 'w+')
+    readme.write("num_files_b = " + str(num_files_b) + '\n')
+    readme.write("num_files = " + str(num_files)+ '\n')
+    readme.write("len_base = " + str(len_base)+ '\n')
+    readme.write("len_bmi = " + str(len_bmi)+ '\n')
+    readme.close()
+       
     try:
         analyze_raw_planes(folder, animal, day, num_files, num_files_b, numplanes_useful, False)
     except Exception as e:
@@ -100,17 +108,18 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
         err_file.close()
         sys.exit('Error in analyze raw')
         
-    try:  
-        put_together(folder, animal, day, len_base, len_bmi, numplanes_useful, numplanes_tot)
-    except Exception as e:
-        tb = sys.exc_info()[2]
-        err_file.write("\n{}\n".format(folder_path))
-        err_file.write("{}\n".format(str(e.args)))
-        traceback.print_tb(tb, file=err_file)
-        err_file.close()
-        sys.exit('Error in put together')
+#     try:  
+#         put_together(folder, animal, day, len_base, len_bmi, numplanes_useful, numplanes_tot)
+#     except Exception as e:
+#         tb = sys.exc_info()[2]
+#         err_file.write("\n{}\n".format(folder_path))
+#         err_file.write("{}\n".format(str(e.args)))
+#         traceback.print_tb(tb, file=err_file)
+#         err_file.close()
+#         sys.exit('Error in put together')
     
     err_file.close()
+
     return num_files_b, len_base, num_files, len_bmi  
     #return num_files_b, len_base # Separates base only delete later
     
@@ -167,6 +176,8 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
+            if not os.path.exists(fpath + str(plane) + '/'):
+                os.makedirs(fpath + str(plane) + '/')
             imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]]))
             plt.imshow(imgtosave)
             plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
@@ -267,6 +278,8 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
                 
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
+            if not os.path.exists(fpath + str(plane) + '/'):
+                os.makedirs(fpath + str(plane) + '/')
             imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]]))
             plt.imshow(imgtosave)
             plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
@@ -377,7 +390,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
     if not os.path.exists(folder_dest_anal):
-        os.makedirs(folder_dest)
+        os.makedirs(folder_dest_anal)
     
     # Load information
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
@@ -398,9 +411,14 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         bdim = int(np.sqrt(auxb.shape[0]))  
         base_im = np.transpose(np.reshape(auxb, [bdim,bdim])) 
         fred = folder_path + 'red' + str(plane) + '.tif'
-        red_im = tifffile.imread(fred)  
+        red_im = tifffile.imread(fred)
+        auxdff = np.asarray(f['dff'])
+        auxC = np.asarray(f['C'])
+        if np.nansum(auxdff) == 0:
+            auxdff = auxC * np.nan
+ 
         if plane == 0:
-            all_dff = np.asarray(f['dff'])
+            all_dff = auxdff
             all_C = np.asarray(f['C'])
             all_com = np.asarray(f['com'])
             com_list.append(np.asarray(f['com']))
@@ -410,7 +428,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
             all_neuron_act = np.asarray(f['neuron_act'])
             all_red_im = np.ones((red_im.shape[0], red_im.shape[1], number_planes)) *np.nan 
         else:
-            all_dff = np.concatenate((all_dff, np.asarray(f['dff'])), 0)
+            all_dff = np.concatenate((all_dff, auxdff), 0)
             all_C = np.concatenate((all_C, np.asarray(f['C'])), 0)
             all_com = np.concatenate((all_com, np.asarray(f['com'])))
             com_list.append(np.asarray(f['com']))
@@ -430,17 +448,16 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
     all_com += auxZ
     
-    #load red images
-    
     
     # separates "real" neurons from dendrites
     nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
     
     # obtain the real position of components A
     Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
-    dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), Asparse.shape[1]]
-    Afull = np.reshape(A.toarray(),dims)
-    new_com = obtain_real_com(fanal, Afull, all_com)
+    dims = all_neuron_shape.shape  
+    dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), all_neuron_shape.shape[1]]
+    Afull = np.reshape(all_neuron_shape.toarray(),dims)
+    new_com = obtain_real_com(fanal, Afull, all_com, nerden)
     
     # sanity check of the neuron's quality
     plot_Cs(fanal, all_C, nerden)
@@ -465,37 +482,45 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     else:
         miss = []
     # to remove false end of trials
-    ind = 0
-    while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
-        tokeep = np.ones(trial_end.shape[0]).astype('bool')
-        if (trial_end[ind] - trial_start[ind]) < 0 :            
-            hitloc = np.where(trial_end[ind]==hits)[0]
-            misloc = np.where(trial_end[ind]==miss)[0]
-            if len(hitloc) > 0:
-                hits[hitloc[0]] = np.nan
-            if len(misloc) > 0:
-                miss[misloc[0]] = np.nan
-            tokeep[ind]=False
-            trial_end = trial_end[tokeep]
-        else:
-            ind += 1
-
-    # to remove trials that ended in the same frame as they started
-    tokeep = np.ones(trial_start.shape[0]).astype('bool')
-    for ind in  np.arange(trial_start.shape[0]):
-        if (trial_end[ind] - trial_start[ind]) == 0 :
-            tokeep[ind]=False
-            hitloc = np.where(trial_end[ind]==hits)[0]
-            misloc = np.where(trial_end[ind]==miss)[0]
-            if len(hitloc) > 0:
-                hits[hitloc[0]] = np.nan
-            if len(misloc) > 0:
-                miss[misloc[0]] = np.nan
+    if trial_end.shape[0] > trial_start.shape[0]:
+        ind = 0
+        while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
+            tokeep = np.ones(trial_end.shape[0]).astype('bool')
+            if trial_end.shape[0] < trial_start.shape[0]:
+                trial_start = trial_start[:trial_end.shape[0]]
+            elif (trial_end[ind] - trial_start[ind]) < 0 :            
+                hitloc = np.where(trial_end[ind]==hits)[0]
+                misloc = np.where(trial_end[ind]==miss)[0]
+                if len(hitloc) > 0:
+                    hits[hitloc[0]] = np.nan
+                if len(misloc) > 0:
+                    miss[misloc[0]] = np.nan
+                tokeep[ind]=False
+                trial_end = trial_end[tokeep]
+            else:
+                ind += 1
     
-    hits = hits[~np.isnan(hits)]
-    miss = miss[~np.isnan(miss)]   
-    trial_end = trial_end[tokeep]
-    trial_start = trial_start[tokeep]
+        # to remove trials that ended in the same frame as they started
+        tokeep = np.ones(trial_start.shape[0]).astype('bool')
+        for ind in  np.arange(trial_start.shape[0]):
+            if (trial_end[ind] - trial_start[ind]) == 0 :
+                tokeep[ind]=False
+                hitloc = np.where(trial_end[ind]==hits)[0]
+                misloc = np.where(trial_end[ind]==miss)[0]
+                if len(hitloc) > 0:
+                    hits[hitloc[0]] = np.nan
+                if len(misloc) > 0:
+                    miss[misloc[0]] = np.nan
+        
+        hits = hits[~np.isnan(hits)]
+        miss = miss[~np.isnan(miss)]   
+        trial_end = trial_end[tokeep]
+        trial_start = trial_start[tokeep]
+    elif trial_end.shape[0] < trial_start.shape[0]:
+        trial_start = trial_start[:trial_end.shape[0]]
+            
+
+            
     # preparing the arrays (number of trial for hits/miss)
     array_t1 = np.zeros(hits.shape[0], dtype=int)
     array_miss = np.zeros(miss.shape[0], dtype=int)
@@ -505,19 +530,23 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, com_list, new_com, all_red_im, number_planes)*nerden
+    redlabel = red_channel(red, com_list, new_com, all_red_im, fanal, number_planes)*nerden
+    redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
     frequency = obtainfreq(matinfo['frequency'][0], len_bmi)
     
     # sanity checks
     if toplot:
+        plt.figure()
         plt.plot(np.nanmean(dff,0))
         plt.title('DFFs')
-        plt.savefig(folder_dest_anal + animal + '_' + day + 'dff.png', bbox_inches="tight")
+        plt.savefig(folder_dest_anal + animal + '_' + day + '_dff.png', bbox_inches="tight")
+        plt.figure()
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
-        plt.savefig(folder_dest_anal + animal + '_' + day + 'cursor.png', bbox_inches="tight")
+        plt.savefig(folder_dest_anal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
+        plt.close('all')
 
 
 
@@ -538,7 +567,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     gall.attrs['shape'] = Asparse.shape
     fall.create_dataset('neuron_act', data = all_neuron_act)
     fall.create_dataset('base_im', data = all_base_im)
-    fall.create_dataset('red_im', data = red_im)
+    fall.create_dataset('red_im', data = all_red_im)
     fall.create_dataset('online_data', data = online_data)
     fall.create_dataset('ens_neur', data = ens_neur)    
     fall.create_dataset('trial_end', data = trial_end)
@@ -555,9 +584,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     
     fall.close()
 
-    
 
-def red_channel(red, com_list, new_com, all_red_im, folder_path, number_planes=4, maxdist=6):  
+def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
     #function to identify red neurons
     all_red = []
     ind_neur = 0
@@ -598,7 +626,7 @@ def red_channel(red, com_list, new_com, all_red_im, folder_path, number_planes=4
             auxlocy = auxtoplot[ind,0].astype('int')
             toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
         ax2.imshow(red_im + toplot, vmax=np.nanmax(red_im))
-        plt.savefig(folder_path + 'analysis/' + str(plane) + '/redneurmask.png', bbox_inches="tight")
+        plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
         plt.close("all")     
         
     all_red = np.concatenate(all_red)
@@ -619,9 +647,9 @@ def neurons_vs_dend(A, tol=0.1, minsize=25):
 
 def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, thres=0.1):
     #function to obtain the real values of com
-    folder_path = fanal + 'Aplot/'
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    faplot = fanal + 'Aplot/'
+    if not os.path.exists(faplot):
+        os.makedirs(faplot)
     new_com = np.zeros((Afull.shape[2], 3))
     for neur in np.arange(Afull.shape[2]):
         if nerden[neur]:
@@ -659,7 +687,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
         ax2.imshow(np.transpose(img>thres))
         ax1.set_xlabel('neuron: ' + str(neur))
         ax2.set_xlabel('nd: ' + str(nerden[neur]))
-        plt.savefig(folder_path + str(neur) + '.png', bbox_inches="tight")
+        plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
         plt.close('all')
         
     return new_com
@@ -677,7 +705,9 @@ def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, num
         for non in np.arange(units): 
             ens = (online_data.keys())[2+non]
             frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base -1
-            neurcor[non, npro] = pd.DataFrame(np.transpose([dff[npro,frames], np.asarray(online_data[ens])])).corr()[0][1]
+            auxonline = np.asarray(online_data[ens])
+            auxdff = dff[npro,frames]
+            neurcor[non, npro] = pd.DataFrame(np.transpose([auxdff[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
     
     neurcor[neurcor<cormin] = np.nan    
     auxneur = copy.deepcopy(neurcor)
@@ -686,14 +716,15 @@ def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, num
     for un in np.arange(units):
         print(['finding neuron: ' + str(un)])
         tol = auxtol
-        centermass = np.reshape(np.asarray(scipy.ndimage.measurements.center_of_mass(mask[:,:, un])),[1,2])
+        auxcentermass = np.asarray(scipy.ndimage.measurements.center_of_mass(mask[:,:, un]))
+        centermass = np.reshape([auxcentermass[1], auxcentermass[0]],[1,2])
         not_good_enough = True
         while not_good_enough:
             if np.nansum(neurcor[un,:]) != 0:
                 if np.nansum(np.abs(neurcor[un, :])) > 0 :
                     maxcor = np.nanmax(neurcor[un, :])
                     indx = np.where(neurcor[un, :]==maxcor)[0][0]
-                    auxcom = np.reshape([com[indx,1], com[indx,0]], [1,2])
+                    auxcom = np.reshape(com[indx,:2], [1,2])
                     dist = scipy.spatial.distance.cdist(centermass, auxcom)[0][0]
                     not_good_enough =  dist > tol
     
@@ -720,7 +751,7 @@ def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, num
 
                 
         auxp = com[finalneur[un].astype(int),:2].astype(int)
-        pmask[auxp[0], auxp[1]] = 2   #to detect
+        pmask[auxp[1], auxp[0]] = 2   #to detect
     
     print('Correlated with value', str(finalcorr) )
     plt.figure()
@@ -762,7 +793,7 @@ def plot_Cs(fanal, C, nerden):
     folder_path = fanal + '/Cplot/'
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-    for ind in np.arange(C.shape[0])
+    for ind in np.arange(C.shape[0]):
         fig1 = plt.figure(figsize=(12,6))
         ax1 = fig1.add_subplot(121)
         ax1.plot(C[ind,:])
@@ -770,6 +801,7 @@ def plot_Cs(fanal, C, nerden):
         ax2.plot(C[ind,1000:2000])
         ax2.set_xlabel(str(nerden[ind]))
         fig1.savefig(folder_path + str(ind) + '.png', bbox_inches="tight")
+        plt.close('all')
 
 
 def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, save_results=False):
@@ -953,6 +985,7 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
         F_dff = detrend_df_f(cnm2.estimates.A, cnm2.estimates.b, cnm2.estimates.C, cnm2.estimates.f, YrA=cnm2.estimates.YrA, quantileMin=8, frames_window=250)
         #F_dff = detrend_df_f(cnm.A, cnm.b, cnm.C, cnm.f, YrA=cnm.YrA, quantileMin=8, frames_window=250)
     except:
+        F_dff = cnm2.estimates.C * np.nan
         print ('WHAAT went wrong again?')
     
     
@@ -990,7 +1023,7 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
             auxcom = cm.base.rois.com(cnm2.estimates.A,dims[0],dims[1])
             zy = np.zeros((auxcom.shape[0],1))
             for y in np.arange(auxcom.shape[0]):
-                zy[y,0] = z[int(auxcom[y,1])]
+                zy[y,0] = z[int(auxcom[y,0])]
             com = np.concatenate((auxcom, zy),1)
         else:
             print('WARNING: Z value was not correctly defined, only X and Y values on file, z==zeros')
