@@ -1,0 +1,61 @@
+FROM ubuntu:xenial
+
+# Set the working directory to /app
+# Add the following to your .bashrc and source
+export GTE=/path/to/te-causality
+
+# Install build system and Boost library
+sudo apt-get update \
+    && apt-get install --yes wget build-essential gcc-multilib libboost-all-dev
+
+# Install GSL
+sudo wget -O gsl.tgz http://ftp.gnu.org/gnu/gsl/gsl-1.16.tar.gz \
+    && tar -zxf gsl.tgz \
+    && mkdir gsl \
+    && cd gsl-1.16 \
+    && ./configure --prefix=$GTE/gsl \
+    && make \
+    && sudo make install 
+
+# Add the following to your .bashrc and source
+export LIBRARY_PATH=$GTE/gsl/lib/
+export CPLUS_INCLUDE_PATH=$GTE/gsl/include/
+
+# Install SimKernel
+sudo apt-get install --yes unzip \
+    && wget -O simkernel.zip http://github.com/ChristophKirst/SimKernel/archive/master.zip \
+    && unzip simkernel.zip \
+    && cd SimKernel-master \
+    && make \
+    && sudo make install
+
+# Change the previous line in your .bashrc to the following. Re-source.
+export LIBRARY_PATH=$GTE/gsl/lib/:$GTE/SimKernel-master/lib/
+
+# Install yaml-cpp
+sudo apt-get install --yes cmake \
+    && wget -O yaml-cpp.zip https://github.com/jbeder/yaml-cpp/archive/release-0.5.3.zip \
+    && unzip yaml-cpp.zip \
+    && cd yaml-cpp-release-0.5.3 \
+    && mkdir build \
+    && cd build \
+    && cmake .. \
+    && make
+
+# Change the previous line in your .bashrc to the following. Re-source.
+export LIBRARY_PATH=$GTE/gsl/lib/:$GTE/SimKernel-master/lib/:$GTE/yaml-cpp-release-0.5.3/build/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GTE/gsl/lib/:$GTE/SimKernel-master/lib/:$GTE/yaml-cpp-release-0.5.3/build/
+export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:$GTE/gsl/include/:$GTE/gsl/lib/:$GTE/yaml-cpp-release-0.5.3/include/
+
+# Install Ruby and Rake
+sudo apt-get install --yes ruby \
+    && sudo gem install rake
+
+# Build te-causality binaries
+cd $GTE
+cd transferentropy-sim \
+    && rake te-extended test
+
+# By default, only execute tests and exit
+./test
+
