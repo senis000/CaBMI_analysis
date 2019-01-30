@@ -1,5 +1,4 @@
 # CaBMI_analysis
-================
 
 ## Dependencies
 To use [generalized transfer entropy](https://github.com/olavolav/te-causality), follow the setup instructions in `GTE_Setup.md`
