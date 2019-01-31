@@ -1,4 +1,3 @@
-
 #*************************************************************************
 #*****************************ALL TOGETHER********************************
 #*************************************************************************
@@ -19,8 +18,8 @@ import analysis_cabmi as acb
 
 
 
-def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36000, len_days=20, smoth=1, min_bin=5, trials=150):
-    
+def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='',
+        maxf=36000, len_days=20, smoth=1, min_bin=5, trials=150):
     fpath = folder +  'raw/' + animal + '/'
     folder_anal = folder +  'analysis/learning/' 
     
@@ -31,7 +30,9 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
         for dd, day in enumerate(os.listdir(fpath)):
             
             if flag_init:
-                f = h5py.File(folder_path + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'r') 
+                f = h5py.File(folder_path + 'full_' + animal + '_' + day + '_' +
+                    sec_var + '_data.hdf5', 'r'
+                    ) 
                 fr = f['fr']
                 f.close()
                 bins = np.arange(0, maxf/fr, 60)
@@ -47,18 +48,6 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
                 hpm_all[aa, dd, :] = hpm
                 tth_all[aa, dd, :] = tth
                 
-#     bins = np.reshape(bins, [1, bins.shape[0]])
-#     tt = np.reshape(np.repeat(bins, len(animals), 0), bins.shape[1]*len(animals))
-#     
-#     fig1 = plt.figure()
-#     ax1 = fig1.add_subplot(121)
-#     ax1.plot(np.nanmean(hpm,0))
-#     
-#     ax1.set_xlabel('hits per min')
-#     ax2 = fig1.add_subplot(122)
-#     sns.regplot(tt, np.reshape(hpm_all, np.prod(hpm_all.shape)), x_estimator=np.nanmean, x_bins=20)
-    
-    
     fig1 = plt.figure(figsize=(18, 5))
     bx = fig1.add_subplot(131)
     # make up of figure
@@ -71,10 +60,14 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
     bx.set_ylabel('percentage correct', fontsize=16)
     # end of figure makeup
     if smoth == 1:
-        bx.errorbar(np.arange(1, len_days + 1), np.nanmean(pc_all, 0), yerr=pd.DataFrame(pc_all).sem(0).values, color='k')
+        bx.errorbar(np.arange(1, len_days + 1), np.nanmean(pc_all, 0),
+            yerr=pd.DataFrame(pc_all).sem(0).values, color='k'
+            )
     else:
-        bx.errorbar(np.arange(1, len_days + 1), sliding_mean(np.nanmean(pc_all, 0), smoth),
-                    yerr=pd.DataFrame(pc_all).sem(0).values, color='k')
+        bx.errorbar(np.arange(1, len_days + 1),
+            sliding_mean(np.nanmean(pc_all, 0), smoth),
+            yerr=pd.DataFrame(pc_all).sem(0).values, color='k'
+            )
 
     bx0 = fig1.add_subplot(132)
     # make up of figure
@@ -88,11 +81,15 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
     # end of figure makeup
     aux_hpm = np.nanmean(hpm_all, 2)
     if smoth == 1:
-        bx0.errorbar(np.arange(1, len_days + 1), np.nanmean(aux_hpm, 0), yerr=pd.DataFrame(aux_hpm).sem(0).values, color='k')
+        bx0.errorbar(np.arange(1, len_days + 1),
+            np.nanmean(aux_hpm, 0), yerr=pd.DataFrame(aux_hpm).sem(0).values,
+            color='k'
+            )
     else:
-        bx0.errorbar(np.arange(1, len_days + 1), ut.sliding_mean(np.nanmean(aux_hpm, 0), smoth),
-                     yerr=pd.DataFrame(aux_hpm).sem(0).values, color='k')
-
+        bx0.errorbar(np.arange(1, len_days + 1),
+            ut.sliding_mean(np.nanmean(aux_hpm, 0), smoth),
+            yerr=pd.DataFrame(aux_hpm).sem(0).values, color='k'
+            )
 
     bx1 = fig1.add_subplot(133)
     # make up of figure
@@ -104,19 +101,38 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
     bx1.set_xlabel('Time in session (min)', fontsize=16)
     bx1.set_ylabel('Hits/min', fontsize=16)
     # end of figure makeup
-    aux_tothpm = np.reshape(hpm_all, [hpm_all.shape[0]*hpm_all.shape[1], hpm_all.shape[2]])
-    _, p_value = stats.ttest_ind(np.reshape(aux_tothpm[:, :min_bin], aux_tothpm.shape[0]*min_bin),
-                                 np.reshape(aux_tothpm[:, -min_bin:], aux_tothpm.shape[0]*min_bin), nan_policy='omit')
+    aux_tothpm = np.reshape(hpm_all, [hpm_all.shape[0]*hpm_all.shape[1],
+        hpm_all.shape[2]]
+        )
+    _, p_value = stats.ttest_ind(
+        np.reshape(aux_tothpm[:, :min_bin],
+        aux_tothpm.shape[0]*min_bin),
+        np.reshape(aux_tothpm[:, -min_bin:], aux_tothpm.shape[0]*min_bin),
+        nan_policy='omit'
+        )
     p = calc_pvalue(p_value)
-    bx1.errorbar(np.arange(maxf/fr), np.nanmean(aux_tothpm, 0), yerr=pd.DataFrame(aux_tothpm).sem(0).values, color='k')
-    # pdb.set_trace()  # for debugging purpose
+    bx1.errorbar(np.arange(maxf/fr), np.nanmean(aux_tothpm, 0),
+        yerr=pd.DataFrame(aux_tothpm).sem(0).values, color='k'
+        )
 
     bx1.text(len_exper/2, 1.2, p, color='grey', alpha=0.6)
-    bx1.axhline(y=1.3, xmin=0, xmax=1/maxf/fr*min_bin, c='grey', linewidth=0.5, alpha=0.5)
-    bx1.axhline(y=1.3, xmin=1-1/maxf/fr*min_bin, xmax=1, c='grey', linewidth=0.5, alpha=0.5)
-    bx1.axhline(y=1.2, xmin=1/maxf/fr*min_bin/2, xmax=1-1/maxf/fr*min_bin/2, c='grey', linewidth=0.5, alpha=0.5)
+    bx1.axhline(
+        y=1.3, xmin=0, xmax=1/maxf/fr*min_bin,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
+    bx1.axhline(
+        y=1.3, xmin=1-1/maxf/fr*min_bin, xmax=1,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
+    bx1.axhline(
+        y=1.2, xmin=1/maxf/fr*min_bin/2, xmax=1-1/maxf/fr*min_bin/2,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
     fig1.savefig(folder_path + 'percent_correct_min.png', bbox_inches="tight")
-    fig1.savefig(folder_path + 'percent_correct_min.eps', format='eps', bbox_inches="tight")
+    fig1.savefig(
+        folder_path + 'percent_correct_min.eps', format='eps',
+        bbox_inches="tight"
+        )
 
     fig2 = plt.figure(figsize=(18, 5))
     bx2 = fig2.add_subplot(131)
@@ -132,17 +148,31 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
     aux_tit = np.nanmean(tth_all, 2)
 
     if smoth == 1:
-        bx2.errorbar(np.arange(1, len_days + 1), np.nanmean(aux_tit, 0), yerr=pd.DataFrame(aux_tit).sem(0).values, color='k')
+        bx2.errorbar(
+            np.arange(1, len_days + 1), np.nanmean(aux_tit, 0),
+            yerr=pd.DataFrame(aux_tit).sem(0).values, color='k'
+            )
     else:
-        bx2.errorbar(np.arange(1, len_days + 1), ut.sliding_mean(np.nanmean(aux_tit, 0), smoth),
-                     yerr=pd.DataFrame(aux_tit).sem(0).values, color='k')
-    # pdb.set_trace()  # for debugging purpose
+        bx2.errorbar(
+            np.arange(1, len_days + 1),
+            ut.sliding_mean(np.nanmean(aux_tit, 0), smoth),
+            yerr=pd.DataFrame(aux_tit).sem(0).values, color='k'
+            )
     _, p_value = stats.ttest_ind(aux_tit[:, 0], aux_tit[:, -1], nan_policy='omit')
     p = ut.calc_pvalue(p_value)
     bx2.text(len_days/2, 5, p, color='grey', alpha=0.6)
-    bx2.axhline(y=5, xmin=0, xmax=1/len_exper*min_bin, c='grey', linewidth=0.5, alpha=0.5)
-    bx2.axhline(y=5, xmin=1-1/len_days, xmax=1, c='grey', linewidth=0.5, alpha=0.5)
-    bx2.axhline(y=4.9, xmin=1/len_days, xmax=1-1/len_exper*min_bin/2, c='grey', linewidth=0.5, alpha=0.5)
+    bx2.axhline(
+        y=5, xmin=0, xmax=1/len_exper*min_bin,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
+    bx2.axhline(
+        y=5, xmin=1-1/len_days, xmax=1,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
+    bx2.axhline(
+        y=4.9, xmin=1/len_days, xmax=1-1/len_exper*min_bin/2,
+        c='grey', linewidth=0.5, alpha=0.5
+        )
 
     bx3 = fig2.add_subplot(132)
     # make up of figure
@@ -157,10 +187,16 @@ def all_learning(folder, animals=['GCP1', 'GCP2'], var='PT', sec_var='', maxf=36
     aux_timhit = np.reshape(tth_all, [len_days*len(animals), trials])
     sm_auxtim = ut.sliding_mean(np.nanmean(aux_timhit, 0), window=3)
     sm_error = ut.sliding_mean(pd.DataFrame(aux_timhit).sem(0).values, window=3)
-    bx3.fill_between(np.arange(trials), sm_auxtim - sm_error, sm_auxtim + sm_error, color="lightgrey", alpha=0.7)
+    bx3.fill_between(
+        np.arange(trials), sm_auxtim - sm_error, sm_auxtim + sm_error,
+        color="lightgrey", alpha=0.7
+        )
     bx3.plot(np.arange(trials), sm_auxtim, linewidth=2, c="k")
-    _, p_value = stats.ttest_ind(np.reshape(aux_timhit[:, :int(trials/5)], aux_timhit.shape[0]*int(trials/5)),
-                                 np.reshape(aux_timhit[:, int(4*trials/5):], aux_timhit.shape[0]*int(trials/5)), nan_policy='omit')
+    _, p_value = stats.ttest_ind(
+        np.reshape(aux_timhit[:, :int(trials/5)], aux_timhit.shape[0]*int(trials/5)),
+        np.reshape(aux_timhit[:, int(4*trials/5):], aux_timhit.shape[0]*int(trials/5)),
+        nan_policy='omit'
+        )
     p = ut.calc_pvalue(p_value)
     bx3.text(50, 4.9, p, color='grey', alpha=0.6)
     bx3.axhline(y=4.9, xmin=0, xmax=0.2, c='grey', linewidth=0.5, alpha=0.5)
@@ -195,6 +231,7 @@ def all_tuning(folder, animals=['GCP1', 'GCP2'], sec_var='', len_days=20):
     
     for aa, animal in enumerate(animals):
         for dd, day in np.arange(len_days):
-            f = h5py.File(folder_dest + 'tunning_' + animal + '_' + day + '_' + sec_var + '_freq.hdf5', 'w-')
-            
-
+            f = h5py.File(
+                folder_dest + 'tunning_' + animal + '_' + day + '_' +
+                sec_var + '_freq.hdf5', 'w-'
+                )
