@@ -606,31 +606,31 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     except IOError:
         print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
         
-    fall.create_dataset('dff', data = all_dff)
-    fall.create_dataset('C', data = all_C)
-    fall.create_dataset('com_cm', data = all_com)
-    fall.attrs['blen'] = len_base
-    gall = fall.create_group('Nsparse')
-    gall.create_dataset('data', data = Asparse.data)
-    gall.create_dataset('indptr', data = Asparse.indptr)
-    gall.create_dataset('indices', data = Asparse.indices)
-    gall.attrs['shape'] = Asparse.shape
-    fall.create_dataset('neuron_act', data = all_neuron_act)
-    fall.create_dataset('base_im', data = all_base_im)
-    fall.create_dataset('red_im', data = all_red_im)
-    fall.create_dataset('online_data', data = online_data)
-    fall.create_dataset('ens_neur', data = ens_neur)    
-    fall.create_dataset('trial_end', data = trial_end)
-    fall.create_dataset('trial_start', data = trial_start)
-    fall.attrs['fr'] =  matinfo['fr'][0][0]
-    fall.create_dataset('redlabel', data = redlabel)
-    fall.create_dataset('nerden', data = nerden)
-    fall.create_dataset('hits', data = hits)
-    fall.create_dataset('miss', data = miss)
-    fall.create_dataset('array_t1', data = array_t1)
-    fall.create_dataset('array_miss', data = array_miss)
-    fall.create_dataset('cursor', data = matinfo['cursor'][0])
-    fall.create_dataset('freq', data = frequency)
+    fall.create_dataset('dff', data = all_dff) # (array) (Ft - Fo)/Fo . Increment of fluorescence
+    fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
+    fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
+    fall.attrs['blen'] = len_base # (int) lenght of the baseline
+    gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
+    gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
+    gall.create_dataset('indptr', data = Asparse.indptr) # (part of the sparse matrix)
+    gall.create_dataset('indices', data = Asparse.indices) # (part of the sparse matrix)
+    gall.attrs['shape'] = Asparse.shape # (part of the sparse matrix)
+    fall.create_dataset('neuron_act', data = all_neuron_act) # (array) Spike activity (S in caiman)
+    fall.create_dataset('base_im', data = all_base_im) # (array) matrix with all the average image of the baseline for each plane
+    fall.create_dataset('red_im', data = all_red_im) # (array) matrix with all the imagesfrom the red chanel for each plane
+    fall.create_dataset('online_data', data = online_data) # (array) Online recordings of the BMI
+    fall.create_dataset('ens_neur', data = ens_neur) # (array) Index of the ensemble neurons among the rest of components
+    fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
+    fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
+    fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
+    fall.create_dataset('redlabel', data = redlabel) # (array-bool) True labels neurons as red
+    fall.create_dataset('nerden', data = nerden) # (array-bool) True labels components as neurons
+    fall.create_dataset('hits', data = hits) # (array) When the animal hit the target 
+    fall.create_dataset('miss', data = miss) # (array) When the animal miss the target
+    fall.create_dataset('array_t1', data = array_t1) # (array) index of the trials that ended in hit
+    fall.create_dataset('array_miss', data = array_miss) # (array) Index of the trials that ended in miss
+    fall.create_dataset('cursor', data = matinfo['cursor'][0]) # (array) Online cursor of the BMI
+    fall.create_dataset('freq', data = frequency) # (array) Frenquency resulting of the online cursor.
     
     fall.close()
 
