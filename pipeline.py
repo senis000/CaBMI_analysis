@@ -66,7 +66,15 @@ import sys, traceback
 interactive(True)
 
 
-def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
+def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
+    """ 
+    Function to run all the different functions of the pipeline that gives back the analyzed data
+    Folder (str): folder where the input/output is/will be stored
+    animal/day (str) to be analyzed
+    number_planes (int): number of planes that carry information
+    number_planes_total (int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen"""
+    
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
@@ -79,8 +87,8 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
     fbase = [folder_path + matinfo['fbase'][0]] 
     
     try:
-        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', numplanes_useful, numplanes_tot)
-        num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', numplanes_useful, numplanes_tot)
+        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes, number_planes_total)
+        num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
     except Exception as e:
         tb = sys.exc_info()[2]
         err_file.write("\n{}\n".format(folder_path))
@@ -99,7 +107,7 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
     readme.close()
        
     try:
-        analyze_raw_planes(folder, animal, day, num_files, num_files_b, numplanes_useful, False)
+        analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes, False)
     except Exception as e:
         tb = sys.exc_info()[2]
         err_file.write("\n{}\n".format(folder_path))
@@ -109,7 +117,7 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
         sys.exit('Error in analyze raw')
         
 #     try:  
-#         put_together(folder, animal, day, len_base, len_bmi, numplanes_useful, numplanes_tot)
+#         put_together(folder, animal, day, len_base, len_bmi, number_planes, number_planes_total)
 #     except Exception as e:
 #         tb = sys.exc_info()[2]
 #         err_file.write("\n{}\n".format(folder_path))
@@ -119,116 +127,23 @@ def all_run(folder, animal, day, numplanes_useful=4, numplanes_tot=6):
 #         sys.exit('Error in put together')
     
     err_file.close()
-
-    return num_files_b, len_base, num_files, len_bmi  
-    #return num_files_b, len_base # Separates base only delete later
     
-def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, number_planes_total=6, order='F',
-                    lim_bf=None):
-    # function to separate a layered TIFF (tif generated with different layers info), optimized with lazy loading
-    folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
-    fpath = folder + 'raw/' + animal + '/' + day + '/analysis/'
 
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-
-    if not os.path.exists(fpath):
-        os.makedirs(fpath)
-
-    err_file = open("errlog.txt", 'a+')  # ERROR HANDLING
-    try:
-        print("Trying to swapoff")
-        os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')
-        print("SUCCESS")
-    except Exception as e:
-        print("Swap Off Failed!", str(e.args))
-
-    # create the swap to be able to allocate the file in memory
-    print('Swapping on')
-    os.system('swapon /home/lab/Nuria/Swap/swapfile.img')
-    # load the big file we will need to separate
-    print('loading image...')
-    ims = tifffile.TiffFile(ffull[0]).pages
-    dims = [len(ims)] + list(ims[0].shape)  # COULD DIRECTLY USE METADATA FROM SCANIMAGE, BUT THIS IS SAFER
-    print('Image loaded')
-    len_im = int(dims[0] / number_planes_total)
-    lim_bf = len_im
-    num_files = 1
-
-    for plane in np.arange(number_planes):
-        len_im = int(dims[0] / number_planes_total)
-        print('length of tiff is: ' + str(len_im) + ' volumes')
-        for nf in np.arange(num_files):
-            # create the mmap file
-            fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) + '.mmap'
-            if len_im > lim_bf:
-                auxlen = lim_bf
-                len_im -= lim_bf
-            else:
-                auxlen = len_im
-            big_file = np.memmap(fnamemm, mode='w+', dtype=np.int16, shape=(np.prod(dims[1:]), auxlen), order=order)
-
-            # fill the mmap file
-            for ind in np.arange(auxlen):
-                new_img = ims.pages[int((ind + lim_bf * nf) * number_planes_total + plane)].asarray()
-                big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
-
-            # to plot the image before closing big_file (as a checkup that everything went smoothly)
-            if not os.path.exists(fpath + str(plane) + '/'):
-                os.makedirs(fpath + str(plane) + '/')
-            imgtosave = np.transpose(np.reshape(np.nanmean(big_file, 1), [dims[1], dims[2]]))
-            plt.imshow(imgtosave)
-            plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
-            plt.close()
-
-            big_file.flush()
-            del big_file
-
-    # clean memory
-    del ims
-
-    # save the mmaps as tiff-files for caiman
-    for plane in np.arange(number_planes):
-        len_im = int(dims[0] / number_planes_total)
-        print('saving a  tiff of: ' + str(len_im) + ' volumes')
-        for nf in np.arange(num_files):
-            fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) + '.mmap'
-            fnametiff = folder_path + var + '_plane_' + str(plane) + '_nf_' + str(nf) + '.tiff'
-            if len_im > lim_bf:
-                auxlen = lim_bf
-                len_im -= lim_bf
-            else:
-                auxlen = len_im
-
-            big_file = np.memmap(fnamemm, mode='r', dtype=np.int16, shape=(np.prod(dims[1:]), auxlen), order=order)
-            img_tosave = np.transpose(np.reshape(big_file, [dims[1], dims[2], int(auxlen)]))
-            io.imsave(fnametiff, img_tosave, plugin='tifffile')  # saves each plane different tiff
-            del big_file
-            del img_tosave
-            try:
-                os.remove(fnamemm)
-            except OSError as e:  ## if failed, report it back to the user ##
-                print("Error: %s - %s." % (e.filename, e.strerror))
-
-    len_im = int(dims[0] / number_planes_total)
-
-    try:
-        print('Swapping off')
-        os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')
-    except Exception as e:
-        print('Error swapping off')
-        tb = sys.exc_info()[2]
-        err_file.write("\n{}\n".format(folder_path))
-        err_file.write("{}\n".format(str(e.args)))
-        traceback.print_tb(tb, file=err_file)
-        err_file.close()
-        sys.exit()
-    err_file.close()
-
-    return num_files, len_im
-
-
-def separate_planes_old(folder, animal, day, ffull, var='bmi', number_planes=4, number_planes_total=6, order='F', lim_bf=9000):
+def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, number_planes_total=6, order='F', lim_bf=9000):
+    """
+    Function to separate the different planes in the bigtiff file given by the recording system.
+    TO BECOME OBSOLETE
+    Folder (str): folder where the input/output is/will be stored
+    animal/day (str) to be analyzed
+    ffull (str): address of the file where the bigtiff is stored
+    var(str): variable to specify if performing BMI or baseline
+    number_planes(int): number of planes that carry information
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen
+    order(str): order to stablish the memmap C/F
+    lim_bf (int): limit of frames per split to avoid saving big tiff files"""
+    
+    
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'  
     fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
@@ -247,16 +162,13 @@ def separate_planes_old(folder, animal, day, ffull, var='bmi', number_planes=4, 
     except Exception as e:
         print("Swap Off Failed!", str(e.args))
     
-
-
-    
     # create the swap to be able to allocate the file in memory
     print('Swapping on')
     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
     print('loading image...')
-    im = tifffile.imread(ffull[0])
-    dims = im.shape
+    ims = tifffile.TiffFile(ffull[0]).pages
+    dims = [len(ims)] + list(ims[0].shape)  
     print('Image loaded')
     len_im = int(dims[0]/number_planes_total)
     num_files = int(np.ceil(len_im/lim_bf))
@@ -276,13 +188,13 @@ def separate_planes_old(folder, animal, day, ffull, var='bmi', number_planes=4, 
                 
             # fill the mmap file
             for ind in np.arange(auxlen):
-                new_img = im[int((ind + lim_bf*nf)*number_planes_total + plane), :, :]
+                new_img = ims.pages[int((ind + lim_bf*nf)*number_planes_total + plane), :, :].asarray()
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
             if not os.path.exists(fpath + str(plane) + '/'):
                 os.makedirs(fpath + str(plane) + '/')
-            imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]]))
+            imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]])) # careful here if the big_file is too big to average
             plt.imshow(imgtosave)
             plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
             plt.close()
@@ -336,6 +248,22 @@ def separate_planes_old(folder, animal, day, ffull, var='bmi', number_planes=4, 
 
 
 def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='baseline', number_planes=4, number_planes_total=6, order='F', lim_bf=10000):
+    """
+    Function to separate the different planes in the bigtiff file given by the recording system WHEN there is more than one baseline file.
+    TO BECOME OBSOLETE
+    Folder (str): folder where the input/output is/will be stored
+    animal/day (str) to be analyzed
+    ffull (str): address of the file where the bigtiff is stored
+    ffull2 (str): address of the  file where the consecutive bigtiff is stored
+    var(str): variable to specify if performing BMI or baseline
+    number_planes(int): number of planes that carry information
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen
+    order(str): order to stablish the memmap C/F
+    lim_bf (int): limit of frames per split to avoid saving big tiff files"""
+
+    
+    
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'       
     fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
@@ -350,15 +278,17 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
     print('loading image...')
-    imb1 = io.imread(ffull[0])
-    imb2 = io.imread(ffull2[0])
-    dims = [imb1.shape[0] + imb2.shape[0], imb1.shape[1], imb1.shape[2]]
+    imb1 = tifffile.TiffFile(ffull[0]).pages
+    imb2 = tifffile.TiffFile(fful2l[0]).pages
     print('Images loaded')
+    dims1 = [len(imb1)] + list(imb1[0].shape)
+    dims2 = [len(imb2)] + list(imb2[0].shape)
+    dims = dims1 + dims2
     len_im = int(dims[0]/number_planes_total)
     num_files = int(np.ceil(len_im/lim_bf))
     
     for plane in np.arange(number_planes):
-        first_images_left = int(imb1.shape[0]/number_planes_total)
+        first_images_left = int(dims1[0]/number_planes_total)
         len_im = int(dims[0]/number_planes_total)
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
@@ -374,10 +304,10 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
             # fill the mmap file
             for ind in np.arange(auxlen):
                 if first_images_left > 0:
-                    new_img = imb1[int(plane+(ind + lim_bf*nf)*number_planes_total), :, :]
+                    new_img = imb1.pages[int(plane+(ind + lim_bf*nf)*number_planes_total), :, :].asarray()
                     first_images_left -= 1
                 else:
-                    new_img = imb2[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total), :, :]
+                    new_img = imb2.pages[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total), :, :].asarray()
                     
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
                 
@@ -426,13 +356,22 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     return num_files, len_im
 
 
-def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4, dend=False, display_images=True, save_results = False):
-    # folder: full address not including project/animal/day
-    # dend: boolean if we are studying dendrites
+def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes=4, dend=False, display_images=True):
+    """
+    Function to analyze every plane and get the result in a hdf5 file. It uses caiman_main
+    Folder(str): folder where the input/output is/will be stored
+    animal/day(str) to be analyzed
+    num_files(int): number of files for the bmi file
+    num_files_b(int): number of files for the baseline file
+    number_planes(int): number of planes that carry information
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen
+    dend(bool): Boleean to change parameters to look for neurons or dendrites
+    display_images(bool): to display and save different plots"""
+
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
     finfo = folder + 'raw/' + animal + '/' + day + '/wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
-    planes_val = np.asarray(matinfo['Zactual'][0])
     initialZ = int(matinfo['initialZ'][0][0])
     fr = matinfo['fr'][0][0]
     
@@ -444,7 +383,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4
     print('*************Starting with analysis*************')
     neuron_mats = []
 
-    for plane in np.arange(num_planes):
+    for plane in np.arange(number_planes):
         dff_all = []
         neuron_act_all = []
         fnames = []
@@ -464,9 +403,9 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4
             print(" OOPS!: The file already existed ease try with another file, new results will NOT be saved")
             continue 
             
-        zval = calculate_zvalues(folder, plane, planes_val)
+        zval = calculate_zvalues(folder, plane)
         print(fnames)
-        dff, com, cnm2 = caiman_main(fpath, fr, fnames, zval, dend, display_images, save_results)
+        dff, com, cnm2 = caiman_main(fpath, fr, fnames, zval, dend, display_images)
         print ('Caiman done: saving ... plane: ' + str(plane) + ' file: ' + str(nf)) 
         
         Asparse = scipy.sparse.csr_matrix(cnm2.estimates.A)
@@ -486,6 +425,18 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, num_planes=4
         
         
 def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
+    """
+    Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
+    Folder(str): folder where the input/output is/will be stored
+    animal/day(str) to be analyzed
+    len_base(int): length of the baseline file (in frames)
+    len_bmi(int): length of the bmi file (in frames)
+    number_planes(int): number of planes that carry information
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen
+    sec_var(str): secondary variable to save file. For extra information
+    toplot(bool): to allow plotting/saving of some results"""
+    
     # Folder to load/save
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_dest = folder + 'processed/' + animal + '/'
@@ -500,7 +451,6 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
     fr = matinfo['fr'][0][0]   
-    planes_val = np.asarray(matinfo['Zplanes'][0])
     folder_red = folder + 'raw/' + animal + '/' + day + '/'
     fmat = folder_red + 'red.mat' 
     redinfo = scipy.io.loadmat(fmat)
@@ -631,8 +581,6 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
-    
-    
     # obtain the neurons label as red (controlling for dendrites)
     redlabel = red_channel(red, com_list, new_com, all_red_im, fanal, number_planes)*nerden
     redlabel[ens_neur.astype('int')] = True    
@@ -651,8 +599,6 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         plt.title('cursor')
         plt.savefig(folder_dest_anal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
         plt.close('all')
-
-
 
     #fill the file with all the correct data!
     try:
@@ -690,6 +636,17 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
 
 
 def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
+    """
+    Function to identify red neurons with components returned by caiman
+    red(array-int): mask of red neurons position for each frame
+    com_list(list): list (number_of planes) of the position of the caiman components
+    all_red_im(array): matrix MxNxplanes: Image of the red channel 
+    fanal(str): folder where to store the analysis sanity check
+    number_planes(int): number of planes that carry information
+    maxdist(int): spatial tolerance to assign red label to a caiman component
+    returns
+    redlabel(array-bool): boolean vector labelling as True the components that are red neurons 
+    """
     #function to identify red neurons
     all_red = []
     ind_neur = 0
@@ -737,19 +694,39 @@ def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxd
     return all_red
 
 
-def neurons_vs_dend(A, tol=0.1, minsize=25): 
+def neurons_vs_dend(A, thres=0.1, minsize=25): 
+    """
+    Function to determine if a component is a neuron of not. (by shape)
+    A (sparse matrix): matrix of all components
+    thres (int): tolerance to identify the soma of the spatial filter
+    minsize(int): minimum size of a neuron. Should be change for types of neurons / zoom / spatial resolution
+    Returns
+    nerden(array-bool): array of bool labelling as true components identified as neurons.
+    """
     #function to distinguish "real" neurons from dendrite activity
     Asize = int(np.sqrt(A.shape[0]))
     Afull = np.reshape(A.toarray(),[Asize,Asize,A.shape[1]])
     nerden = np.zeros(A.shape[1]).astype('bool')
     for ind in np.arange(A.shape[1]):
-        auxA = Afull[:,:,ind]>tol
+        auxA = Afull[:,:,ind]>thres
         if np.nansum(auxA)>minsize:
             nerden[ind] = True
     return nerden
 
 
 def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, thres=0.1):
+    """
+    Function to obtain the "real" position of the neuron regarding the spatial filter
+    fanal(str): folder where the plots will be stored
+    Afull(array): matrix with all the spatial components
+    all_com(array): matrix with the position in xyz given by caiman
+    nerden(array-bool):  array of bool labelling as true components identified as neurons
+    toplot(bool): flag to plot and save
+    thres(int): tolerance to identify the soma of the spatial filter
+    minsize(int): minimum size of a neuron. Should be change for types of neurons / zoom / spatial resolution
+    Returns
+    new_com(array): matrix with new position of the neurons
+    """
     #function to obtain the real values of com
     faplot = fanal + 'Aplot/'
     if not os.path.exists(faplot):
@@ -797,7 +774,22 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     return new_com
         
                 
-def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, number_planes_total, len_base, auxtol=10, cormin=0.1):
+def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_planes_total, len_base, auxtol=10, cormin=0.1):
+    """
+    Function to identify the ensemble neurons across all components
+    fanal(str): folder where the plots will be stored
+    dff(array): Dff values of the components. given by caiman
+    online_data(array): activity of the ensemble neurons registered on the online bmi experiment
+    units (int): number of neurons in the ensembles
+    com(array): position of the neurons
+    mask(array): position of the ensemble neurons as given by the experiment
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    len_base(int): lenght of the baseline
+    auxtol (int): max difference distance for ensemble neurons
+    cormin (int): minimum correlation between neuronal activity from caiman DFF and online recording
+    returns
+    final_neur(array): index of the ensemble neurons"""
+    
     neurcor = np.ones((units, dff.shape[0])) * np.nan
     finalcorr = np.zeros(units)
     finalneur = np.zeros(units)
@@ -860,16 +852,19 @@ def detect_ensemble_neurons(folder_path, dff, online_data, units, com, mask, num
     print('Correlated with value', str(finalcorr) )
     plt.figure()
     plt.imshow(pmask)
-    plt.savefig(folder_path + 'ens_masks.png', bbox_inches="tight")
+    plt.savefig(fanal + 'ens_masks.png', bbox_inches="tight")
     return finalneur
     
 
-def calculate_zvalues(folder, plane, planes_val):
-#     Zmatrix = np.asarray([[np.linspace(planes_val[0],planes_val[1],256)][0],
-#                          [np.linspace(planes_val[1],planes_val[2],256)][0],
-#                          [np.linspace(planes_val[2],planes_val[3],256)][0],
-#                          [np.linspace(planes_val[3],planes_val[4],256)][0]])
-#     z = Zmatrix[plane, :]
+def calculate_zvalues(folder, plane):
+    """
+    Function to obtain the position Z of each neuron depending of their position in Y
+    Folder(str): folder where the input/output is/will be stored 
+    plane(int): number of plane being calculated
+    returns
+    z (array): position in Z of components
+    """
+
     finfo = folder + 'actuator.mat'  #file name of the mat 
     actuator = scipy.io.loadmat(finfo)
     options={ 0: 'yd1i',
@@ -882,6 +877,13 @@ def calculate_zvalues(folder, plane, planes_val):
 
 
 def obtainfreq(origfreq, len_bmi=36000, iterat=2):
+    """ Function to remove NANs from the frequency vector. First values will be 0
+    origfreq(array): vector of original frequency recorded, full of nans
+    len_bmi(int): lenght of the recording bmi
+    iterat(int): maximum number of iterations to find consecutive nans
+    returns
+    freq(array): vector of frequencies without nans. Nans before the experiment are changed as 0,
+    nans during the experiment are change to the previous frequency value"""
     freq = copy.deepcopy(origfreq)
     freq[:np.where(~np.isnan(origfreq))[0][0]] = 0
     if len_bmi<freq.shape[0]: freq = freq[:len_bmi]
@@ -893,6 +895,12 @@ def obtainfreq(origfreq, len_bmi=36000, iterat=2):
 
 
 def plot_Cs(fanal, C, nerden):
+    """
+    Function to plot the temporal activity of caiman components. To serve as a sanity check
+    fanal(str): folder where the plots will be saved
+    C(array): matrix with the temporal activity of the components
+    nerden(array-bool): array of bool labelling as true components identified as neurons. """
+    
     #function to obtain the real values of com
     folder_path = fanal + '/Cplot/'
     if not os.path.exists(folder_path):
@@ -908,7 +916,19 @@ def plot_Cs(fanal, C, nerden):
         plt.close('all')
 
 
-def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, save_results=False):
+def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
+    """
+    Main function to compute the caiman algorithm. For more details see github and papers
+    fpath(str): Folder where to store the plots
+    fr(int): framerate
+    fnames(list-str): list with the names of the files to be computed together
+    z(array): vector with the values of z relative to y
+    dend(bool): Boleean to change parameters to look for neurons or dendrites
+    display_images(bool): to display and save different plots
+    returns
+    F_dff(array): array with the dff of the components
+    com(array): matrix with the position values of the components as given by caiman
+    cnm(struct): struct with different stimates and returns from caiman"""
     
     # parameters
     decay_time = 0.4                    # length of a typical transient in seconds    
@@ -946,13 +966,7 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     rval_thr = 0.8              # space correlation threshold for accepting a component
     cnn_thr = 0.8               # threshold for CNN based classifier
 
-    dview = None
-    
-    #%% start a cluster for parallel processing
-    """
-    if 'dview' in locals():
-        dview.terminate()
-    c, dview, n_processes = cm.cluster.setup_cluster(backend='local', n_processes=None, single_thread=False)"""
+    dview = None # parallel processing keeps crashing. 
     
     print('***************Starting motion correction*************')
     print('files:')
@@ -974,7 +988,6 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     
     #%% Run piecewise-rigid motion correction using NoRMCorre
     mc.motion_correct_pwrigid(save_movie=True)
-    #m_els = cm.load(mc.fname_tot_els)   #it will crush if there is parallalization
     bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
                                      np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
     print('***************Motion correction has ended*************')
@@ -987,11 +1000,6 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
                                border_to_0=bord_px_els)  # exclude borders
     
-    #%% restart cluster to clean up memory
-    """
-    dview.terminate()
-    c, dview, n_processes = cm.cluster.setup_cluster(backend='local', n_processes=None, single_thread=False)"""
-
     # now load the file
     Yr, dims, T = cm.load_memmap(fname_new)
     d1, d2 = dims
@@ -999,7 +1007,6 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     # load frames in python format (T x X x Y)
         
     
-   #if we are doing the main image       
     #%% RUN CNMF ON PATCHES
     print('***************Running CNMF...*************')
     
@@ -1026,30 +1033,6 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
                                          r_values_min=rval_thr, use_cnn=False,
                                          thresh_cnn_min=cnn_thr)
     
-#     #%% PLOT COMPONENTS (do not use during parallalization)
-#      
-#     if display_images:
-#         plt.figure()
-#         plt.subplot(221)
-#         plt.imshow(np.nanmean(m_els,0))
-#         plt.colorbar()
-#         plt.subplot(222)
-#         auxb = np.transpose(np.reshape(cnm.estimates.b[:,0], [int(np.sqrt(cnm.estimates.b.shape[0])), int(np.sqrt(cnm.estimates.b.shape[0]))]))
-#         plt.imshow(auxb)
-#         plt.title('Raw mean')
-#         plt.subplot(223)
-#         crd_good = cm.utils.visualization.plot_contours(
-#             cnm.estimates.A[:, idx_components], np.nanmean(m_els,0), thr=.8)
-#         plt.title('Contour plots of accepted components')
-#         plt.subplot(224)
-#         crd_bad = cm.utils.visualization.plot_contours(
-#             cnm.estimates.A[:, idx_components_bad], Cn, thr=.8, vmax=0.2)
-#         plt.title('Contour plots of rejected components')
-#         plt.savefig(folder_path + 'comp.png', bbox_inches="tight")
-#          
-#         plt.close('all')
-
-    #%% PLOT COMPONENTS 
      
     if display_images:
         plt.figure()
@@ -1066,7 +1049,7 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
         crd_bad = cm.utils.visualization.plot_contours(
             cnm.estimates.A[:, idx_components_bad], auxb, thr=.8, vmax=0.2)
         plt.title('Contour plots of rejected components')
-        plt.savefig(folder_path + 'comp.png', bbox_inches="tight")
+        plt.savefig(fpath + 'comp.png', bbox_inches="tight")
          
         plt.close('all')
     
@@ -1098,20 +1081,7 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
     log_files = glob.glob('*_LOG_*')
     for log_file in log_files:
         os.remove(log_file)
-    
-    
-#     #%% play along side original data (do not use during parallalization
-#     if save_results:
-#         #%% reconstruct denoised movie
-#         denoised = cm.movie(cnm2.estimates.A.dot(cnm2.estimates.C) +
-#                         cnm2.estimates.b.dot(cnm2.estimates.f)).reshape(dims + (-1,), order='F').transpose([2, 0, 1])
-#         downsample_ratio = .2  # motion can be perceived better when downsampling in time
-#         moviehandle = cm.concatenate([m_els.resize(1, 1, downsample_ratio),
-#                         denoised.resize(1, 1, downsample_ratio)],
-#                        axis=2)
-#     
-#         moviehandle.save(folder_path + 'mov.tif')
-        
+           
         
     #***************************************************************************************    
     # Preparing output data
@@ -1137,13 +1107,4 @@ def caiman_main(folder_path, fr, fnames, z=0, dend=False, display_images=False, 
         com = cm.base.rois.com(cnm2.estimates.A,dims[0],dims[1], dims[2])        
         
     return F_dff, com, cnm2   
-
-
-def load_movie(fname):    
-    fname = [download_demo(fname)]     # the file will be downloaded if it doesn't already exist
-    m_orig = cm.load_movie_chain(fname)
-    downsample_ratio = .2  # motion can be perceived better when downsampling in time
-    offset_mov = np.min(m_orig[:100])  # if the data has very negative values compute an offset value
-    m_orig.resize(1, 1, 0.2).play(gain=10, offset = -offset_mov, fr=30, magnification=2)   # play movie (press q to exit)
-
 
