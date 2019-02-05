@@ -203,7 +203,8 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
             del big_file
     
     # clean memory    
-    del im
+    ims.close()
+    del ims
 
     
     # save the mmaps as tiff-files for caiman
