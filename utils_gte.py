@@ -63,6 +63,63 @@ def parse_mathematica_list(file_name):
     connectivity_matrix = np.array(matrix)
     return connectivity_matrix
 
+def heatmap(data, row_labels, col_labels, ax=None,
+            cbar_kw={}, cbarlabel="", **kwargs):
+    """
+    Create a heatmap from a numpy array and two lists of labels.
+
+    Arguments:
+        data       : A 2D numpy array of shape (N,M)
+        row_labels : A list or array of length N with the labels
+                     for the rows
+        col_labels : A list or array of length M with the labels
+                     for the columns
+    Optional arguments:
+        ax         : A matplotlib.axes.Axes instance to which the heatmap
+                     is plotted. If not provided, use current axes or
+                     create a new one.
+        cbar_kw    : A dictionary with arguments to
+                     :meth:`matplotlib.Figure.colorbar`.
+        cbarlabel  : The label for the colorbar
+    All other arguments are directly passed on to the imshow call.
+    """
+
+    if not ax:
+        ax = plt.gca()
+
+    # Plot the heatmap
+    im = ax.imshow(data, **kwargs)
+
+    # Create colorbar
+    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(data.shape[1]))
+    ax.set_yticks(np.arange(data.shape[0]))
+    # ... and label them with the respective list entries.
+    ax.set_xticklabels(col_labels)
+    ax.set_yticklabels(row_labels)
+
+    # Let the horizontal axes labeling appear on bottom.
+    ax.tick_params(top=False, bottom=True,
+                   labeltop=False, labelbottom=True)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=-30, ha="right",
+             rotation_mode="anchor")
+
+    # Turn spines off and create white grid.
+    for edge, spine in ax.spines.items():
+        spine.set_visible(False)
+
+    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
+    ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    return im, cbar
+
 def create_gte_input_files(
         exp_name, exp_data, parameters,
         frame_size, frame_step=1):
@@ -150,10 +207,10 @@ def run_gte(control_file_names, output_file_names, pickle_results):
         pickle.dump(results, open(results_path, "wb"))
     return results
 
-def visualize_gte_results(results, neuron_locations, color_map='r'):
+def visualize_gte_results(results, neuron_locations, cmap='r'):
     """
-    This function will make a 3d scatterplot of the neurons. It will then show
-    neural connectivity changing over time, as defined by the RESULTS matrix.
+    This function will make an animated 3d scatterplot of the neurons. It will
+    then show neural connectivity changing over time, as defined by RESULTS.
     Input:
         RESULTS: an array of connectivity matrices in temporal sequence.
             The matrix is square, where the i,jth entry corresponds to the 
@@ -161,16 +218,14 @@ def visualize_gte_results(results, neuron_locations, color_map='r'):
         NEURON_LOCATIONS: a Numpy array of the spatial locations of each neuron;
             using the CaBMI notation, this is the COM_CM variable. This array is
             (num_neurons x num_dim) in size. The dimensions are in (x,y,z) order
-        COLOR_MAP: Color or sequence of colors to pass into the scatter
-            function. Useful for labelling specific neurons. Default
-            coloring is red.
+        CMAP: Color or sequence of colors to pass into the scatter
     """ #TODO: Add save_video flag via anim.save("anim.mp4", fps=1)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
     ax.scatter(
         neuron_locations[:,0], neuron_locations[:,1], neuron_locations[:,2],
-        c=color_map
+        c=cmap
         )
     ax.set_xlabel("X Coordinate")
     ax.set_ylabel("Y Coordinate") 
@@ -197,10 +252,67 @@ def visualize_gte_results(results, neuron_locations, color_map='r'):
             ys = [neuron_locations[source,1], neuron_locations[sink,1]]
             zs = [neuron_locations[source,2], neuron_locations[sink,2]]
             ax.plot(xs, ys, zs)
-        ax.text2D(0.05, 0.95, "Frame " + str(i), transform=ax.transAxes, color="blue")
+        ax.text2D(0.05, 0.95, "Frame " + str(i),
+            transform=ax.transAxes, color="blue"
+            )
         return ax
 
     anim = animation.FuncAnimation(fig, animate, frames=range(0,len(results)),
+                                   init_func=init, interval=500, blit=False)
+    plt.show()
+
+def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
+    """
+    This function will make an animated heatmap of the connectivity matrices
+    changing over time.
+    Input:
+        RESULTS: an array of connectivity matrices in temporal sequence.
+            The matrix is square, where the i,jth entry corresponds to the 
+            transfer of information from group i to group j. 
+        LABELS: a 1D Numpy array; contains the labels for each group in results.
+            If not provided, the default is to label each group numerically,
+            by 0-indexing.
+        CMAP: a String; the colormap to use for IMSHOW (the matrix heat map) 
+    """ #TODO: Add save_video flag via anim.save("anim.mp4", fps=1)
+    max_val = max([m.max() for m in results])
+    min_val = min([m.min() for m in results])
+    num_neurons = results[0].shape[0]
+    dummy_m = np.zeros((num_neurons, num_neurons))
+    dummy_m[0,0] = max_val
+    dummy_m[1,1] = min_val
+    if labels is None:
+        labels = np.arange(num_neurons)
+    fig, ax = plt.subplots()
+    im, cbar = heatmap(dummy_m, labels, labels, ax=ax,
+                       cmap=cmap, cbarlabel="Transfer Entropy")
+    ax.imshow(results[0], cmap=cmap)
+    ax.set_title('Change in Transfer Entropy Over Time')
+    plt.figtext(0.1, 0.9, "Frame 0", size=15,
+        ha="center", va="center",
+        bbox=dict(boxstyle="round",
+            ec=(1., 0.5, 0.5),
+            fc=(1., 0.8, 0.8),
+            )
+        )
+    fig.tight_layout()
+    
+    def init():
+        return ax,
+    
+    def animate(i):
+        for t in ax.texts:
+            t.remove()
+        m = results[i]
+        ax.imshow(m, cmap=cmap)
+        plt.figtext(0.1, 0.9, "Frame " + str(i), size=15,
+            ha="center", va="center",
+            bbox=dict(boxstyle="round",
+                ec=(1., 0.5, 0.5),
+                fc=(1., 0.8, 0.8),
+                )
+            )
+        return ax
+    anim = animation.FuncAnimation(fig, animate, frames=range(0, len(results)),
                                    init_func=init, interval=500, blit=False)
     plt.show()
 

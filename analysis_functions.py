@@ -91,6 +91,10 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
 def activity_hits(folder, animal, day, sec_var=''):
     '''
     Function to obtain the activity of neurons time-locked to the trial end.
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in YYMMDD format 
     '''
     folder_path = folder +  'processed/' + animal + '/' + day + '/'
     f = h5py.File(folder_path + 'full_' + animal + '_' + day + '_data.hdf5', 'r')
