@@ -167,7 +167,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
     print('loading image...')
-    ims = tifffile.TiffFile(ffull[0]).pages
+    ims = tifffile.TiffFile(ffull[0])
     dims = [len(ims)] + list(ims[0].shape)  
     print('Image loaded')
     len_im = int(dims[0]/number_planes_total)
