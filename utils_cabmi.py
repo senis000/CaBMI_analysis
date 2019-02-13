@@ -10,8 +10,7 @@ __author__ = 'Nuria'
 
 
 import numpy as np
-
-       
+import pdb       
 
 def calc_pvalue(p_value):
     if p_value < 0.0005:
@@ -63,16 +62,16 @@ def time_lock_activity(f, t_size=[30,3], tbin=10, trial_type=0):
         for idx in range(trial_end.size):
             if trial_end[idx] in hits:
                 hit_idxs.append(idx)
-        trial_start = trial_start(hit_idxs)
-        trial_end = trial_end(hit_idxs)
+        trial_start = trial_start[hit_idxs]
+        trial_end = trial_end[hit_idxs]
     elif trial_type == 2: # Miss Trials
         miss_idxs = []
         misses = np.array(f['miss'])
         for idx in range(trial_end.size):
             if trial_end[idx] in misses:
                 miss_idxs.append(idx)
-        trial_start = trial_start(miss_idxs)
-        trial_end = trial_end(miss_idxs)
+        trial_start = trial_start[miss_idxs]
+        trial_end = trial_end[miss_idxs]
     C = np.asarray(f['C'])
     neuron_activity = np.ones(
         (trial_end.shape[0], C.shape[0], np.sum(t_size)*tbin)
