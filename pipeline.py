@@ -167,7 +167,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
     print('loading image...')
-    ims = tifffile.TiffFile(ffull[0]).pages
+    ims = tifffile.TiffFile(ffull[0])
     dims = [len(ims)] + list(ims[0].shape)  
     print('Image loaded')
     len_im = int(dims[0]/number_planes_total)
@@ -406,7 +406,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
             
         zval = calculate_zvalues(folder, plane)
         print(fnames)
-        dff, com, cnm2 = caiman_main(fpath, fr, fnames, zval, dend, display_images)
+        dff, com, cnm2, totdes = caiman_main(fpath, fr, fnames, zval, dend, display_images)
         print ('Caiman done: saving ... plane: ' + str(plane) + ' file: ' + str(nf)) 
         
         Asparse = scipy.sparse.csr_matrix(cnm2.estimates.A)
@@ -420,6 +420,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         f.create_dataset('neuron_act', data =  cnm2.estimates.S)          #spikes
         f.create_dataset('C', data =  cnm2.estimates.C)                   #temporal activity
         f.create_dataset('base_im', data = cnm2.estimates.b)                 #baseline image
+        f.create_dataset('tot_des', data = totdes)                          # total desplacement
         f.close()  
         
     print('... done') 
@@ -457,6 +458,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     redinfo = scipy.io.loadmat(fmat)
     red = redinfo['red'][0]
     com_list = []
+    neuron_plane = np.zeros(number_planes)
+    tot_des_plane = np.zeros((number_planes, 2))
     for plane in np.arange(number_planes): 
         try:
             f = h5py.File(folder_path + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'r')
@@ -469,6 +472,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         red_im = tifffile.imread(fred)
         auxdff = np.asarray(f['dff'])
         auxC = np.asarray(f['C'])
+        neuron_plane[plane] = auxC.shape[0]
+        tot_des_plane[plane,:] = np.asarray(f['tot_des'])
         if np.nansum(auxdff) == 0:
             auxdff = auxC * np.nan
  
@@ -993,6 +998,8 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
                                      np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
     print('***************Motion correction has ended*************')
     # maximum shift to be used for trimming against NaNs
+    
+    totdes = [np.nansum(mc.x_shifts_els), np.nansum(mc.y_shifts_els)]
 
     #%% MEMORY MAPPING
     # memory map the file in order 'C'
@@ -1107,5 +1114,5 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     else:
         com = cm.base.rois.com(cnm2.estimates.A,dims[0],dims[1], dims[2])        
         
-    return F_dff, com, cnm2   
+    return F_dff, com, cnm2, totdes  
 
