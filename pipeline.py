@@ -424,7 +424,8 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         f.close()  
         
     print('... done') 
-        
+     
+
         
 def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
     """
@@ -452,6 +453,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     # Load information
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
+    ffull = [folder_path + matinfo['fname'][0]]
+    metadata = tifffile.TiffFile(ffull[0]).scanimage_metadata
     fr = matinfo['fr'][0][0]   
     folder_red = folder + 'raw/' + animal + '/' + day + '/'
     fmat = folder_red + 'red.mat' 
@@ -499,24 +502,25 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         all_red_im[:, :, plane] = red_im
         all_base_im[:, :, plane] = base_im
         f.close()
-        
-        
-        
-        
-    
+            
     auxZ = np.zeros((all_com.shape))
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
     all_com += auxZ
     
     
-    # separates "real" neurons from dendrites
-    nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
-    
-    # obtain the real position of components A
-    Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
+    # Reorganize sparse matrix of spatial components
     dims = all_neuron_shape.shape  
     dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), all_neuron_shape.shape[1]]
+    Asparse = scipy.sparse.csr_matrix(all_neuron_shape)
     Afull = np.reshape(all_neuron_shape.toarray(),dims)
+    
+    # separates "real" neurons from dendrites
+    pred, _ = evaluate_components_CNN(all_neuron_shape, dims[:2], [3,3])
+    nerden = np.zeros(Afull.shape[2]).astype('bool')
+    nerden[np.where(pred[:,1]>0.75)] = True
+    #nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
+    
+    # obtain the real position of components A
     new_com = obtain_real_com(fanal, Afull, all_com, nerden)
     
     # sanity check of the neuron's quality
@@ -527,7 +531,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     mask = matinfo['allmask']
     
     ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
-                                             new_com,matinfo['allmask'], number_planes_total, len_base)
+                                             new_com, metadata, neuron_plane, number_planes_total, len_base)
     
     
     # obtain trials hits and miss
@@ -588,7 +592,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, com_list, new_com, all_red_im, fanal, number_planes)*nerden
+    redlabel = red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes)*nerden
     redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
@@ -641,7 +645,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     fall.close()
 
 
-def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
+def red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
     """
     Function to identify red neurons with components returned by caiman
     red(array-int): mask of red neurons position for each frame
@@ -665,16 +669,39 @@ def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxd
         red_im = all_red_im[:,:,plane]
         toplot = np.zeros((red_im.shape[0], red_im.shape[1]))
         com = com_list[plane]
-        neur_plane = com.shape[0]
+        neur_plane = neuron_plane[plane].astype('int')
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
         redlabel = np.zeros(com.shape[0]).astype('bool')
         dists = np.zeros((neur_plane,maskred.shape[0]))
         dists = scipy.spatial.distance.cdist(aux_nc, maskred)
-        for neur in np.arange(com.shape[0]):
-            redlabel[neur] = np.sum(dists[neur,:]<maxdist)
+        
+        #first pass 
+        init_maxdist = 3
+        xdist = []
+        ydist = []
+        redn = []
+
+        aux_redlabel = np.zeros(neur_plane)
+        # to do a first pass in case 
+        if init_maxdist < maxdist:
+            for neur in np.arange(neur_plane):
+                aux_redlabel[neur] = np.sum(dists[neur,:]<init_maxdist)
+                redn = np.where(dists[neur,:]<init_maxdist)[0]
+                if len(redn):
+                    xdist.append(new_com[neur + ind_neur, 0] - maskred[redn[0], 0])
+                    ydist.append(new_com[neur + ind_neur, 1] - maskred[redn[0], 1])
+                    if len(xdist) > 3:  # if there is enough samples to make the decision to shift
+                        maskred[:,0] = maskred[:,0] + np.round(np.nanmean(xdist)).astype('int')
+                        maskred[:,1] = maskred[:,1] + np.round(np.nanmean(ydist)).astype('int')
+        
+        
+        redlabel = np.zeros(neur_plane).astype('bool')
+        aux_redlabel = np.zeros(neur_plane)
+        for neur in np.arange(neur_plane):
+            aux_redlabel[neur] = np.sum(dists[neur,:]<maxdist)
         ind_neur += neur_plane
-        redlabel[redlabel>0]=True
+        redlabel[aux_redlabel>0]=True
         all_red.append(redlabel)
         auxtoplot = aux_nc[redlabel,:]
 
@@ -694,13 +721,25 @@ def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxd
             toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
         ax2.imshow(red_im + toplot, vmax=np.nanmax(red_im))
         plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
-        plt.close("all")     
+        plt.close("all") 
+        
+        fig2 = plt.figure()
+        R = red_im
+        auxA = np.unique(np.arange(Afull.shape[2])[ind:neur_plane+ind]*redlabel)
+        G = np.transpose(np.nansum(Afull[:,:,auxA],2))
+        B = np.zeros((R.shape))
+        R = R/np.nanmax(R)
+        G = G/np.nanmax(G)
+        
+        RGB =  np.dstack((R,G,B))
+        plt.imshow(RGB)
         
     all_red = np.concatenate(all_red)
     return all_red
 
 
 def neurons_vs_dend(A, thres=0.1, minsize=25): 
+    ##OBSOLETE USE THE CNN_ESTIMATOR INSTEAD
     """
     Function to determine if a component is a neuron of not. (by shape)
     A (sparse matrix): matrix of all components
@@ -766,21 +805,22 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
             y1 = int(all_com[neur,1]-img_size)
             y2 = int(all_com[neur,1]+img_size)
             
-        img = Afull[x1:x2,y1:y2,neur]
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(121)
-        ax1.imshow(np.transpose(img))
-        ax2 = fig1.add_subplot(122)
-        ax2.imshow(np.transpose(img>thres))
-        ax1.set_xlabel('neuron: ' + str(neur))
-        ax2.set_xlabel('nd: ' + str(nerden[neur]))
-        plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
-        plt.close('all')
+        if toplot:
+            img = Afull[x1:x2,y1:y2,neur]
+            fig1 = plt.figure()
+            ax1 = fig1.add_subplot(121)
+            ax1.imshow(np.transpose(img))
+            ax1.set_xlabel('nd: ' + str(nerden[neur]))
+            ax2 = fig1.add_subplot(122)
+            ax2.imshow(np.transpose(img>thres))
+            ax2.set_xlabel('neuron: ' + str(neur))
+            plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
+            plt.close('all')
         
     return new_com
         
                 
-def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_planes_total, len_base, auxtol=10, cormin=0.1):
+def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=6, cormin=0.5):
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -796,20 +836,28 @@ def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_pl
     returns
     final_neur(array): index of the ensemble neurons"""
     
-    neurcor = np.ones((units, dff.shape[0])) * np.nan
+    # initialize vars
+    neurcor = np.ones((units, all_C.shape[0])) * np.nan
     finalcorr = np.zeros(units)
     finalneur = np.zeros(units)
-    maxmask = np.nanmax(mask)
-    pmask = np.nansum(mask,2)
+    finaldist = np.zeros(units)
+    pmask = np.zeros((metadata['FrameData']['SI.hRoiManager.pixelsPerLine'], metadata['FrameData']['SI.hRoiManager.linesPerFrame']))
     iter = 40
     
-    for npro in np.arange(dff.shape[0]):
+    ind_neuron_plane = np.cumsum(neuron_plane).astype('int')
+    
+    #extract reference from metadata
+    a = metadata['RoiGroups']['imagingRoiGroup']['rois']['scanfields']['pixelToRefTransform'][0][0]
+    b = metadata['RoiGroups']['imagingRoiGroup']['rois']['scanfields']['pixelToRefTransform'][0][2]
+    all_zs = metadata['FrameData']['SI.hStackManager.zs']
+    
+    for npro in np.arange(all_C.shape[0]):
         for non in np.arange(units): 
             ens = (online_data.keys())[2+non]
-            frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base -1
-            auxonline = np.asarray(online_data[ens])
-            auxdff = dff[npro,frames]
-            neurcor[non, npro] = pd.DataFrame(np.transpose([auxdff[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
+            frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
+            auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
+            auxC = all_C[npro,frames]/10000
+            neurcor[non, npro] = pd.DataFrame(np.transpose([auxC[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
     
     neurcor[neurcor<cormin] = np.nan    
     auxneur = copy.deepcopy(neurcor)
@@ -818,8 +866,16 @@ def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_pl
     for un in np.arange(units):
         print(['finding neuron: ' + str(un)])
         tol = auxtol
-        auxcentermass = np.asarray(scipy.ndimage.measurements.center_of_mass(mask[:,:, un]))
-        centermass = np.reshape([auxcentermass[1], auxcentermass[0]],[1,2])
+        # extract position from metadata
+        relativepos = metadata['RoiGroups']['integrationRoiGroup']['rois'][un]['scanfields']['centerXY']
+        centermass =  np.reshape(((np.asarray(relativepos) - b)/a).astype('int'), [1,2])
+        zs = metadata['RoiGroups']['integrationRoiGroup']['rois'][un]['zs']
+        plane = all_zs.index(zs)
+        if plane == 0:
+            neurcor[un, ind_neuron_plane[0]:] = np.nan
+        else:
+            neurcor[un, :ind_neuron_plane[plane-1]] = np.nan
+            neurcor[un, ind_neuron_plane[plane]:] = np.nan
         not_good_enough = True
         while not_good_enough:
             if np.nansum(neurcor[un,:]) != 0:
@@ -832,6 +888,7 @@ def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_pl
     
                     finalcorr[un] = neurcor[un, indx]
                     finalneur[un] = indx
+                    finaldist[un] = dist
                     neurcor[un, indx] = np.nan
                 else:
                     print('Error couldnt find neuron' + str(un) + ' with this tolerance. Reducing tolerance')
@@ -843,23 +900,48 @@ def detect_ensemble_neurons(fanal, dff, online_data, units, com, mask, number_pl
                         print ('where are my neurons??')
                         break
             else:
+                print('No neurons good correlated')
                 auxcom = com[:,:2]
                 dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
+                if plane == 0:
+                    dist[ind_neuron_plane[0]:] = np.nan
+                else:
+                    dist[:ind_neuron_plane[plane-1]] = np.nan
+                    dist[ind_neuron_plane[plane]:] = np.nan
                 indx = np.where(dist==np.nanmin(dist))[0][0]
                 finalcorr[un] = np.nan
                 finalneur[un] = indx
+                finaldist[un] = np.nanmin(dist)
                 not_good_enough = False
         print('tol value at: ', str(tol))
+        print('Correlated with value: ', str(finalcorr[un]), ' with a distance: ', str(finaldist[un]))
 
                 
         auxp = com[finalneur[un].astype(int),:2].astype(int)
         pmask[auxp[1], auxp[0]] = 2   #to detect
+        pmask[centermass[0,1], centermass[0,0]] = 1   #to detect
     
-    print('Correlated with value', str(finalcorr) )
+    
     plt.figure()
     plt.imshow(pmask)
     plt.savefig(fanal + 'ens_masks.png', bbox_inches="tight")
-    return finalneur
+    
+    
+    fig1 = plt.figure(figsize=(16,6))
+    for non in np.arange(units): 
+        ax = fig1.add_subplot(units, 1, non + 1)
+        ens = (online_data.keys())[2+non]
+        frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
+        auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens])
+        auxC = all_C[finalneur[non].astype('int'), frames] 
+        
+        ax.plot(auxonline[-5000:])
+        ax.plot(auxC[-5000:]/10000)
+        
+    plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
+
+    return finalneur.astype('int')
+
     
 
 def calculate_zvalues(folder, plane):
