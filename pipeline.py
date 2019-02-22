@@ -64,7 +64,6 @@ from scipy import ndimage
 import copy
 from matplotlib import interactive
 import sys, traceback
-
 interactive(True)
 
 
@@ -492,15 +491,17 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
             all_base_im = np.ones((base_im.shape[0], base_im.shape[1], number_planes)) *np.nan
             all_neuron_act = np.asarray(f['neuron_act'])
             all_red_im = np.ones((red_im.shape[0], red_im.shape[1], number_planes)) *np.nan 
+            all_SNR = np.asarray(f['SNR'])
         else:
             all_dff = np.concatenate((all_dff, auxdff), 0)
             all_C = np.concatenate((all_C, np.asarray(f['C'])), 0)
-            all_com = np.concatenate((all_com, np.asarray(f['com'])))
+            all_com = np.concatenate((all_com, np.asarray(f['com'])), 0)
             com_list.append(np.asarray(f['com']))
             g = f['Nsparse']
             gaux = scipy.sparse.csr_matrix((g['data'][:], g['indices'][:], g['indptr'][:]), g.attrs['shape'])
             all_neuron_shape = scipy.sparse.hstack([all_neuron_shape, gaux])
             all_neuron_act = np.concatenate((all_neuron_act, np.asarray(f['neuron_act'])), 0)
+            all_SNR = np.concatenate((all_SNR, np.asarray(f['SNR'])),0)
         all_red_im[:, :, plane] = red_im
         all_base_im[:, :, plane] = base_im
         f.close()
@@ -603,9 +604,9 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     # sanity checks
     if toplot:
         plt.figure()
-        plt.plot(np.nanmean(dff,0))
-        plt.title('DFFs')
-        plt.savefig(folder_dest_anal + animal + '_' + day + '_dff.png', bbox_inches="tight")
+        plt.plot(np.nanmean(all_C,0))
+        plt.title('Cs')
+        plt.savefig(folder_dest_anal + animal + '_' + day + '_Cs.png', bbox_inches="tight")
         plt.figure()
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
@@ -620,6 +621,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         
     fall.create_dataset('dff', data = all_dff) # (array) (Ft - Fo)/Fo . Increment of fluorescence
     fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
+    fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
     fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
     fall.attrs['blen'] = len_base # (int) lenght of the baseline
     gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
@@ -807,18 +809,6 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
             y1 = int(all_com[neur,1]-img_size)
             y2 = int(all_com[neur,1]+img_size)
             
-<<<<<<< HEAD
-        img = Afull[x1:x2,y1:y2,neur]
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(121)
-        ax1.imshow(np.transpose(img))
-        ax1.set_xlabel('nd: ' + str(nerden[neur]))
-        ax2 = fig1.add_subplot(122)
-        ax2.imshow(np.transpose(img>thres))
-        ax2.set_xlabel('neuron: ' + str(neur))
-        plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
-        plt.close('all')
-=======
         if toplot:
             img = Afull[x1:x2,y1:y2,neur]
             fig1 = plt.figure()
@@ -830,16 +820,11 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
             ax2.set_xlabel('neuron: ' + str(neur))
             plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
             plt.close('all')
->>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
         
     return new_com
         
                 
-<<<<<<< HEAD
-def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=8, cormin=0.05):
-=======
 def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=6, cormin=0.5):
->>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -960,10 +945,7 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
 
     return finalneur.astype('int')
-<<<<<<< HEAD
-=======
 
->>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
     
 
 def calculate_zvalues(folder, plane):
