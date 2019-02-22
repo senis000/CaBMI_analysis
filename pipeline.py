@@ -426,7 +426,8 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         f.close()  
         
     print('... done') 
-        
+     
+
         
 def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
     """
@@ -593,7 +594,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, com_list, new_com, all_red_im, fanal, number_planes)*nerden
+    redlabel = red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes)*nerden
     redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
@@ -646,7 +647,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     fall.close()
 
 
-def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
+def red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
     """
     Function to identify red neurons with components returned by caiman
     red(array-int): mask of red neurons position for each frame
@@ -670,16 +671,39 @@ def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxd
         red_im = all_red_im[:,:,plane]
         toplot = np.zeros((red_im.shape[0], red_im.shape[1]))
         com = com_list[plane]
-        neur_plane = com.shape[0]
+        neur_plane = neuron_plane[plane].astype('int')
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
         redlabel = np.zeros(com.shape[0]).astype('bool')
         dists = np.zeros((neur_plane,maskred.shape[0]))
         dists = scipy.spatial.distance.cdist(aux_nc, maskred)
-        for neur in np.arange(com.shape[0]):
-            redlabel[neur] = np.sum(dists[neur,:]<maxdist)
+        
+        #first pass 
+        init_maxdist = 3
+        xdist = []
+        ydist = []
+        redn = []
+
+        aux_redlabel = np.zeros(neur_plane)
+        # to do a first pass in case 
+        if init_maxdist < maxdist:
+            for neur in np.arange(neur_plane):
+                aux_redlabel[neur] = np.sum(dists[neur,:]<init_maxdist)
+                redn = np.where(dists[neur,:]<init_maxdist)[0]
+                if len(redn):
+                    xdist.append(new_com[neur + ind_neur, 0] - maskred[redn[0], 0])
+                    ydist.append(new_com[neur + ind_neur, 1] - maskred[redn[0], 1])
+                    if len(xdist) > 3:  # if there is enough samples to make the decision to shift
+                        maskred[:,0] = maskred[:,0] + np.round(np.nanmean(xdist)).astype('int')
+                        maskred[:,1] = maskred[:,1] + np.round(np.nanmean(ydist)).astype('int')
+        
+        
+        redlabel = np.zeros(neur_plane).astype('bool')
+        aux_redlabel = np.zeros(neur_plane)
+        for neur in np.arange(neur_plane):
+            aux_redlabel[neur] = np.sum(dists[neur,:]<maxdist)
         ind_neur += neur_plane
-        redlabel[redlabel>0]=True
+        redlabel[aux_redlabel>0]=True
         all_red.append(redlabel)
         auxtoplot = aux_nc[redlabel,:]
 
@@ -699,7 +723,18 @@ def red_channel(red, com_list, new_com, all_red_im, fanal, number_planes=4, maxd
             toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
         ax2.imshow(red_im + toplot, vmax=np.nanmax(red_im))
         plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
-        plt.close("all")     
+        plt.close("all") 
+        
+        fig2 = plt.figure()
+        R = red_im
+        auxA = np.unique(np.arange(Afull.shape[2])[ind:neur_plane+ind]*redlabel)
+        G = np.transpose(np.nansum(Afull[:,:,auxA],2))
+        B = np.zeros((R.shape))
+        R = R/np.nanmax(R)
+        G = G/np.nanmax(G)
+        
+        RGB =  np.dstack((R,G,B))
+        plt.imshow(RGB)
         
     all_red = np.concatenate(all_red)
     return all_red
@@ -772,6 +807,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
             y1 = int(all_com[neur,1]-img_size)
             y2 = int(all_com[neur,1]+img_size)
             
+<<<<<<< HEAD
         img = Afull[x1:x2,y1:y2,neur]
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(121)
@@ -782,11 +818,28 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
         ax2.set_xlabel('neuron: ' + str(neur))
         plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
         plt.close('all')
+=======
+        if toplot:
+            img = Afull[x1:x2,y1:y2,neur]
+            fig1 = plt.figure()
+            ax1 = fig1.add_subplot(121)
+            ax1.imshow(np.transpose(img))
+            ax1.set_xlabel('nd: ' + str(nerden[neur]))
+            ax2 = fig1.add_subplot(122)
+            ax2.imshow(np.transpose(img>thres))
+            ax2.set_xlabel('neuron: ' + str(neur))
+            plt.savefig(faplot + str(neur) + '.png', bbox_inches="tight")
+            plt.close('all')
+>>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
         
     return new_com
         
                 
+<<<<<<< HEAD
 def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=8, cormin=0.05):
+=======
+def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=6, cormin=0.5):
+>>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -907,6 +960,10 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
 
     return finalneur.astype('int')
+<<<<<<< HEAD
+=======
+
+>>>>>>> f0b2ce12af1ab226b22a8c2e13be8945f2f357fa
     
 
 def calculate_zvalues(folder, plane):
