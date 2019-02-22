@@ -56,6 +56,7 @@ from caiman.source_extraction.cnmf import cnmf as cnmf
 from caiman.motion_correction import MotionCorrect
 from caiman.source_extraction.cnmf.utilities import detrend_df_f
 from caiman.components_evaluation import estimate_components_quality_auto
+from caiman.components_evaluation import evaluate_components_CNN
 import bokeh.plotting as bpl
 
 from skimage.feature import peak_local_max
