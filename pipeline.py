@@ -57,6 +57,7 @@ from caiman.motion_correction import MotionCorrect
 from caiman.source_extraction.cnmf.utilities import detrend_df_f
 from caiman.components_evaluation import estimate_components_quality_auto
 from caiman.components_evaluation import evaluate_components_CNN
+from caiman.motion_correction import motion_correct_iteration
 import bokeh.plotting as bpl
 
 from skimage.feature import peak_local_max
@@ -595,7 +596,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes)*nerden
+    redlabel = red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes)
     redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
@@ -649,12 +650,15 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     fall.close()
 
 
-def red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes=4, maxdist=6):  
+def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=6, toplot=True):  
     """
     Function to identify red neurons with components returned by caiman
     red(array-int): mask of red neurons position for each frame
-    com_list(list): list (number_of planes) of the position of the caiman components
+    nerden(array-bool): array of bool labelling as true components identified as neurons.
+    neuron_plane:  list number_of neurons for each plane
+    new_com(array): position of the neurons
     all_red_im(array): matrix MxNxplanes: Image of the red channel 
+    all_base_im(array): matrix MxNxplanes: Image of the green channel 
     fanal(str): folder where to store the analysis sanity check
     number_planes(int): number of planes that carry information
     maxdist(int): spatial tolerance to assign red label to a caiman component
@@ -667,76 +671,79 @@ def red_channel(red, neuron_plane, new_com, all_red_im, fanal, number_planes=4, 
     if len(red) < number_planes:
         number_planes = len(red)
     for plane in np.arange(number_planes):
-        maskred = np.transpose(red[plane])
+        # for some reason the motion correction does not work the other way around (first red)
+        _, _, shift, _ = motion_correct_iteration(all_base_im[:,:,plane].astype('float32'), all_red_im[:,:,plane].astype('float32'),1)
+        maskred = copy.deepcopy(np.transpose(red[plane]))
         mm = np.sum(maskred,1)
-        maskred = maskred[~np.isnan(mm),:]
-        red_im = all_red_im[:,:,plane]
-        toplot = np.zeros((red_im.shape[0], red_im.shape[1]))
+        maskred = maskred[~np.isnan(mm),:].astype('float32')
+        if np.nansum(abs(np.asarray(shift))) < 20:  # hopefully the motion correction worked
+            maskred[:,0] -= shift[1].astype('float32')
+            maskred[:,1] -= shift[0].astype('float32')
+        else:
+            print ('There was an issue with the motion correction during red_channel comparison. Please check!')
+            
+        # creates a new image with the shifts found
+        M = np.float32([[1, 0, -shift[1]], [0, 1, -shift[0]]])
+        min_, max_ = np.min(all_red_im[:,:,plane]), np.max(all_red_im[:,:,plane])
+        new_img = np.clip(cv2.warpAffine(all_red_im[:,:,plane], M, (all_red_im.shape[0], all_red_im.shape[1]), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT), min_, max_)
+        
+        # find distances
+        toplot = np.zeros((new_img.shape[0], new_img.shape[1]))
         com = com_list[plane]
         neur_plane = neuron_plane[plane].astype('int')
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
+        aux_nerden = nerden[ind_neur:neur_plane+ind_neur]
         redlabel = np.zeros(com.shape[0]).astype('bool')
         dists = np.zeros((neur_plane,maskred.shape[0]))
         dists = scipy.spatial.distance.cdist(aux_nc, maskred)
         
-        #first pass 
-        init_maxdist = 3
-        xdist = []
-        ydist = []
-        redn = []
-
-        aux_redlabel = np.zeros(neur_plane)
-        # to do a first pass in case 
-        if init_maxdist < maxdist:
-            for neur in np.arange(neur_plane):
-                aux_redlabel[neur] = np.sum(dists[neur,:]<init_maxdist)
-                redn = np.where(dists[neur,:]<init_maxdist)[0]
-                if len(redn):
-                    xdist.append(new_com[neur + ind_neur, 0] - maskred[redn[0], 0])
-                    ydist.append(new_com[neur + ind_neur, 1] - maskred[redn[0], 1])
-                    if len(xdist) > 3:  # if there is enough samples to make the decision to shift
-                        maskred[:,0] = maskred[:,0] + np.round(np.nanmean(xdist)).astype('int')
-                        maskred[:,1] = maskred[:,1] + np.round(np.nanmean(ydist)).astype('int')
-        
-        
+        # identfify neurons based on distance
         redlabel = np.zeros(neur_plane).astype('bool')
         aux_redlabel = np.zeros(neur_plane)
+        iden_pairs = []  # to debug
         for neur in np.arange(neur_plane):
-            aux_redlabel[neur] = np.sum(dists[neur,:]<maxdist)
-        ind_neur += neur_plane
+            if aux_nerden[neur]:
+                aux_redlabel[neur] = np.sum(dists[neur,:]<maxdist)
+                redn = np.where(dists[neur,:]<init_maxdist)[0]
+                if len(redn):
+                    iden_pairs.append([neur, redn[0]])  # to debug
         redlabel[aux_redlabel>0]=True
         all_red.append(redlabel)
         auxtoplot = aux_nc[redlabel,:]
 
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(1,2,1)
-        for ind in np.arange(maskred.shape[0]):
-            auxlocx = maskred[ind,1].astype('int')
-            auxlocy = maskred[ind,0].astype('int')
-            toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
-        ax1.imshow(red_im + toplot, vmax=np.nanmax(red_im))
+        if toplot:
+            fig1 = plt.figure()
+            ax1 = fig1.add_subplot(1,2,1)
+            for ind in np.arange(maskred.shape[0]):
+                auxlocx = maskred[ind,1].astype('int')
+                auxlocy = maskred[ind,0].astype('int')
+                toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
+            ax1.imshow(new_img + toplot, vmax=np.nanmax(new_img))
+            
+            toplot = np.zeros((new_img.shape[0], new_img.shape[1]))
+            ax2 = fig1.add_subplot(1,2,2)
+            for ind in np.arange(auxtoplot.shape[0]):
+                auxlocx = auxtoplot[ind,1].astype('int')
+                auxlocy = auxtoplot[ind,0].astype('int')
+                toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
+            ax2.imshow(new_img + toplot, vmax=np.nanmax(new_img))
+            plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
+            
+            fig2 = plt.figure()
+            R = new_img
+            auxA = np.unique(np.arange(Afull.shape[2])[ind_neur:neur_plane+ind_neur]*redlabel)
+            G = np.transpose(np.nansum(Afull[:,:,auxA],2))
+            B = np.zeros((R.shape))
+            R = R/np.nanmax(R)
+            G = G/np.nanmax(G)
+            
+            RGB =  np.dstack((R,G,B))
+            plt.imshow(RGB)
+            plt.savefig(fanal + str(plane) + '/redneurmask_RG.png', bbox_inches="tight")
+            plt.close("all") 
         
-        toplot = np.zeros((red_im.shape[0], red_im.shape[1]))
-        ax2 = fig1.add_subplot(1,2,2)
-        for ind in np.arange(auxtoplot.shape[0]):
-            auxlocx = auxtoplot[ind,1].astype('int')
-            auxlocy = auxtoplot[ind,0].astype('int')
-            toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(red_im)
-        ax2.imshow(red_im + toplot, vmax=np.nanmax(red_im))
-        plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
-        plt.close("all") 
-        
-        fig2 = plt.figure()
-        R = red_im
-        auxA = np.unique(np.arange(Afull.shape[2])[ind:neur_plane+ind]*redlabel)
-        G = np.transpose(np.nansum(Afull[:,:,auxA],2))
-        B = np.zeros((R.shape))
-        R = R/np.nanmax(R)
-        G = G/np.nanmax(G)
-        
-        RGB =  np.dstack((R,G,B))
-        plt.imshow(RGB)
+        ind_neur += neur_plane
         
     all_red = np.concatenate(all_red)
     return all_red
@@ -803,7 +810,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
                 y1 = int(center_mass[1]-img_size)
                 
         else:
-            new_com[neur,:] = all_com[neur,:]
+            new_com[neur,:] = [all_com[neur, 1], all_com[neur, 0], all_com[neur, 2]]
             x1 = int(all_com[neur,0]-img_size)
             x2 = int(all_com[neur,0]+img_size)
             y1 = int(all_com[neur,1]-img_size)
