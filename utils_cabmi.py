@@ -63,3 +63,4 @@ def time_lock_activity(f, t_size=[30,3], tbin=10):
         aux_act = C[:, trial_start[ind]:trial + t_size[1]*tbin]
         neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
     return neuron_activity
+

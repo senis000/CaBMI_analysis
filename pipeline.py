@@ -429,9 +429,10 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
      
 
         
-def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
+def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
     """
     Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
+    it requires somo files in the original folder
     Folder(str): folder where the input/output is/will be stored
     animal/day(str) to be analyzed
     len_base(int): length of the baseline file (in frames)
@@ -445,14 +446,16 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     # Folder to load/save
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_dest = folder + 'processed/' + animal + '/'
-    folder_dest_anal = folder + 'processed/' + animal + '/analysis/'
     fanal = folder_path + 'analysis/'
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
-    if not os.path.exists(folder_dest_anal):
-        os.makedirs(folder_dest_anal)
+    if not os.path.exists(fanal):
+        os.makedirs(fanal)
     
     # Load information
+    print ('loading info')
+    with open(folder_path + 'readme.txt', 'r') as file:
+        eval(compile(file.read(), 'kk.py', "exec"))
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
     ffull = [folder_path + matinfo['fname'][0]]
@@ -506,6 +509,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         all_red_im[:, :, plane] = red_im
         all_base_im[:, :, plane] = base_im
         f.close()
+    
+    print ('success!!')
             
     auxZ = np.zeros((all_com.shape))
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
@@ -519,6 +524,7 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     Afull = np.reshape(all_neuron_shape.toarray(),dims)
     
     # separates "real" neurons from dendrites
+    print ('finding neurons')
     pred, _ = evaluate_components_CNN(all_neuron_shape, dims[:2], [3,3])
     nerden = np.zeros(Afull.shape[2]).astype('bool')
     nerden[np.where(pred[:,1]>0.75)] = True
@@ -530,9 +536,13 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     # sanity check of the neuron's quality
     plot_Cs(fanal, all_C, nerden)
     
+    print('success!!')
+    
     # identify ens_neur (it already plots sanity check in raw/analysis
     online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
     mask = matinfo['allmask']
+    
+    print('finding ensemble neurons')
     
     ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
                                              new_com, metadata, neuron_plane, number_planes_total, len_base)
@@ -595,6 +605,8 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
     
+    print('finding red neurons')
+    
     # obtain the neurons label as red (controlling for dendrites)
     redlabel = red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes)
     redlabel[ens_neur.astype('int')] = True    
@@ -605,13 +617,13 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     # sanity checks
     if toplot:
         plt.figure()
-        plt.plot(np.nanmean(all_C,0))
+        plt.plot(np.nanmean(all_C,0)/10000)
         plt.title('Cs')
-        plt.savefig(folder_dest_anal + animal + '_' + day + '_Cs.png', bbox_inches="tight")
+        plt.savefig(fanal + animal + '_' + day + '_Cs.png', bbox_inches="tight")
         plt.figure()
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
-        plt.savefig(folder_dest_anal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
+        plt.savefig(fanal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
         plt.close('all')
 
     #fill the file with all the correct data!
@@ -619,6 +631,9 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
         fall = h5py.File(folder_dest + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'w-')
     except IOError:
         print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
+        
+        
+    print('saviiiiiing')
         
     fall.create_dataset('dff', data = all_dff) # (array) (Ft - Fo)/Fo . Increment of fluorescence
     fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
@@ -648,9 +663,11 @@ def put_together(folder, animal, day, len_base, len_bmi, number_planes=4, number
     fall.create_dataset('freq', data = frequency) # (array) Frenquency resulting of the online cursor.
     
     fall.close()
+    
+    print('all done!!')
 
 
-def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=6, toplot=True):  
+def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
     """
     Function to identify red neurons with components returned by caiman
     red(array-int): mask of red neurons position for each frame
