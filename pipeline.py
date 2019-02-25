@@ -705,7 +705,7 @@ def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fan
         new_img = np.clip(cv2.warpAffine(all_red_im[:,:,plane], M, (all_red_im.shape[0], all_red_im.shape[1]), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT), min_, max_)
         
         # find distances
-        toplot = np.zeros((new_img.shape[0], new_img.shape[1]))
+        
         neur_plane = neuron_plane[plane].astype('int')
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
@@ -721,7 +721,7 @@ def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fan
         for neur in np.arange(neur_plane):
             if aux_nerden[neur]:
                 aux_redlabel[neur] = np.sum(dists[neur,:]<maxdist)
-                redn = np.where(dists[neur,:]<init_maxdist)[0]
+                redn = np.where(dists[neur,:]<maxdist)[0]
                 if len(redn):
                     iden_pairs.append([neur, redn[0]])  # to debug
         redlabel[aux_redlabel>0]=True
@@ -729,21 +729,22 @@ def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fan
         auxtoplot = aux_nc[redlabel,:]
 
         if toplot:
+            imgtoplot = np.zeros((new_img.shape[0], new_img.shape[1]))
             fig1 = plt.figure()
             ax1 = fig1.add_subplot(1,2,1)
             for ind in np.arange(maskred.shape[0]):
                 auxlocx = maskred[ind,1].astype('int')
                 auxlocy = maskred[ind,0].astype('int')
-                toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
-            ax1.imshow(new_img + toplot, vmax=np.nanmax(new_img))
+                imgtoplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
+            ax1.imshow(new_img + imgtoplot, vmax=np.nanmax(new_img))
             
-            toplot = np.zeros((new_img.shape[0], new_img.shape[1]))
+            imgtoplot = np.zeros((new_img.shape[0], new_img.shape[1]))
             ax2 = fig1.add_subplot(1,2,2)
             for ind in np.arange(auxtoplot.shape[0]):
                 auxlocx = auxtoplot[ind,1].astype('int')
                 auxlocy = auxtoplot[ind,0].astype('int')
-                toplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
-            ax2.imshow(new_img + toplot, vmax=np.nanmax(new_img))
+                imgtoplot[auxlocx-1:auxlocx+1,auxlocy-1:auxlocy+1] = np.nanmax(new_img)
+            ax2.imshow(new_img + imgtoplot, vmax=np.nanmax(new_img))
             plt.savefig(fanal + str(plane) + '/redneurmask.png', bbox_inches="tight")
             
             fig2 = plt.figure()
@@ -906,7 +907,7 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
                         print ('where are my neurons??')
                         break
             else:
-                print('No neurons good correlated')
+                print('No neurons that were correlated')
                 auxcom = com[:,:2]
                 dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
                 if plane == 0:
