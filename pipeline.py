@@ -65,6 +65,7 @@ from scipy import ndimage
 import copy
 from matplotlib import interactive
 import sys, traceback
+import imp
 interactive(True)
 
 
@@ -454,8 +455,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # Load information
     print ('loading info')
-    with open(folder_path + 'readme.txt', 'r') as file:
-        eval(compile(file.read(), 'kk.py', "exec"))
+    vars = imp.load_source('readme', folder_path + 'readme.txt') 
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
     ffull = [folder_path + matinfo['fname'][0]]
@@ -545,18 +545,18 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     print('finding ensemble neurons')
     
     ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
-                                             new_com, metadata, neuron_plane, number_planes_total, len_base)
+                                             new_com, metadata, neuron_plane, number_planes_total, vars.len_base)
     
     
     # obtain trials hits and miss
-    trial_end = (matinfo['trialEnd'][0] + len_base).astype('int')
-    trial_start = (matinfo['trialStart'][0] + len_base).astype('int')
+    trial_end = (matinfo['trialEnd'][0] + vars.len_base).astype('int')
+    trial_start = (matinfo['trialStart'][0] + vars.len_base).astype('int')
     if len(matinfo['hits']) > 0 : 
-        hits = (matinfo['hits'][0] + len_base).astype('float')
+        hits = (matinfo['hits'][0] + vars.len_base).astype('float')
     else:
         hits = []
     if len(matinfo['miss']) > 0 : 
-        miss = (matinfo['miss'][0] + len_base).astype('float')
+        miss = (matinfo['miss'][0] + vars.len_base).astype('float')
     else:
         miss = []
     # to remove false end of trials
@@ -612,7 +612,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
-    frequency = obtainfreq(matinfo['frequency'][0], len_bmi)
+    frequency = obtainfreq(matinfo['frequency'][0], vars.len_bmi)
     
     # sanity checks
     if toplot:
@@ -639,7 +639,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
     fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
     fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
-    fall.attrs['blen'] = len_base # (int) lenght of the baseline
+    fall.attrs['blen'] = vars.len_base # (int) lenght of the baseline
     gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
     gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
     gall.create_dataset('indptr', data = Asparse.indptr) # (part of the sparse matrix)
@@ -706,12 +706,11 @@ def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fan
         
         # find distances
         toplot = np.zeros((new_img.shape[0], new_img.shape[1]))
-        com = com_list[plane]
         neur_plane = neuron_plane[plane].astype('int')
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
         aux_nerden = nerden[ind_neur:neur_plane+ind_neur]
-        redlabel = np.zeros(com.shape[0]).astype('bool')
+        redlabel = np.zeros(neuron_plane.shape[0]).astype('bool')
         dists = np.zeros((neur_plane,maskred.shape[0]))
         dists = scipy.spatial.distance.cdist(aux_nc, maskred)
         
@@ -764,27 +763,6 @@ def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fan
         
     all_red = np.concatenate(all_red)
     return all_red
-
-
-def neurons_vs_dend(A, thres=0.1, minsize=25): 
-    ##OBSOLETE USE THE CNN_ESTIMATOR INSTEAD
-    """
-    Function to determine if a component is a neuron of not. (by shape)
-    A (sparse matrix): matrix of all components
-    thres (int): tolerance to identify the soma of the spatial filter
-    minsize(int): minimum size of a neuron. Should be change for types of neurons / zoom / spatial resolution
-    Returns
-    nerden(array-bool): array of bool labelling as true components identified as neurons.
-    """
-    #function to distinguish "real" neurons from dendrite activity
-    Asize = int(np.sqrt(A.shape[0]))
-    Afull = np.reshape(A.toarray(),[Asize,Asize,A.shape[1]])
-    nerden = np.zeros(A.shape[1]).astype('bool')
-    for ind in np.arange(A.shape[1]):
-        auxA = Afull[:,:,ind]>thres
-        if np.nansum(auxA)>minsize:
-            nerden[ind] = True
-    return nerden
 
 
 def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, thres=0.1):
