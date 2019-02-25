@@ -23,7 +23,8 @@ def write_params_to_ctrl_file(parameters, control_file_name):
     for key in parameters.keys():
         f.write(key + " = " + str(parameters[key]) + ";\n")
 
-def write_signal_to_file(signal, idx, frame_size, signal_file_name):
+def write_signal_to_file(signal, idx, frame_size, signal_file_name,
+        exclude_file_name):
     """
     Writes given neural signals to a signal file.
 
@@ -33,6 +34,8 @@ def write_signal_to_file(signal, idx, frame_size, signal_file_name):
         FRAME_SIZE: an integer; the number of frames of signal to write, 
             starting from IDX
         SIGNAL_FILE_NAME: a String; the path to the signal file to write to 
+        EXCLUDE_FILE_NAME: a String; the path to a file to write the indices of
+            neurons with a flat signal. These neurons will be excluded. 
     """
 
     flat_signal_idxs = [] 
@@ -40,7 +43,6 @@ def write_signal_to_file(signal, idx, frame_size, signal_file_name):
         if np.max(signal[i,:]) == np.min(signal[i,:]):
             signal[i,-1] += 0.1
             flat_signal_idxs.append(i)
-    print(flat_signal_idxs)
     f = open(signal_file_name, "w+")
     num_neurons = signal.shape[0]
     num_frames = frame_size
@@ -52,6 +54,8 @@ def write_signal_to_file(signal, idx, frame_size, signal_file_name):
             else:
                 line+=(","+str(signal[j,i]))
         f.write(line+"\n") 
+    with open(exclude_file_name, 'wb') as fp:
+        pickle.dump(flat_signal_idxs, fp)
 
 def parse_mathematica_list(file_name):
     """
@@ -151,6 +155,8 @@ def create_gte_input_files(
     Output:
         CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
             control.txt file, itself an input to the GTE library.
+        EXCLUDE_FILE_NAMES: an array of Strings. Each String is a path to a
+            exclude.p file, itself an array of integer indices.
         OUTPUT_FILE_NAMES: an array of Strings. Each String is a path to a 
             output.mx file, itself a mathematica connectivity matrix.
     """
@@ -165,6 +171,7 @@ def create_gte_input_files(
                "ensure conflicts do not arise.")
 	sys.exit(msg)
     control_file_names = []
+    exclude_file_names = []
     output_file_names = []
     num_neurons = exp_data.shape[0]
     num_frames = exp_data.shape[1]
@@ -173,7 +180,8 @@ def create_gte_input_files(
         # Set up the necessary variables and parameters
         control_file_name = exp_path + "/control" + str(idx) + ".txt"
         signal_file_name = exp_path + "/signal" + str(idx) + ".txt"
-        output_file_name = exp_path + "/outputs/result" + str(idx) + ".mx"  
+        exclude_file_name = exp_path + "/exclude" + str(idx) + ".p"
+        output_file_name = exp_path + "/outputs/result" + str(idx) + ".mx"
         parameter_file_name = exp_path + "/outputs/parameter" + str(idx) + ".mx" 
         parameters["size"] = num_neurons
         parameters["samples"] = frame_size
@@ -183,10 +191,12 @@ def create_gte_input_files(
         # Generate the CONTROL.TXT and SIGNAL.TXT file. Save the file path of 
         # the control file and the result file (which is not yet generated).
         write_params_to_ctrl_file(parameters, control_file_name)
-        write_signal_to_file(signal, idx, frame_size, signal_file_name)
+        write_signal_to_file(signal, idx, frame_size,
+            signal_file_name, exclude_file_name)
         control_file_names.append(control_file_name)
+        exclude_file_names.append(exclude_file_name)
         output_file_names.append(output_file_name)
-    return control_file_names, output_file_names
+    return control_file_names, exclude_file_names, output_file_names
 
 def create_gte_input_files(exp_name, exp_data, parameters):
     """
@@ -204,6 +214,8 @@ def create_gte_input_files(exp_name, exp_data, parameters):
     Output:
         CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
             control.txt file, itself an input to the GTE library.
+        EXCLUDE_FILE_NAMES: an array of Strings. Each String is a path to a
+            exclude.p file, itself an array of integer indices.
         OUTPUT_FILE_NAMES: an array of Strings. Each String is a path to a 
             output.mx file, itself a mathematica connectivity matrix.
     """
@@ -218,6 +230,7 @@ def create_gte_input_files(exp_name, exp_data, parameters):
                "ensure conflicts do not arise.")
 	sys.exit(msg)
     control_file_names = []
+    exclude_file_names = []
     output_file_names = []
     num_trials = exp_data.shape[0]
     num_neurons = exp_data.shape[1]
@@ -230,6 +243,7 @@ def create_gte_input_files(exp_name, exp_data, parameters):
         #pdb.set_trace()
         control_file_name = exp_path + "/control" + str(idx) + ".txt"
         signal_file_name = exp_path + "/signal" + str(idx) + ".txt"
+        exclude_file_name = exp_path + "/exclude" + str(idx) + ".txt"
         output_file_name = exp_path + "/outputs/result" + str(idx) + ".mx"  
         parameter_file_name = exp_path + "/outputs/parameter" + str(idx) + ".mx" 
         parameters["size"] = num_neurons
@@ -242,16 +256,20 @@ def create_gte_input_files(exp_name, exp_data, parameters):
         write_params_to_ctrl_file(parameters, control_file_name)
         write_signal_to_file(signal, 0, signal.shape[1], signal_file_name)
         control_file_names.append(control_file_name)
+        exclude_file_names.append(exclude_file_name)
         output_file_names.append(output_file_name)
-    return control_file_names, output_file_names
+    return control_file_names, exclude_file_names, output_file_names
 
-def run_gte(control_file_names, output_file_names, pickle_results):
+def run_gte(control_file_names, exclude_file_names, output_file_names,
+        pickle_results):
     """
     Runs GTE on each control file.
 
     Input:
         CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
             control.txt file that should be run. 
+        EXCLUDE_FILE_NAMES: an array of Strings. Each String is a path to a
+            exclude.p file, itself an array of integer indices.
         OUTPUT_FILE_NAMES: an array of Strings. Each String is a path to a 
             result.mx file that contains the result of running GTE.
     Output:
@@ -268,6 +286,12 @@ def run_gte(control_file_names, output_file_names, pickle_results):
             "./te-causality/transferentropy-sim/te-extended", control_file_name
             ])
         result = parse_mathematica_list(output_file_names[idx])
+        exclude_file_name = exclude_file_names[idx]
+        with open(exclude_file_name, 'rb') as fp:
+            exclude_idxs = pickle.load(fp)
+        for idx in exclude_idxs:
+            result[idx,:] = np.nan
+            result[:,idx] = np.nan
         results.append(result)
     if pickle_results:
         results_path = os.path.dirname(control_file_name) + "/outputs/results.p"
@@ -385,7 +409,7 @@ def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
 
 def delete_gte_files(exp_name, delete_output=True):
     """
-    Deletes GTE text files created to run the GTE library.
+    Deletes GTE files created to run the GTE library.
     Input:
         EXP_NAME: Deletes /te-causality/transferentropy-sim/experiments/EXP_NAME.
             The directory contents are deleted as well.
@@ -400,5 +424,5 @@ def delete_gte_files(exp_name, delete_output=True):
         shutil.rmtree(exp_dir) 
     else:
         for f in os.listdir(exp_dir):
-            if f.endswith(".txt"):
+            if f.endswith(".txt") or f.endswith(".p"):
                 subprocess.call(["rm", "-rf", exp_dir + "/" + f])
