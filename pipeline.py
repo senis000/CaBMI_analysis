@@ -544,7 +544,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     print('finding ensemble neurons')
     
-    ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
+    ens_neur = detect_ensemble_neurons(fanal, all_C, online_data, len(online_data.keys())-2,
                                              new_com, metadata, neuron_plane, number_planes_total, vars.len_base)
     
     
