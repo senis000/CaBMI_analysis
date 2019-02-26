@@ -516,7 +516,6 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     auxZ[:,2] = np.repeat(matinfo['initialZ'][0][0],all_com.shape[0])
     all_com += auxZ
     
-    
     # Reorganize sparse matrix of spatial components
     dims = all_neuron_shape.shape  
     dims = [int(np.sqrt(dims[0])), int(np.sqrt(dims[0])), all_neuron_shape.shape[1]]
@@ -525,10 +524,9 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # separates "real" neurons from dendrites
     print ('finding neurons')
-    pred, _ = evaluate_components_CNN(all_neuron_shape, dims[:2], [3,3])
+    pred, _ = evaluate_components_CNN(all_neuron_shape, dims[:2], [4,4])
     nerden = np.zeros(Afull.shape[2]).astype('bool')
     nerden[np.where(pred[:,1]>0.75)] = True
-    #nerden = neurons_vs_dend(all_neuron_shape) # True is a neuron
     
     # obtain the real position of components A
     new_com = obtain_real_com(fanal, Afull, all_com, nerden)
@@ -597,8 +595,6 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     elif trial_end.shape[0] < trial_start.shape[0]:
         trial_start = trial_start[:trial_end.shape[0]]
             
-
-            
     # preparing the arrays (number of trial for hits/miss)
     array_t1 = np.zeros(hits.shape[0], dtype=int)
     array_miss = np.zeros(miss.shape[0], dtype=int)
@@ -663,8 +659,6 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         
     except IOError:
         print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
-    
-    
 
 
 def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
