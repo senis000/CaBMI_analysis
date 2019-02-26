@@ -428,8 +428,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         
     print('... done') 
      
-
-        
+    
 def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
     """
     Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
@@ -545,6 +544,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     ens_neur = detect_ensemble_neurons(fanal, all_C, online_data, len(online_data.keys())-2,
                                              new_com, metadata, neuron_plane, number_planes_total, vars.len_base)
     
+    nerden[ens_neur.astype('int')] = True     
+    
     
     # obtain trials hits and miss
     trial_end = (matinfo['trialEnd'][0] + vars.len_base).astype('int')
@@ -605,7 +606,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # obtain the neurons label as red (controlling for dendrites)
     redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes)
-    redlabel[ens_neur.astype('int')] = True    
+    redlabel[ens_neur.astype('int')] = True   
+    
     
     # obtain the frequency
     frequency = obtainfreq(matinfo['frequency'][0], vars.len_bmi)
@@ -780,6 +782,8 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     new_com = np.zeros((Afull.shape[2], 3))
     for neur in np.arange(Afull.shape[2]):
         center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>thres)
+        if np.nansum(center_mass)==0 :
+            center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur])
         new_com[neur,:] = [center_mass[0], center_mass[1], all_com[neur,2]]
         if (center_mass[0] + img_size) > Afull.shape[0]:
             x2 = Afull.shape[0]
