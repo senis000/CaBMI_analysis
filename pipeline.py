@@ -629,42 +629,42 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     #fill the file with all the correct data!
     try:
         fall = h5py.File(folder_dest + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'w-')
+
+        print('saviiiiiing')     
+        fall.create_dataset('dff', data = all_dff) # (array) (Ft - Fo)/Fo . Increment of fluorescence
+        fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
+        fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
+        fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
+        fall.attrs['blen'] = vars.len_base # (int) lenght of the baseline
+        gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
+        gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
+        gall.create_dataset('indptr', data = Asparse.indptr) # (part of the sparse matrix)
+        gall.create_dataset('indices', data = Asparse.indices) # (part of the sparse matrix)
+        gall.attrs['shape'] = Asparse.shape # (part of the sparse matrix)
+        fall.create_dataset('neuron_act', data = all_neuron_act) # (array) Spike activity (S in caiman)
+        fall.create_dataset('base_im', data = all_base_im) # (array) matrix with all the average image of the baseline for each plane
+        fall.create_dataset('red_im', data = all_red_im) # (array) matrix with all the imagesfrom the red chanel for each plane
+        fall.create_dataset('online_data', data = online_data) # (array) Online recordings of the BMI
+        fall.create_dataset('ens_neur', data = ens_neur) # (array) Index of the ensemble neurons among the rest of components
+        fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
+        fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
+        fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
+        fall.create_dataset('redlabel', data = redlabel) # (array-bool) True labels neurons as red
+        fall.create_dataset('nerden', data = nerden) # (array-bool) True labels components as neurons
+        fall.create_dataset('hits', data = hits) # (array) When the animal hit the target 
+        fall.create_dataset('miss', data = miss) # (array) When the animal miss the target
+        fall.create_dataset('array_t1', data = array_t1) # (array) index of the trials that ended in hit
+        fall.create_dataset('array_miss', data = array_miss) # (array) Index of the trials that ended in miss
+        fall.create_dataset('cursor', data = matinfo['cursor'][0]) # (array) Online cursor of the BMI
+        fall.create_dataset('freq', data = frequency) # (array) Frenquency resulting of the online cursor.
+        
+        fall.close()
+        print('all done!!')
+        
     except IOError:
         print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
-        
-        
-    print('saviiiiiing')
-        
-    fall.create_dataset('dff', data = all_dff) # (array) (Ft - Fo)/Fo . Increment of fluorescence
-    fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
-    fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
-    fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
-    fall.attrs['blen'] = vars.len_base # (int) lenght of the baseline
-    gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
-    gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
-    gall.create_dataset('indptr', data = Asparse.indptr) # (part of the sparse matrix)
-    gall.create_dataset('indices', data = Asparse.indices) # (part of the sparse matrix)
-    gall.attrs['shape'] = Asparse.shape # (part of the sparse matrix)
-    fall.create_dataset('neuron_act', data = all_neuron_act) # (array) Spike activity (S in caiman)
-    fall.create_dataset('base_im', data = all_base_im) # (array) matrix with all the average image of the baseline for each plane
-    fall.create_dataset('red_im', data = all_red_im) # (array) matrix with all the imagesfrom the red chanel for each plane
-    fall.create_dataset('online_data', data = online_data) # (array) Online recordings of the BMI
-    fall.create_dataset('ens_neur', data = ens_neur) # (array) Index of the ensemble neurons among the rest of components
-    fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
-    fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
-    fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
-    fall.create_dataset('redlabel', data = redlabel) # (array-bool) True labels neurons as red
-    fall.create_dataset('nerden', data = nerden) # (array-bool) True labels components as neurons
-    fall.create_dataset('hits', data = hits) # (array) When the animal hit the target 
-    fall.create_dataset('miss', data = miss) # (array) When the animal miss the target
-    fall.create_dataset('array_t1', data = array_t1) # (array) index of the trials that ended in hit
-    fall.create_dataset('array_miss', data = array_miss) # (array) Index of the trials that ended in miss
-    fall.create_dataset('cursor', data = matinfo['cursor'][0]) # (array) Online cursor of the BMI
-    fall.create_dataset('freq', data = frequency) # (array) Frenquency resulting of the online cursor.
     
-    fall.close()
     
-    print('all done!!')
 
 
 def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
@@ -785,32 +785,24 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
         os.makedirs(faplot)
     new_com = np.zeros((Afull.shape[2], 3))
     for neur in np.arange(Afull.shape[2]):
-        if nerden[neur]:
-            center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>thres)
-            new_com[neur,:] = [center_mass[0], center_mass[1], all_com[neur,2]]
-            if (center_mass[0] + img_size) > Afull.shape[0]:
-                x2 = Afull.shape[0]
-            else:
-                x2 = int(center_mass[0]+img_size)
-            if (center_mass[0] - img_size) < 0:
-                x1 = 0
-            else:
-                x1 = int(center_mass[0]-img_size)
-            if (center_mass[1] + img_size) > Afull.shape[1]:
-                y2 = Afull.shape[1]
-            else:
-                y2 = int(center_mass[1]+img_size)
-            if (center_mass[1] - img_size) < 0:
-                y1 = 0
-            else:
-                y1 = int(center_mass[1]-img_size)
-                
+        center_mass = scipy.ndimage.measurements.center_of_mass(Afull[:,:,neur]>thres)
+        new_com[neur,:] = [center_mass[0], center_mass[1], all_com[neur,2]]
+        if (center_mass[0] + img_size) > Afull.shape[0]:
+            x2 = Afull.shape[0]
         else:
-            new_com[neur,:] = [all_com[neur, 1], all_com[neur, 0], all_com[neur, 2]]
-            x1 = int(all_com[neur,0]-img_size)
-            x2 = int(all_com[neur,0]+img_size)
-            y1 = int(all_com[neur,1]-img_size)
-            y2 = int(all_com[neur,1]+img_size)
+            x2 = int(center_mass[0]+img_size)
+        if (center_mass[0] - img_size) < 0:
+            x1 = 0
+        else:
+            x1 = int(center_mass[0]-img_size)
+        if (center_mass[1] + img_size) > Afull.shape[1]:
+            y2 = Afull.shape[1]
+        else:
+            y2 = int(center_mass[1]+img_size)
+        if (center_mass[1] - img_size) < 0:
+            y1 = 0
+        else:
+            y1 = int(center_mass[1]-img_size)
             
         if toplot:
             img = Afull[x1:x2,y1:y2,neur]
