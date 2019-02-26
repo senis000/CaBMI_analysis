@@ -608,7 +608,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     print('finding red neurons')
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes)
+    redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes)
     redlabel[ens_neur.astype('int')] = True    
     
     # obtain the frequency
@@ -667,7 +667,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     print('all done!!')
 
 
-def red_channel(red, neuron_plane, nerden, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
+def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
     """
     Function to identify red neurons with components returned by caiman
     red(array-int): mask of red neurons position for each frame
