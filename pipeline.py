@@ -340,7 +340,7 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
     del imb1
     del imb2 
     
-    return num_files, len_im
+    return num_files, int(dims[0])
 
 
 def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes=4, dend=False, display_images=True):
