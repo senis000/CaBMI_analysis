@@ -119,7 +119,8 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in analyze raw')
-        
+
+# This section is done nowadays in another computer to minimize time for analysis        
 #     try:  
 #         put_together(folder, animal, day, len_base, len_bmi, number_planes, number_planes_total)
 #     except Exception as e:
@@ -150,28 +151,16 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
     
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'  
-    fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
+    fanal = folder + 'raw/' + animal + '/' + day + '/analysis/' 
     
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     
-    if not os.path.exists(fpath):
-        os.makedirs(fpath)
+    if not os.path.exists(fanal):
+        os.makedirs(fanal)
     
     err_file = open("errlog.txt", 'a+')  # ERROR HANDLING
-    
-#     try:
-#         print("Trying to swapoff")
-#         os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
-#         print("SUCCESS")
-#     except Exception as e:
-#         print("Swap Off Failed!", str(e.args))
-#     
-#     # create the swap to be able to allocate the file in memory
-#     print('Swapping on')
-#     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
-    # load the big file we will need to separate
-    
+      
     print('loading image...')
     ims = tifffile.TiffFile(ffull[0])
     len_im = int(len(ims.pages)/number_planes_total)
@@ -199,11 +188,11 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
-            if not os.path.exists(fpath + str(plane) + '/'):
-                os.makedirs(fpath + str(plane) + '/')
+            if not os.path.exists(fanal + str(plane) + '/'):
+                os.makedirs(fanal + str(plane) + '/')
             imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]])) # careful here if the big_file is too big to average
             plt.imshow(imgtosave)
-            plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
+            plt.savefig(fanal + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
             plt.close()
             
             big_file.flush()
@@ -239,23 +228,12 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
     len_im = int(len(ims.pages)/number_planes_total)
     del ims
     
-#     try:
-#         print('Swapping off')
-#         os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
-#     except Exception as e:
-#         print('Error swapping off')
-#         tb = sys.exc_info()[2]
-#         err_file.write("\n{}\n".format(folder_path))
-#         err_file.write("{}\n".format(str(e.args)))
-#         traceback.print_tb(tb, file=err_file)
-#         err_file.close()
-#         sys.exit()
     err_file.close()
     
     return num_files, len_im
 
 
-def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='baseline', number_planes=4, number_planes_total=6, order='F', lim_bf=10000):
+def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='baseline', number_planes=4, number_planes_total=6, order='F', lim_bf=9000):
     """
     Function to separate the different planes in the bigtiff file given by the recording system WHEN there is more than one baseline file.
     TO BECOME OBSOLETE
@@ -271,33 +249,35 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     lim_bf (int): limit of frames per split to avoid saving big tiff files"""
 
     
-    
     # function to separate a layered TIFF (tif generated with different layers info)
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'       
-    fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' 
+    fanal = folder + 'raw/' + animal + '/' + day + '/analysis/' 
     
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     
-    if not os.path.exists(fpath):
-        os.makedirs(fpath)
+    if not os.path.exists(fanal):
+        os.makedirs(fanal)
         
-    print('Swapping on')
-    os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
+    err_file = open("errlog.txt", 'a+')  # ERROR HANDLING
+    
     # load the big file we will need to separate
     print('loading image...')
-    imb1 = tifffile.TiffFile(ffull[0])
-    imb2 = tifffile.TiffFile(fful2l[0])
+    imb1 = tifffile.TiffFile(fbase1[0])
+    imb2 = tifffile.TiffFile(fbase2[0])
     print('Images loaded')
-    dims1 = [imb1.scanimage_metadata['FrameData']['SI.hFastZ.numVolumes']] + list(imb1.pages[0].shape)
-    dims2 = [imb2.scanimage_metadata['FrameData']['SI.hFastZ.numVolumes']] + list(imb2.pages[0].shape)
-    dims = dims1 + [dims2[0], 0, 0]
-    len_im = int(dims[0]/number_planes_total)
+    len_imb1 = int(len(imb1.pages)/number_planes_total)
+    len_imb2 = int(len(imb2.pages)/number_planes_total)
+    dims1 = [len_imb1] + list(imb1.pages[0].shape)  
+    dims2 = [len_imb2] + list(imb2.pages[0].shape)  
+    
+    dims = dims1 + np.asarray([dims2[0], 0, 0])
+    len_im = copy.deepcopy(int(dims[0]))
     num_files = int(np.ceil(len_im/lim_bf))
     
     for plane in np.arange(number_planes):
-        first_images_left = int(dims1[0]/number_planes_total)
-        len_im = int(dims[0]/number_planes_total)
+        first_images_left = int(dims1[0])
+        len_im = int(dims[0])
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -315,29 +295,24 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
                     new_img = imb1.pages[int(plane+(ind + lim_bf*nf)*number_planes_total)].asarray()
                     first_images_left -= 1
                 else:
-                    new_img = imb2.pages[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total)].asarray()
+                    new_img = imb2.pages[int(plane+(ind - int(dims1[0]) + lim_bf*nf)*number_planes_total)].asarray()
                     
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
                 
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
-            if not os.path.exists(fpath + str(plane) + '/'):
-                os.makedirs(fpath + str(plane) + '/')
+            if not os.path.exists(fanal + str(plane) + '/'):
+                os.makedirs(fanal + str(plane) + '/')
             imgtosave = np.transpose(np.reshape(np.nanmean(big_file,1), [dims[1],dims[2]]))
             plt.imshow(imgtosave)
-            plt.savefig(fpath + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
+            plt.savefig(fanal + str(plane) + '/' + 'nf' + str(nf) + '_rawmean.png', bbox_inches="tight")
             plt.close()
             
             big_file.flush()
             del big_file
     
-    # clean memory    
-    del imb1
-    del imb2
-    
-    
     # save the mmaps as tiff-files for caiman
     for plane in np.arange(number_planes):
-        len_im = int(dims[0]/number_planes_total)
+        len_im = int(dims[0])
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -358,8 +333,12 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
             except OSError as e:  ## if failed, report it back to the user ##
                 print ("Error: %s - %s." % (e.filename, e.strerror))
     
-    print('Swapping off')
-    os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
+    # clean memory    
+    imb1.close()
+    imb2.close()
+    
+    del imb1
+    del imb2 
     
     return num_files, len_im
 
