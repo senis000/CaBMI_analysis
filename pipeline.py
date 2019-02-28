@@ -104,10 +104,10 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         
     nam = folder_path + 'readme.txt'
     readme = open(nam, 'w+')
-    readme.write("num_files_b = " + str(num_files_b) + '\n')
-    readme.write("num_files = " + str(num_files)+ '\n')
-    readme.write("len_base = " + str(len_base)+ '\n')
-    readme.write("len_bmi = " + str(len_bmi)+ '\n')
+    readme.write("num_files_b = " + str(num_files_b) + '; \n')
+    readme.write("num_files = " + str(num_files)+ '; \n')
+    readme.write("len_base = " + str(len_base)+ '; \n')
+    readme.write("len_bmi = " + str(len_bmi)+ '; \n')
     readme.close()
        
     try:
@@ -159,26 +159,29 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
         os.makedirs(fpath)
     
     err_file = open("errlog.txt", 'a+')  # ERROR HANDLING
-    try:
-        print("Trying to swapoff")
-        os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
-        print("SUCCESS")
-    except Exception as e:
-        print("Swap Off Failed!", str(e.args))
     
-    # create the swap to be able to allocate the file in memory
-    print('Swapping on')
-    os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
+#     try:
+#         print("Trying to swapoff")
+#         os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
+#         print("SUCCESS")
+#     except Exception as e:
+#         print("Swap Off Failed!", str(e.args))
+#     
+#     # create the swap to be able to allocate the file in memory
+#     print('Swapping on')
+#     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
+    
     print('loading image...')
     ims = tifffile.TiffFile(ffull[0])
-    dims = [len(ims)] + list(ims[0].shape)  
+    len_im = int(len(ims.pages)/number_planes_total)
+    dims = [len_im] + list(ims.pages[0].shape)  
     print('Image loaded')
-    len_im = int(dims[0]/number_planes_total)
+    
     num_files = int(np.ceil(len_im/lim_bf))
     
     for plane in np.arange(number_planes):
-        len_im = int(dims[0]/number_planes_total)
+        len_im = int(len(ims.pages)/number_planes_total)
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -192,7 +195,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
                 
             # fill the mmap file
             for ind in np.arange(auxlen):
-                new_img = ims.pages[int((ind + lim_bf*nf)*number_planes_total + plane), :, :].asarray()
+                new_img = ims.pages[int((ind + lim_bf*nf)*number_planes_total + plane)].asarray()
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
             
             #to plot the image before closing big_file (as a checkup that everything went smoothly)
@@ -208,12 +211,11 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
     
     # clean memory    
     ims.close()
-    del ims
 
     
     # save the mmaps as tiff-files for caiman
     for plane in np.arange(number_planes):
-        len_im = int(dims[0]/number_planes_total)
+        len_im = int(len(ims.pages)/number_planes_total)
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -234,19 +236,20 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
             except OSError as e:  ## if failed, report it back to the user ##
                 print ("Error: %s - %s." % (e.filename, e.strerror))
     
-    len_im = int(dims[0]/number_planes_total)
+    len_im = int(len(ims.pages)/number_planes_total)
+    del ims
     
-    try:
-        print('Swapping off')
-        os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
-    except Exception as e:
-        print('Error swapping off')
-        tb = sys.exc_info()[2]
-        err_file.write("\n{}\n".format(folder_path))
-        err_file.write("{}\n".format(str(e.args)))
-        traceback.print_tb(tb, file=err_file)
-        err_file.close()
-        sys.exit()
+#     try:
+#         print('Swapping off')
+#         os.system('swapoff /home/lab/Nuria/Swap/swapfile.img')  
+#     except Exception as e:
+#         print('Error swapping off')
+#         tb = sys.exc_info()[2]
+#         err_file.write("\n{}\n".format(folder_path))
+#         err_file.write("{}\n".format(str(e.args)))
+#         traceback.print_tb(tb, file=err_file)
+#         err_file.close()
+#         sys.exit()
     err_file.close()
     
     return num_files, len_im
@@ -283,12 +286,12 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
     os.system('swapon /home/lab/Nuria/Swap/swapfile.img') 
     # load the big file we will need to separate
     print('loading image...')
-    imb1 = tifffile.TiffFile(ffull[0]).pages
-    imb2 = tifffile.TiffFile(fful2l[0]).pages
+    imb1 = tifffile.TiffFile(ffull[0])
+    imb2 = tifffile.TiffFile(fful2l[0])
     print('Images loaded')
-    dims1 = [len(imb1)] + list(imb1[0].shape)
-    dims2 = [len(imb2)] + list(imb2[0].shape)
-    dims = dims1 + dims2
+    dims1 = [imb1.scanimage_metadata['FrameData']['SI.hFastZ.numVolumes']] + list(imb1.pages[0].shape)
+    dims2 = [imb2.scanimage_metadata['FrameData']['SI.hFastZ.numVolumes']] + list(imb2.pages[0].shape)
+    dims = dims1 + [dims2[0], 0, 0]
     len_im = int(dims[0]/number_planes_total)
     num_files = int(np.ceil(len_im/lim_bf))
     
@@ -309,10 +312,10 @@ def separate_planes_multiple_baseline(folder, animal, day, ffull, ffull2, var='b
             # fill the mmap file
             for ind in np.arange(auxlen):
                 if first_images_left > 0:
-                    new_img = imb1.pages[int(plane+(ind + lim_bf*nf)*number_planes_total), :, :].asarray()
+                    new_img = imb1.pages[int(plane+(ind + lim_bf*nf)*number_planes_total)].asarray()
                     first_images_left -= 1
                 else:
-                    new_img = imb2.pages[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total), :, :].asarray()
+                    new_img = imb2.pages[int(plane+(ind - int(imb1.shape[0]/number_planes_total) + lim_bf*nf)*number_planes_total)].asarray()
                     
                 big_file[:, ind] = np.reshape(new_img, np.prod(dims[1:]), order=order)
                 
@@ -410,7 +413,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
             
         zval = calculate_zvalues(folder, plane)
         print(fnames)
-        dff, com, cnm2, totdes = caiman_main(fpath, fr, fnames, zval, dend, display_images)
+        dff, com, cnm2, totdes, SNR = caiman_main(fpath, fr, fnames, zval, dend, display_images)
         print ('Caiman done: saving ... plane: ' + str(plane) + ' file: ' + str(nf)) 
         
         Asparse = scipy.sparse.csr_matrix(cnm2.estimates.A)
@@ -424,7 +427,8 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         f.create_dataset('neuron_act', data =  cnm2.estimates.S)          #spikes
         f.create_dataset('C', data =  cnm2.estimates.C)                   #temporal activity
         f.create_dataset('base_im', data = cnm2.estimates.b)                 #baseline image
-        f.create_dataset('tot_des', data = totdes)                          # total desplacement
+        f.create_dataset('tot_des', data = totdes)                      #total displacement during motion correction
+        f.create_dataset('SNR', data = SNR)                             #SNR of neurons
         f.close()  
         
     print('... done') 
@@ -1033,7 +1037,7 @@ def plot_Cs(fanal, C, nerden):
         fig1.savefig(folder_path + str(ind) + '.png', bbox_inches="tight")
         plt.close('all')
 
-
+        
 def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     """
     Main function to compute the caiman algorithm. For more details see github and papers
@@ -1068,7 +1072,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     merge_thresh = 0.8          # merging threshold, max correlation allowed
     rf = 25                     # half-size of the patches in pixels. e.g., if rf=25, patches are 50x50
     stride_cnmf = 10            # amount of overlap between the patches in pixels
-    K = 4                       # number of components per patch
+    K = 25                       # number of components per patch
     
     if dend:
         gSig = [1, 1]               # expected half size of neurons
@@ -1090,6 +1094,10 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     print('files:')
     print(fnames)
     
+    
+    # %% start a cluster for parallel processing
+    #c, dview, n_processes = cm.cluster.setup_cluster(backend='local', n_processes=None, single_thread=False)
+    
     #%%% MOTION CORRECTION
     # first we create a motion correction object with the parameters specified
     min_mov = cm.load(fnames[0]).min()
@@ -1108,10 +1116,10 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     mc.motion_correct_pwrigid(save_movie=True)
     bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
                                      np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
+                                     
+    totdes = [np.nansum(mc.x_shifts_els), np.nansum(mc.y_shifts_els)]
     print('***************Motion correction has ended*************')
     # maximum shift to be used for trimming against NaNs
-    
-    totdes = [np.nansum(mc.x_shifts_els), np.nansum(mc.y_shifts_els)]
 
     #%% MEMORY MAPPING
     # memory map the file in order 'C'
@@ -1125,6 +1133,11 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     d1, d2 = dims
     images = np.reshape(Yr.T, [T] + list(dims), order='F')
     # load frames in python format (T x X x Y)
+    
+    
+    # %% restart cluster to clean up memory
+    #cm.stop_server(dview=dview)
+    #c, dview, n_processes = cm.cluster.setup_cluster(backend='local', n_processes=None, single_thread=False)
         
     
     #%% RUN CNMF ON PATCHES
@@ -1187,7 +1200,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     print('***************Extractind DFFs*************')
     #%% Extract DF/F values
     
-    cm.stop_server(dview=dview)
+    #cm.stop_server(dview=dview)
     try:
         F_dff = detrend_df_f(cnm2.estimates.A, cnm2.estimates.b, cnm2.estimates.C, cnm2.estimates.f, YrA=cnm2.estimates.YrA, quantileMin=8, frames_window=250)
         #F_dff = detrend_df_f(cnm.A, cnm.b, cnm.C, cnm.f, YrA=cnm.YrA, quantileMin=8, frames_window=250)
@@ -1198,6 +1211,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     
     print ('***************stopping cluster*************')
     #%% STOP CLUSTER and clean up log files
+    #cm.stop_server(dview=dview)
     log_files = glob.glob('*_LOG_*')
     for log_file in log_files:
         os.remove(log_file)
@@ -1226,5 +1240,5 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     else:
         com = cm.base.rois.com(cnm2.estimates.A,dims[0],dims[1], dims[2])        
         
-    return F_dff, com, cnm2, totdes  
+    return F_dff, com, cnm2, totdes, SNR_comp[idx_components]
 
