@@ -12,11 +12,8 @@ def tonight():
     
     
 def analyze_tonight():
-#     folder = 'G:/Nuria_data/CaBMI/Layer_project/'
-#     animal = 'IT2'
-#     day = '181001'
-#     
-#     pipe.put_together(folder, animal, day)
+    
+    folder = 'G:/Nuria_data/CaBMI/Layer_project/'
     
     animal = 'PT7'
     days = ['181126', '181127','181129']

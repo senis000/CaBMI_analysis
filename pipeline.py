@@ -61,6 +61,7 @@ from caiman.motion_correction import motion_correct_iteration
 import bokeh.plotting as bpl
 
 from skimage.feature import peak_local_max
+from scipy.stats.mstats import zscore
 from scipy import ndimage
 import copy
 from matplotlib import interactive
@@ -472,7 +473,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
             f = h5py.File(folder_path + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'r')
         except OSError:
             break
-        auxb = np.asarray(f['base_im'])[:,1]
+        auxb = np.nansum(np.asarray(f['base_im']),1)
         bdim = int(np.sqrt(auxb.shape[0]))  
         base_im = np.transpose(np.reshape(auxb, [bdim,bdim])) 
         fred = folder_path + 'red' + str(plane) + '.tif'
@@ -537,7 +538,11 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # identify ens_neur (it already plots sanity check in raw/analysis
     online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
-    mask = matinfo['allmask']
+    try:
+        mask = matinfo['allmask']
+    except KeyError:
+        mask = np.nan
+            
     
     print('finding ensemble neurons')
     
@@ -684,21 +689,34 @@ def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_
     if len(red) < number_planes:
         number_planes = len(red)
     for plane in np.arange(number_planes):
-        # for some reason the motion correction does not work the other way around (first red)
-        _, _, shift, _ = motion_correct_iteration(all_base_im[:,:,plane].astype('float32'), all_red_im[:,:,plane].astype('float32'),1)
         maskred = copy.deepcopy(np.transpose(red[plane]))
         mm = np.sum(maskred,1)
         maskred = maskred[~np.isnan(mm),:].astype('float32')
-        if np.nansum(abs(np.asarray(shift))) < 20:  # hopefully the motion correction worked
+        
+        # for some reason the motion correction sometimes works one way but not the other
+        _, _, shift, _ = motion_correct_iteration(all_base_im[:,:,plane].astype('float32'), all_red_im[:,:,plane].astype('float32'),1)
+        
+        if np.nansum(abs(np.asarray(shift))) < 20:  # hopefully this motion correction worked
             maskred[:,0] -= shift[1].astype('float32')
             maskred[:,1] -= shift[0].astype('float32')
+            # creates a new image with the shifts found
+            M = np.float32([[1, 0, -shift[1]], [0, 1, -shift[0]]])
+            min_, max_ = np.min(all_red_im[:,:,plane]), np.max(all_red_im[:,:,plane])
+            new_img = np.clip(cv2.warpAffine(all_red_im[:,:,plane], M, (all_red_im.shape[0], all_red_im.shape[1]), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT), min_, max_)
+
         else:
-            print ('There was an issue with the motion correction during red_channel comparison. Please check!')
+            print ('Trying other way since shift was: ' + str(shift))
+            # do the motion correctio the other way arround
+            new_img, _, shift, _ = motion_correct_iteration(all_red_im[:,:,plane].astype('float32'), all_base_im[:,:,plane].astype('float32'),1)
+            if np.nansum(abs(np.asarray(shift))) < 20:
+                maskred[:,0] += shift[1].astype('float32')
+                maskred[:,1] += shift[0].astype('float32')
+            else:
+                print ('didnt work with shift: ' + str(shift))
+                new_img = all_red_im[:,:,plane]
+                #somehow it didn't work either way
+                print ('There was an issue with the motion correction during red_channel comparison. Please check plane: ' + str(plane))
             
-        # creates a new image with the shifts found
-        M = np.float32([[1, 0, -shift[1]], [0, 1, -shift[0]]])
-        min_, max_ = np.min(all_red_im[:,:,plane]), np.max(all_red_im[:,:,plane])
-        new_img = np.clip(cv2.warpAffine(all_red_im[:,:,plane], M, (all_red_im.shape[0], all_red_im.shape[1]), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT), min_, max_)
         
         # find distances
         
@@ -817,7 +835,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     return new_com
         
                 
-def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=6, cormin=0.5):
+def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.6):
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -846,23 +864,25 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     #extract reference from metadata
     a = metadata['RoiGroups']['imagingRoiGroup']['rois']['scanfields']['pixelToRefTransform'][0][0]
     b = metadata['RoiGroups']['imagingRoiGroup']['rois']['scanfields']['pixelToRefTransform'][0][2]
-    all_zs = metadata['FrameData']['SI.hStackManager.zs']
-    
-    for npro in np.arange(all_C.shape[0]):
-        for non in np.arange(units): 
-            ens = (online_data.keys())[2+non]
-            frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
-            auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
-            auxC = all_C[npro,frames]/10000
-            neurcor[non, npro] = pd.DataFrame(np.transpose([auxC[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
-    
-    neurcor[neurcor<cormin] = np.nan    
-    auxneur = copy.deepcopy(neurcor)
+    all_zs = metadata['FrameData']['SI.hStackManager.zs']  
     
     
     for un in np.arange(units):
         print(['finding neuron: ' + str(un)])
-        tol = auxtol
+        
+        tol = copy.deepcopy(auxtol)
+        tempcormin = copy.deepcopy(cormin)
+        
+        for npro in np.arange(all_C.shape[0]):
+            ens = (online_data.keys())[2+un]
+            frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
+            auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
+            auxC = all_C[npro,frames]/10000
+            neurcor[un, npro] = pd.DataFrame(np.transpose([auxC[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
+    
+        neurcor[neurcor<tempcormin] = np.nan    
+        auxneur = copy.deepcopy(neurcor)
+        
         # extract position from metadata
         relativepos = metadata['RoiGroups']['integrationRoiGroup']['rois'][un]['scanfields']['centerXY']
         centermass =  np.reshape(((np.asarray(relativepos) - b)/a).astype('int'), [1,2])
@@ -874,6 +894,7 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
             neurcor[un, :ind_neuron_plane[plane-1]] = np.nan
             neurcor[un, ind_neuron_plane[plane]:] = np.nan
         not_good_enough = True
+        
         while not_good_enough:
             if np.nansum(neurcor[un,:]) != 0:
                 if np.nansum(np.abs(neurcor[un, :])) > 0 :
@@ -897,27 +918,36 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
                         print ('where are my neurons??')
                         break
             else:
-                print('No neurons that were correlated')
-                auxcom = com[:,:2]
-                dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
-                if plane == 0:
-                    dist[ind_neuron_plane[0]:] = np.nan
+                print('trying new thresholds')
+                if tempcormin > 0:
+                    tempcormin-= 0.1
+                    tol-= 2
+                    not_good_enough = True
                 else:
-                    dist[:ind_neuron_plane[plane-1]] = np.nan
-                    dist[ind_neuron_plane[plane]:] = np.nan
-                indx = np.where(dist==np.nanmin(dist))[0][0]
-                finalcorr[un] = np.nan
-                finalneur[un] = indx
-                finaldist[un] = np.nanmin(dist)
-                not_good_enough = False
-        print('tol value at: ', str(tol))
+                    print('No luck, finding neurons by distance')
+                    auxcom = com[:,:2]
+                    dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
+                    if plane == 0:
+                        dist[ind_neuron_plane[0]:] = np.nan
+                    else:
+                        dist[:ind_neuron_plane[plane-1]] = np.nan
+                        dist[ind_neuron_plane[plane]:] = np.nan
+                    indx = np.where(dist==np.nanmin(dist))[0][0]
+                    finalcorr[un] = np.nan
+                    if np.nanmin(dist) < auxtol:
+                        finaldist[un] = np.nanmin(dist)
+                        finalneur[un] = indx
+                    else:
+                        finalneur[un] = np.nan
+                        finaldist[un] = np.nan
+                    not_good_enough = False
+        print('tol value at: ', str(tol), 'correlation thres at: ', str(tempcormin))
         print('Correlated with value: ', str(finalcorr[un]), ' with a distance: ', str(finaldist[un]))
 
-                
-        auxp = com[finalneur[un].astype(int),:2].astype(int)
-        pmask[auxp[1], auxp[0]] = 2   #to detect
-        pmask[centermass[0,1], centermass[0,0]] = 1   #to detect
-    
+        if ~np.isnan(finalneur[un]):
+            auxp = com[finalneur[un].astype(int),:2].astype(int)
+            pmask[auxp[1], auxp[0]] = 2   #to detect
+            pmask[centermass[0,1], centermass[0,0]] = 1   #to detect
     
     plt.figure()
     plt.imshow(pmask)
@@ -925,17 +955,20 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     
     
     fig1 = plt.figure(figsize=(16,6))
-    for non in np.arange(units): 
-        ax = fig1.add_subplot(units, 1, non + 1)
-        ens = (online_data.keys())[2+non]
+    for un in np.arange(units): 
+        ax = fig1.add_subplot(units, 1, un + 1)
+        ens = (online_data.keys())[2+un]
         frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
         auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens])
-        auxC = all_C[finalneur[non].astype('int'), frames] 
-        
-        ax.plot(auxonline[-5000:])
-        ax.plot(auxC[-5000:]/10000)
+        auxonline[np.isnan(auxonline)] = 0
+        ax.plot(zscore(auxonline[-5000:]))
+        if ~np.isnan(finalneur[un]):
+            auxC = all_C[finalneur[un].astype('int'), frames] 
+            ax.plot(zscore(auxC[-5000:]))
         
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
+    
+    finalneur = finalneur[~np.isnan(finalneur)]
 
     return finalneur.astype('int')
 
