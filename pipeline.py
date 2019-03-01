@@ -119,6 +119,11 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in analyze raw')
+        
+    try:
+        shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
+    except OSError as e:
+        print ("Error: %s - %s." % (e.filename, e.strerror))
 
 # This section is done nowadays in another computer to minimize time for analysis        
 #     try:  

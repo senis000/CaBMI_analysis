@@ -36,7 +36,7 @@ def separate_me_tonight():
         num_files_b, len_base = pipe.separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2)
         num_files, len_bmi = pipe.separate_planes(folder, animal, day, ffull, 'bmi')
         
-        nam = folder_path + 'readme.txt'
+        nam = folder + 'raw/' + animal + '/' + day + '/' + 'readme.txt'
         readme = open(nam, 'w+')
         readme.write("num_files_b = " + str(num_files_b) + '; \n')
         readme.write("num_files = " + str(num_files)+ '; \n')
@@ -56,7 +56,7 @@ def separate_me_tonight():
         num_files_b, len_base = pipe.separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2)
         num_files, len_bmi = pipe.separate_planes(folder, animal, day, ffull, 'bmi')
         
-        nam = folder_path + 'readme.txt'
+        nam = folder + 'raw/' + animal + '/' + day + '/' + 'readme.txt'
         readme = open(nam, 'w+')
         readme.write("num_files_b = " + str(num_files_b) + '; \n')
         readme.write("num_files = " + str(num_files)+ '; \n')
@@ -76,7 +76,7 @@ def separate_me_tonight():
         num_files_b, len_base = pipe.separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2)
         num_files, len_bmi = pipe.separate_planes(folder, animal, day, ffull, 'bmi')
         
-        nam = folder_path + 'readme.txt'
+        nam = folder + 'raw/' + animal + '/' + day + '/' + 'readme.txt'
         readme = open(nam, 'w+')
         readme.write("num_files_b = " + str(num_files_b) + '; \n')
         readme.write("num_files = " + str(num_files)+ '; \n')
