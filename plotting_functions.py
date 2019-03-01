@@ -4,24 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 import sys
-import pandas as pd
-import seaborn as sns
 import os
 import math
 import random
-import scipy
 import copy
-from skimage import io
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import host_subplot
 from matplotlib.ticker import MultipleLocator
-from scipy import stats
-from scipy.stats.mstats import zscore
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 from matplotlib import interactive
-import utils_cabmi as ut
+from matplotlib.widgets import Slider
+from utils_cabmi import *
 
 def plot_trial_end_all(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -45,7 +38,7 @@ def plot_trial_end_all(folder, animal, day,
 
     t_size = [30,3]
     tbin = 10
-    time_lock_data = time_lock_activity(f, t_size, tbin)
+    time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
     end_frame = time_lock_data.shape[2] - tbin*t_size[1]
     time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
     num_trials, num_neurons, num_frames = time_lock_data.shape
@@ -77,7 +70,7 @@ def plot_trial_end_all(folder, animal, day,
             ax.lines.remove(l)
         ax.plot(trial_data)
         ax.axvline(end_frame, color='r', lw=1.25)
-        ax.set_ylim((np.min(trial_data), np.max(trial_data)))
+        ax.set_ylim((np.min(trial_data)*.9, np.max(trial_data)*1.1))
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
     neurons_slider.on_changed(update)
@@ -106,7 +99,7 @@ def plot_trial_end_ens(folder, animal, day,
 
     t_size = [30,3]
     tbin = 10
-    time_lock_data = time_lock_activity(f, t_size, tbin)
+    time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
     end_frame = time_lock_data.shape[2] - tbin*t_size[1]
     time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
     num_trials, num_neurons, num_frames = time_lock_data.shape
@@ -143,7 +136,56 @@ def plot_trial_end_ens(folder, animal, day,
                 for l in axs[irow, icol].get_lines():
                     axs[irow, icol].lines.remove(l)
                 axs[irow, icol].plot(trial_data)
+                axs[irow, icol].set_ylim(min(trial_data)*.9, max(trial_data)*1.1)
                 axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
+    plt.show()
+
+def plot_avg_trial_end_ens(folder, animal, day,
+        trial_type=0, sec_var=''):
+    '''
+    Plot the average calcium activity of ensemble neurons from the last 5
+    seconds before the end of a trial to 3 seconds after the trial.
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in TTMMDD format
+        TRIAL_TYPE: an integer from [0,1,2]. 0 indicates all trials,
+            1 indicates hit trials, 2 indicates miss trials.
+    '''
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
+
+    t_size = [30,3]
+    tbin = 10
+    time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
+    end_frame = time_lock_data.shape[2] - tbin*t_size[1]
+    time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
+    num_trials, num_neurons, num_frames = time_lock_data.shape
+    end_frame = num_frames - tbin*t_size[1]
+    ens_neurons = np.array(f['ens_neur'])
+
+    fig, axs = plt.subplots(nrows=2, ncols=2, sharex=True)
+    plt.subplots_adjust(bottom=0.225, top=0.825)
+    for icol in range(2):
+        for irow in range(2):
+            neuron_idx = int(ens_neurons[icol+2*irow])
+            axs[irow, icol].plot(
+                np.mean(time_lock_data[:,neuron_idx,:], axis=0)
+                )
+            axs[irow, icol].set_title('Neuron ' + str(neuron_idx))
+            axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
+        axs[1, icol].set_xlabel("Frame Number")
+    for irow in range(2):
+        axs[irow, 0].set_ylabel("Calcium Activity")
+    trial_type_names = ["All Trials", "Hit Trials", "Miss Trials"]
+    fig.suptitle(
+        'Average Trial End Activity of Ensemble Neurons:\n' + \
+        trial_type_names[trial_type], fontsize='large'
+        )
     plt.show()

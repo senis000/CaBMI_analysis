@@ -71,19 +71,16 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
     else:
         diff = trial_end - trial_start[:trial_end.shape[0]]
     tth = trial_end[array_t1] - trial_start[array_t1]
+    pdb.set_trace()
     
     if to_plot:
         fig1 = plt.figure()
         ax = fig1.add_subplot(121)
-        sns.regplot(
-                xx[1:-np.where(xx>blen)[0][0]]/60,
-                hpm[np.where(xx>blen)[0][0]:],
-                label='hits per min'
-                )
-        ax.set_xlabel('hpm')
+        sns.regplot(xx[1:]/60.0, hpm, label='hits per min')
+        ax.set_xlabel('Hits/min')
         ax1 = fig1.add_subplot(122)
         sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
-        ax1.set_xlabel('tth')
+        ax1.set_xlabel('Time to hit')
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 

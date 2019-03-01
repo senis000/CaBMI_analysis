@@ -1,1 +1,7 @@
 te-causality
+*.ipynb
+.gitignore
+__pycache__
+*.pyc
+Sandbox.py
+processed

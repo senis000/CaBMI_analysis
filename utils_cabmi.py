@@ -1,7 +1,4 @@
 # 
-from aifc import data
-
-
 #*************************************************************************
 #************************ UTILS *****************
 #*************************************************************************
@@ -39,7 +36,7 @@ def sliding_mean(data_array, window=5):
         new_list.append(avg)
     return np.array(new_list)
 
-def time_lock_activity(f, t_size=[30,3], tbin=10):
+def time_lock_activity(f, t_size=[30,3], tbin=10, trial_type=0):
     '''
     Creates a 3d matrix time-locking activity to trial end.
     Input:
@@ -48,14 +45,31 @@ def time_lock_activity(f, t_size=[30,3], tbin=10):
             seconds total to keep. The second value
             is the number of seconds after the trial end to keep.
         T_BIN: an integer; the number of frames per second
-
+        TRIAL_TYPE: an integer from [0,1,2]. 0 indicates all trials,
+            1 indicates hit trials, 2 indicates miss trials.
     Output:
         NEURON_ACTIVITY: a numpy matrix; (trials x neurons x frames)
             in size.
     '''
     trial_start = np.asarray(f['trial_start']).astype('int')
     trial_end = np.asarray(f['trial_end']).astype('int')
-
+    assert(trial_start.shape[0] == trial_end.shape[0])
+    if trial_type == 1: # Hit Trials
+        hit_idxs = []
+        hits = np.array(f['hits'])
+        for idx in range(trial_end.size):
+            if trial_end[idx] in hits:
+                hit_idxs.append(idx)
+        trial_start = trial_start[hit_idxs]
+        trial_end = trial_end[hit_idxs]
+    elif trial_type == 2: # Miss Trials
+        miss_idxs = []
+        misses = np.array(f['miss'])
+        for idx in range(trial_end.size):
+            if trial_end[idx] in misses:
+                miss_idxs.append(idx)
+        trial_start = trial_start[miss_idxs]
+        trial_end = trial_end[miss_idxs]
     C = np.asarray(f['C'])
     neuron_activity = np.ones(
         (trial_end.shape[0], C.shape[0], np.sum(t_size)*tbin)
@@ -64,5 +78,3 @@ def time_lock_activity(f, t_size=[30,3], tbin=10):
         aux_act = C[:, trial_start[ind]:trial + t_size[1]*tbin]
         neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
     return neuron_activity
-
-
