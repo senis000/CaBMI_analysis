@@ -418,7 +418,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     print('... done') 
      
     
-def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True):       
+def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True, trial_time=30, tocut=False, len_experiment=30000):       
     """
     Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
     it requires somo files in the original folder
@@ -517,10 +517,11 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     nerden[np.where(pred[:,1]>0.75)] = True
     
     # obtain the real position of components A
-    new_com = obtain_real_com(fanal, Afull, all_com, nerden)
+    new_com = obtain_real_com(fanal, Afull, all_com, nerden, not tocut)
     
     # sanity check of the neuron's quality
-    plot_Cs(fanal, all_C, nerden)
+    if not tocut:
+        plot_Cs(fanal, all_C, nerden)
     
     print('success!!')
     
@@ -541,69 +542,28 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     
     # obtain trials hits and miss
-    trial_end = (matinfo['trialEnd'][0] + vars.len_base).astype('int')
-    trial_start = (matinfo['trialStart'][0] + vars.len_base).astype('int')
-    if len(matinfo['hits']) > 0 : 
-        hits = (matinfo['hits'][0] + vars.len_base).astype('float')
-    else:
-        hits = []
-    if len(matinfo['miss']) > 0 : 
-        miss = (matinfo['miss'][0] + vars.len_base).astype('float')
-    else:
-        miss = []
-    # to remove false end of trials
-    if trial_end.shape[0] > trial_start.shape[0]:
-        ind = 0
-        while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
-            tokeep = np.ones(trial_end.shape[0]).astype('bool')
-            if trial_end.shape[0] < trial_start.shape[0]:
-                trial_start = trial_start[:trial_end.shape[0]]
-            elif (trial_end[ind] - trial_start[ind]) < 0 :            
-                hitloc = np.where(trial_end[ind]==hits)[0]
-                misloc = np.where(trial_end[ind]==miss)[0]
-                if len(hitloc) > 0:
-                    hits[hitloc[0]] = np.nan
-                if len(misloc) > 0:
-                    miss[misloc[0]] = np.nan
-                tokeep[ind]=False
-                trial_end = trial_end[tokeep]
-            else:
-                ind += 1
-    
-        # to remove trials that ended in the same frame as they started
-        tokeep = np.ones(trial_start.shape[0]).astype('bool')
-        for ind in  np.arange(trial_start.shape[0]):
-            if (trial_end[ind] - trial_start[ind]) == 0 :
-                tokeep[ind]=False
-                hitloc = np.where(trial_end[ind]==hits)[0]
-                misloc = np.where(trial_end[ind]==miss)[0]
-                if len(hitloc) > 0:
-                    hits[hitloc[0]] = np.nan
-                if len(misloc) > 0:
-                    miss[misloc[0]] = np.nan
-        
-        hits = hits[~np.isnan(hits)]
-        miss = miss[~np.isnan(miss)]   
-        trial_end = trial_end[tokeep]
-        trial_start = trial_start[tokeep]
-    elif trial_end.shape[0] < trial_start.shape[0]:
-        trial_start = trial_start[:trial_end.shape[0]]
-            
-    # preparing the arrays (number of trial for hits/miss)
-    array_t1 = np.zeros(hits.shape[0], dtype=int)
-    array_miss = np.zeros(miss.shape[0], dtype=int)
-    for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
-    for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
+    trial_end, trial_start, array_t1, array_miss, hits, miss = check_trials(matinfo, vars, fr, trial_time)
+    if np.sum(np.isnan(trial_end)) != 0:
+        print ("STOPPING nan's found in the trial_end")
+        return
     
     print('finding red neurons')
     
     # obtain the neurons label as red (controlling for dendrites)
-    redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes)
+    redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes, toplot=toplot)
     redlabel[ens_neur.astype('int')] = True   
     
     
     # obtain the frequency
-    frequency = obtainfreq(matinfo['frequency'][0], vars.len_bmi)
+    try:
+        frequency = obtainfreq(matinfo['frequency'][0], vars.len_bmi)
+    except KeyError:
+        frequency = np.nan
+    
+    cursor = matinfo['cursor'][0]
+    if tocut:
+        all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency = \
+        cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment)
     
     # sanity checks
     if toplot:
@@ -615,7 +575,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
         plt.savefig(fanal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
-        plt.close('all')
+    
+    plt.close('all')
 
     #fill the file with all the correct data!
     try:
@@ -646,7 +607,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('miss', data = miss) # (array) When the animal miss the target
         fall.create_dataset('array_t1', data = array_t1) # (array) index of the trials that ended in hit
         fall.create_dataset('array_miss', data = array_miss) # (array) Index of the trials that ended in miss
-        fall.create_dataset('cursor', data = matinfo['cursor'][0]) # (array) Online cursor of the BMI
+        fall.create_dataset('cursor', data = cursor) # (array) Online cursor of the BMI
         fall.create_dataset('freq', data = frequency) # (array) Frenquency resulting of the online cursor.
         
         fall.close()
@@ -654,6 +615,83 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         
     except IOError:
         print(" OOPS!: The file already existed please try with another file, no results will be saved!!!")
+
+
+def check_trials(matinfo, vars, fr, trial_time=30):
+    trial_end = (matinfo['trialEnd'][0] + vars.len_base).astype('int')
+    trial_start = (matinfo['trialStart'][0] + vars.len_base).astype('int')
+    if len(matinfo['hits']) > 0 : 
+        hits = (matinfo['hits'][0] + vars.len_base).astype('float')
+    else:
+        hits = []
+    if len(matinfo['miss']) > 0 : 
+        miss = (matinfo['miss'][0] + vars.len_base).astype('float')
+    else:
+        miss = []
+    # to remove false end of trials
+    if trial_start[0] > trial_end[0]:
+        trial_end = trial_end[1:]
+    if (trial_end.shape[0] > trial_start.shape[0]) or (len(np.where((trial_end - trial_start)<0)[0])>0):
+        ind = 0
+        while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
+            tokeep = np.ones(trial_end.shape[0]).astype('bool')
+            if trial_end.shape[0] < trial_start.shape[0]:
+                trial_start = trial_start[:trial_end.shape[0]]
+            elif (trial_end[ind] - trial_start[ind]) < 0 :            
+                hitloc = np.where(trial_end[ind]==hits)[0]
+                misloc = np.where(trial_end[ind]==miss)[0]
+                if len(hitloc) > 0:
+                    hits[hitloc[0]] = np.nan
+                if len(misloc) > 0:
+                    miss[misloc[0]] = np.nan
+                tokeep[ind]=False
+                trial_end = trial_end[tokeep]
+            else:
+                ind += 1
+        
+        # to remove ending trials that may have occur without trial start at the end of experiment
+        if trial_start.shape[0] != trial_end.shape[0]:
+            todel = trial_end>trial_start[-1] 
+            todel[np.where(todel)[0][0]] = False
+            for tend in trial_end[todel]:
+                hitloc = np.where(tend==hits)[0]
+                misloc = np.where(tend==miss)[0]
+                if len(hitloc) > 0:
+                    hits[hitloc[0]] = np.nan
+                if len(misloc) > 0:
+                    miss[misloc[0]] = np.nan
+            trial_end = trial_end[:trial_start.shape[0]]
+        
+        if np.sum((trial_end - trial_start) > trial_time*fr + 10) != 0:  # make sure that no trial is more than it should be +10 because it can vara bit
+            print ("Something wrong happened here, you better check this one out")
+            #return np.nan, np.nan, np.nan, np.nan
+    
+        # to remove trials that ended in the same frame as they started
+        tokeep = np.ones(trial_start.shape[0]).astype('bool')
+        for ind in  np.arange(trial_start.shape[0]):
+            if (trial_end[ind] - trial_start[ind]) == 0 :
+                tokeep[ind]=False
+                hitloc = np.where(trial_end[ind]==hits)[0]
+                misloc = np.where(trial_end[ind]==miss)[0]
+                if len(hitloc) > 0:
+                    hits[hitloc[0]] = np.nan
+                if len(misloc) > 0:
+                    miss[misloc[0]] = np.nan
+        
+        hits = hits[~np.isnan(hits)]
+        miss = miss[~np.isnan(miss)]   
+        trial_end = trial_end[tokeep]
+        trial_start = trial_start[tokeep]
+    elif trial_end.shape[0] < trial_start.shape[0]:
+        trial_start = trial_start[:trial_end.shape[0]]
+            
+    # preparing the arrays (number of trial for hits/miss)
+    array_t1 = np.zeros(hits.shape[0], dtype=int)
+    array_miss = np.zeros(miss.shape[0], dtype=int)
+    for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
+    for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]
+    
+    return trial_end, trial_start, array_t1, array_miss, hits, miss
 
 
 def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
@@ -959,8 +997,7 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     finalneur = finalneur[~np.isnan(finalneur)]
 
     return finalneur.astype('int')
-
-    
+ 
 
 def calculate_zvalues(folder, plane):
     """
@@ -1021,7 +1058,32 @@ def plot_Cs(fanal, C, nerden):
         fig1.savefig(folder_path + str(ind) + '.png', bbox_inches="tight")
         plt.close('all')
 
-        
+
+def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, len_base, len_experiment):
+    """
+    Function to remove part of the experiment that was compromised by quality of image.
+    Input: All variable to change
+    Returns: variable changed """
+    
+    print ('Removing part of experiment due to lack of image quality')
+    all_C = all_C [:,:len_experiment]
+    all_dff = all_dff [:,:len_experiment]
+    all_neuron_act = all_neuron_act [:,:len_experiment]
+    trial_end = trial_end[:np.where(trial_end>len_experiment)[0][0]]
+    trial_start = trial_start[:np.where(trial_start>len_experiment)[0][0]]
+    hits = hits[:np.where(hits>len_experiment)[0][0]]
+    miss = miss[:np.where(miss>len_experiment)[0][0]]
+    cursor = cursor[:(len_experiment - len_base)]
+    if np.nansum(frequency)>0:
+        frequency = frequency[:(len_experiment - len_base)]
+    array_t1 = np.zeros(hits.shape[0], dtype=int)
+    array_miss = np.zeros(miss.shape[0], dtype=int)
+    for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
+    for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]    
+    
+    return all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency
+    
+   
 def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     """
     Main function to compute the caiman algorithm. For more details see github and papers
