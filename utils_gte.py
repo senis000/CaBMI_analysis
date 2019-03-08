@@ -166,10 +166,10 @@ def create_gte_input_files(
         os.mkdir(exp_path)
         os.mkdir(exp_path + "/outputs")
     except OSError:
-        msg = ("Experiment name already exists in GTE experiments folder. "
-               "Remove the existing directory or rename your experiment to "
-               "ensure conflicts do not arise.")
-	sys.exit(msg)
+        msg = ("Experiment name already exists in GTE experiments folder. " + \
+            "Remove the existing directory or rename your experiment to " + \
+            "ensure conflicts do not arise.")
+        sys.exit(msg)
     control_file_names = []
     exclude_file_names = []
     output_file_names = []
@@ -228,7 +228,7 @@ def create_gte_input_files(exp_name, exp_data, parameters):
         msg = ("Experiment name already exists in GTE experiments folder. "
                "Remove the existing directory or rename your experiment to "
                "ensure conflicts do not arise.")
-	sys.exit(msg)
+        sys.exit(msg)
     control_file_names = []
     exclude_file_names = []
     output_file_names = []

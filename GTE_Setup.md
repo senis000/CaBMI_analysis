@@ -1,8 +1,8 @@
-# GTE Setup
+
 ===========
 
 #### Overview
-This setup assumes you are running Ubuntu 16: Xenial. 
+This setup assumes you are running Ubuntu 16: Xenial. The last section will cover steps to run from a fresh installation of Ubuntu.
 Ultimately, your directory structure will look like below:
 ```
 CaBMI_Analysis
@@ -24,15 +24,18 @@ CaBMI_Analysis
 Note that the `.gitignore` file will ignore the entire `te-causality` directory.
 
 #### Steps
-1. Navigate to the root directory: CaBMI_analysis
+1. Navigate to the root directory: CaBMI_analysis and clone the GTE repository:
+   ```
+    git clone https://github.com/olavolav/te-causality
+   ```
 2. Add the following to your `.bashrc` and source the file:
    ```
     export GTE=/path/to/te-causality
    ```
 3. Install the build system and Boost library:
     ```
-    sudo apt-get update \
-    && apt-get install --yes wget build-essential gcc-multilib libboost-all-dev
+    sudo apt-get update && \
+    sudo apt-get install --yes wget build-essential gcc-multilib libboost-all-dev
    ```
 4. Install GSL
    ```
@@ -51,6 +54,7 @@ Note that the `.gitignore` file will ignore the entire `te-causality` directory.
     ```
 6. Install SimKernel:
     ```
+    cd $GTE/te-causality
     sudo apt-get install --yes unzip \
         && wget -O simkernel.zip http://github.com/ChristophKirst/SimKernel/archive/master.zip \
         && unzip simkernel.zip \
@@ -98,3 +102,20 @@ Note that the `.gitignore` file will ignore the entire `te-causality` directory.
     ```
     mkdir $GTE/transferentropy-sim/experiments
     ```
+
+#### Ubuntu Installation
+```
+sudo add-apt-repository ppa:gnome-terminator
+sudo apt-get update
+sudo apt-get install terminator
+sudo apt-get install python3-pip python-dev build-essential
+pip3 install seaborn
+pip3 install pandas
+pip3 install scikit-image
+pip3 install scikit-learn
+sudo apt install vim
+sudo apt install gnome-tweak-tool
+sudo apt-add-repository ppa:numix/ppa
+sudo apt-get update
+sudo apt-get install numix-icon-theme-circle
+```
