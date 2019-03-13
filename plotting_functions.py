@@ -38,7 +38,13 @@ def plot_trial_end_all(folder, animal, day,
 
     t_size = [30,3]
     tbin = 10
-    time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
+    time_lock_data = time_lock_activity(f, t_size, tbin)
+    if trial_type == 1:
+        array_t1 = np.array(f['array_t1'])
+        time_lock_data = time_lock_data[array_t1,:,:]
+    elif trial_type == 2:
+        array_miss = np.array(f['array_miss'])
+        time_lock_data = time_lock_data[array_miss,:,:]
     end_frame = time_lock_data.shape[2] - tbin*t_size[1]
     time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
     num_trials, num_neurons, num_frames = time_lock_data.shape
@@ -100,6 +106,12 @@ def plot_trial_end_ens(folder, animal, day,
     t_size = [30,3]
     tbin = 10
     time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
+    if trial_type == 1:
+        array_t1 = np.array(f['array_t1'])
+        time_lock_data = time_lock_data[array_t1,:,:]
+    elif trial_type == 2:
+        array_miss = np.array(f['array_miss'])
+        time_lock_data = time_lock_data[array_miss,:,:]
     end_frame = time_lock_data.shape[2] - tbin*t_size[1]
     time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
     num_trials, num_neurons, num_frames = time_lock_data.shape
@@ -164,6 +176,12 @@ def plot_avg_trial_end_ens(folder, animal, day,
     t_size = [30,3]
     tbin = 10
     time_lock_data = time_lock_activity(f, t_size, tbin, trial_type)
+    if trial_type == 1:
+        array_t1 = np.array(f['array_t1'])
+        time_lock_data = time_lock_data[array_t1,:,:]
+    elif trial_type == 2:
+        array_miss = np.array(f['array_miss'])
+        time_lock_data = time_lock_data[array_miss,:,:]
     end_frame = time_lock_data.shape[2] - tbin*t_size[1]
     time_lock_data = time_lock_data[:,:,end_frame - tbin*5:]
     num_trials, num_neurons, num_frames = time_lock_data.shape
