@@ -58,7 +58,7 @@ def time_lock_activity(f, t_size=[30,3], tbin=10):
         (trial_end.shape[0], C.shape[0], np.sum(t_size)*tbin)
         )*np.nan # (num_trials x num_neurons x num_frames)
     for ind, trial in enumerate(trial_end):
-        aux_act = C[:, trial_start[ind]:trial + t_size[1]*tbin]
+        aux_act = C[:, trial - t_size[0]*tbin:trial + t_size[1]*tbin]
         neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
     return neuron_activity
 
