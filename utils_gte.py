@@ -58,40 +58,6 @@ def write_signal_to_file(signal, idx, frame_size, signal_file_name,
     with open(exclude_file_name, 'wb') as fp:
         pickle.dump(flat_signal_idxs, fp)
 
-def write_shuffled_to_file(signal, frame_size, signal_file_name,
-        exclude_file_name):
-    """
-    Shuffles and writes a given neural signal to a signal file.
-
-    Input:
-        SIGNAL: a Numpy array of the  neural signal, (num_neurons x num_frames)
-        FRAME_SIZE: an integer; the number of frames of signal to write, 
-            starting from a randomly selected index for each neuron
-        SIGNAL_FILE_NAME: a String; the path to the signal file to write to 
-        EXCLUDE_FILE_NAME: a String; the path to a file to write the indices of
-            neurons with a flat signal. These neurons will be excluded. 
-    """
-
-    flat_signal_idxs = [] 
-    for i in range(signal.shape[0]):
-        if np.max(signal[i,:]) == np.min(signal[i,:]):
-            signal[i,-1] += 0.1
-            flat_signal_idxs.append(i)
-    f = open(signal_file_name, "w+")
-    num_neurons = signal.shape[0]
-    num_frames = frame_size
-    for j in range(num_neurons):
-        # For each neuron, take a random sample of size FRAME_SIZE
-        idx = np.random.choice(num_frames - frame_size + 1)
-        for i in range(idx, idx + frame_size):
-            if j == 0:
-                line += str(signal([j,i]))
-            else:
-                line += ("," + str(signal[j,i]))
-        f.write(line + "\n")
-    with open(exclude_file_name, 'wb') as fp:
-        pickle.dump(flat_signal_idxs, fp)
-
 def parse_mathematica_list(file_name):
     """
     Parses a mathematica file into a numpy array.
@@ -294,71 +260,6 @@ def create_gte_input_files(exp_name, exp_data, parameters):
         exclude_file_names.append(exclude_file_name)
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
-
-def create_shuffled_input_files(
-    exp_name, exp_data, parameters, frame_size, iters
-    ):
-    """
-    Given the input, this function will create the necessary directories,
-    control files, and signal files that defines an input to the GTE library.
-    The function will randomly 'shuffle' the data before writing to file.
-
-    Input:
-        EXP_NAME: a String; the path to the HDF5 file of the experiment
-        EXP_DATA: a numpy array; a (num_neurons x num_frames) matrix
-        PARAMETERS: a dictionary; contains parameters to overwrite the default
-            GTE params. Users do not need to define 'size', 'samples',
-            'inputfile', 'outputfile', 'outputparsfile'-- defined values 
-            for these parameters will be overwritten
-        FRAME_SIZE: an integer; the number of frames we process with GTE. 
-            The frame size will be 'slid' over the whole signal.
-        ITERS: Number of 'shuffled' samples to take and average over.
-    Output:
-        CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
-            control.txt file, itself an input to the GTE library.
-        EXCLUDE_FILE_NAMES: an array of Strings. Each String is a path to a
-            exclude.p file, itself an array of integer indices.
-        OUTPUT_FILE_NAMES: an array of Strings. Each String is a path to a 
-            output.mx file, itself a mathematica connectivity matrix.
-    """
-
-    try:
-        exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name 
-        os.mkdir(exp_path)
-        os.mkdir(exp_path + "/outputs")
-    except OSError:
-        msg = ("Experiment name already exists in GTE experiments folder. " + \
-            "Remove the existing directory or rename your experiment to " + \
-            "ensure conflicts do not arise.")
-        sys.exit(msg)
-    control_file_names = []
-    exclude_file_names = []
-    output_file_names = []
-    num_neurons = exp_data.shape[0]
-    num_frames = exp_data.shape[1]
-    signal = exp_data
-    for idx in range(iters):
-        # Set up the necessary variables and parameters
-        control_file_name = exp_path + "/control" + str(idx) + ".txt"
-        signal_file_name = exp_path + "/signal" + str(idx) + ".txt"
-        exclude_file_name = exp_path + "/exclude" + str(idx) + ".p"
-        output_file_name = exp_path + "/outputs/result" + str(idx) + ".mx"
-        parameter_file_name = exp_path + "/outputs/parameter" + str(idx) + ".mx" 
-        parameters["size"] = num_neurons
-        parameters["samples"] = frame_size
-        parameters["inputfile"] = "\"" + signal_file_name + "\""
-        parameters["outputfile"] = "\"" + output_file_name + "\""
-        parameters["outputparsfile"] = "\"" + parameter_file_name + "\"" 
-        # Generate the CONTROL.TXT and SIGNAL.TXT file. Save the file path of 
-        # the control file and the result file (which is not yet generated).
-        write_params_to_ctrl_file(parameters, control_file_name)
-        write_shuffled_to_file(signal, frame_size,
-            signal_file_name, exclude_file_name)
-        control_file_names.append(control_file_name)
-        exclude_file_names.append(exclude_file_name)
-        output_file_names.append(output_file_name)
-    return control_file_names, exclude_file_names, output_file_names
-
 
 def run_gte(control_file_names, exclude_file_names, output_file_names,
         pickle_results):

@@ -52,8 +52,9 @@ def time_lock_activity(f, t_size=[300,30]):
     trial_end = np.asarray(f['trial_end']).astype('int')
 
     C = np.asarray(f['C'])
+    assert(np.sum(np.isnan(C)) == 0)
     neuron_activity = np.ones(
-        (trial_end.shape[0], C.shape[0], np.sum(t_size)*tbin)
+        (trial_end.shape[0], C.shape[0], np.sum(t_size))
         )*np.nan # (num_trials x num_neurons x num_frames)
     for ind, trial in enumerate(trial_end):
         aux_act = C[:, trial - t_size[0]:trial + t_size[1]]
