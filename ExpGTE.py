@@ -1,6 +1,7 @@
 import warnings
 import h5py
 import numpy as np
+from scipy.stats import zscore
 from utils_gte import *
 from utils_cabmi import *
 
@@ -38,6 +39,10 @@ class ExpGTE:
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'whole'
         exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        assert(np.sum(np.isnan(exp_data)) == 0)
+        exp_data = np.minimum(exp_data, 10.0)
         exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
@@ -69,13 +74,14 @@ class ExpGTE:
         exp_name = self.animal + '_' + self.day + '_' + 'rewardend'
         exp_data = time_lock_activity(self.exp_file, t_size=[frame_size,0])
         array_t1 = np.array(self.exp_file['array_t1'])
-        exp_data = exp_data[array_t1,:,:] 
+        exp_data = exp_data[array_t1,:,:]
+        exp_data = exp_data[:,np.array(self.exp_file['nerden']),:]
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
             parameters = self.parameters
 
         control_file_names, exclude_file_names, output_file_names = \
-            create_gte_input_files(exp_name, exp_data, parameters)
+            create_gte_input_files(exp_name, exp_data, parameters, to_zscore=True)
         results = run_gte(control_file_names, exclude_file_names,
             output_file_names, pickle_results)
         if to_plot:
@@ -106,6 +112,7 @@ class ExpGTE:
         exp_data = time_lock_activity(self.exp_file)
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
+        exp_data = exp_data[:,np.array(self.exp_file['nerden']),:]
         num_rewards, num_neurons, num_frames = exp_data.shape
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
@@ -127,7 +134,9 @@ class ExpGTE:
                 results.append([])
                 continue
 
-            # Otherwise, run GTE as normal
+            # Otherwise, z-score the signal and GTE as normal
+            reward_data = zscore(reward_data, axis=1)
+            reward_data = np.minimum(reward_data, 10.0)
             control_file_names, exclude_file_names, output_file_names = \
                 create_gte_input_files(
                     exp_name, reward_data, parameters, frame_size, frame_step
@@ -212,6 +221,7 @@ class ExpGTE:
         exp_data = time_lock_activity(self.exp_file, t_size=[300,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
+        exp_data = exp_data[:,np.array(self.exp_file['nerden']),:]
 
         # Extract only reward trials that are long enough to sample from
         sufficient_trials = []
@@ -242,7 +252,10 @@ class ExpGTE:
                 valid_frame_idxs = \
                     np.arange(non_nan_idx, num_frames-frame_size+1)
                 frame_idx = np.random.choice(valid_frame_idxs)
-                shuffled_data[i,j,:] = exp_data[reward_idx, j, frame_idx]
+                full_signal = zscore(full_signal)
+                full_signal = np.minimum(full_signal, 10.0)
+                shuffled_data[i,j,:] = \
+                    full_signal[frame_idx:frame_idx+frame_size]
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
             parameters = self.parameters

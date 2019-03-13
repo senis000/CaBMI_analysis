@@ -8,6 +8,7 @@ import os
 import math
 import random
 import copy
+from scipy.stats import zscore
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import host_subplot
@@ -38,6 +39,7 @@ def plot_trial_end_all(folder, animal, day,
 
     t_size = [50,30] # 50 frames before and 30 frames after trial end
     time_lock_data = time_lock_activity(f, t_size=t_size)
+    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -102,6 +104,7 @@ def plot_trial_end_ens(folder, animal, day,
 
     t_size = [50,30]
     time_lock_data = time_lock_activity(f, t_size=t_size)
+    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -168,6 +171,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
 
     t_size = [50,30]
     time_lock_data = time_lock_activity(f, t_size=t_size)
+    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -196,4 +200,51 @@ def plot_avg_trial_end_ens(folder, animal, day,
         'Average Trial End Activity of Ensemble Neurons:\n' + \
         trial_type_names[trial_type], fontsize='large'
         )
+    plt.show()
+
+def plot_truncated_zscore(folder, animal, day, sec_var=''):
+    '''
+    Plot z-scored calcium activity of each neuron, as well as a truncating line
+    at arbitrary values
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in TTMMDD format
+        TRIAL_TYPE: an integer from [0,1,2]. 0 indicates all trials,
+            1 indicates hit trials, 2 indicates miss trials.
+    '''
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
+    exp_data = np.array(f['C'])
+    exp_data = exp_data[np.array(f['nerden']),:]
+    num_neurons, num_frames = exp_data.shape
+    
+    # Z Score
+    exp_data = zscore(exp_data, axis=1)
+    exp_data = np.minimum(exp_data, np.ones(exp_data.shape)*10)
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    plt.subplots_adjust(bottom=0.25)
+    ax.plot(exp_data[0,:])
+    ax.axhline(10, color='r', lw=1.25)
+    ax.set_xlabel("Frame Number")
+    ax.set_ylabel("Z-Scored Calcium Activity")
+    plt.title("Neuron Activity Over Experiment " + day)
+    axcolor = 'lightgoldenrodyellow'
+    axneurons = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
+    neurons_slider = Slider(axneurons, 'Neuron', 0, num_neurons-1, valinit=0)
+    def update(val):
+        neuron_idx = int(neurons_slider.val)
+        trial_data = exp_data[neuron_idx,:]
+        for l in ax.get_lines():
+            ax.lines.remove(l)
+        ax.plot(trial_data) 
+        ax.axhline(10, color='r', lw=1.25)
+        ax.set_ylim((np.min(trial_data)*.9, np.max*trial_data)*1.1)
+        fig.canvas.draw_idle()
+    neurons_slider.on_changed(update)
+    pdb.set_trace()
     plt.show()

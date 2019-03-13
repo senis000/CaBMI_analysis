@@ -199,7 +199,7 @@ def create_gte_input_files(
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
-def create_gte_input_files(exp_name, exp_data, parameters):
+def create_gte_input_files(exp_name, exp_data, parameters, to_zscore=False):
     """
     Given the input, this function will create the necessary directories,
     control files, and signal files that defines an input to the GTE library.
@@ -212,6 +212,8 @@ def create_gte_input_files(exp_name, exp_data, parameters):
             GTE params. Users do not need to define 'size', 'samples',
             'inputfile', 'outputfile', 'outputparsfile'-- defined values 
             for these parameters will be overwritten
+        TO_ZSCORE: a boolean flag indicating whether the data needs to be
+            zscored and thresholded (at 10).
     Output:
         CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
             control.txt file, itself an input to the GTE library.
@@ -241,7 +243,9 @@ def create_gte_input_files(exp_name, exp_data, parameters):
         signal = exp_data[idx,:,:]
         signal_start = np.argwhere(~np.isnan(signal[0,:]))[0,0]
         signal = signal[:,signal_start:]
-        #pdb.set_trace()
+        if to_zscore:
+            signal = zscore(signal, axis=1)
+            signal = np.minimum(signal, 10.0)
         control_file_name = exp_path + "/control" + str(idx) + ".txt"
         signal_file_name = exp_path + "/signal" + str(idx) + ".txt"
         exclude_file_name = exp_path + "/exclude" + str(idx) + ".txt"
