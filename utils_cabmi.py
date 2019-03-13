@@ -42,9 +42,8 @@ def time_lock_activity(f, t_size=[300,30]):
     Input:
         F: a File object; the experiment HDF5 file
         T_SIZE: an array; the first value is the number of
-            seconds before the hit we want to keep. The second value
-            is the number of seconds after the trial end to keep.
-
+            frames before the hit we want to keep. The second value
+            is the number of frames after the trial end to keep.
     Output:
         NEURON_ACTIVITY: a numpy matrix; (trials x neurons x frames)
             in size.
@@ -60,5 +59,3 @@ def time_lock_activity(f, t_size=[300,30]):
         aux_act = C[:, trial - t_size[0]:trial + t_size[1]]
         neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
     return neuron_activity
-
-

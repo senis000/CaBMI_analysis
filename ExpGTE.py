@@ -72,9 +72,7 @@ class ExpGTE:
             GROUPED_RESULTS: An array of numpy matrices (GTE connectivity matrices) 
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'rewardend'
-        tbin = 10.0
-        num_secs = frame_size/tbin
-        exp_data = time_lock_activity(self.exp_file, [num_secs,0], tbin=10)
+        exp_data = time_lock_activity(self.exp_file, t_size=[frame_size,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:] 
         neuron_locations = np.array(self.exp_file['com_cm'])
@@ -110,9 +108,7 @@ class ExpGTE:
         '''
         exp_name_early = self.animal + '_' + self.day + '_' + 'rewardearly'
         exp_name_late = self.animal + '_' + self.day + '_' + 'rewardlate'
-        tbin = 10.0
-        num_secs = frame_size/tbin
-        exp_data = time_lock_activity(self.exp_file, [num_secs,0], tbin=10)
+        exp_data = time_lock_activity(self.exp_file, t_size=[frame_size,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
         early_trials = exp_data[:trials_to_compare,:,:]
@@ -235,9 +231,7 @@ class ExpGTE:
         '''
 
         exp_name = self.animal + '_' + self.day + '_' + 'rewardshuffled'
-        tbin = 10.0
-        num_secs = int(frame_size/tbin)
-        exp_data = time_lock_activity(self.exp_file, [num_secs,0], tbin=10)
+        exp_data = time_lock_activity(self.exp_file, t_size=[frame_size,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
         num_rewards = exp_data.shape[0]
