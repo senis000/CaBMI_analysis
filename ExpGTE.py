@@ -2,6 +2,7 @@ import warnings
 import h5py
 import numpy as np
 from utils_gte import *
+from utils_cabmi import *
 
 class ExpGTE:
     """A class that wraps around an experiment and runs GTE in various ways"""
@@ -10,12 +11,16 @@ class ExpGTE:
     reward_end_results = None
     reward_early_results = None
     reward_late_results = None
+    whole_exp_results_shuffled = None
+    reward_shuffled = None
 
     def __init__(self, folder, animal, day, sec_var=''):
         self.folder = folder
         self.animal = animal
         self.day = day
-        self.parameters = {'bins':5}
+        self.parameters = {
+            'bins':5, 'SourceMarkovOrder':2, 'TargetMarkovOrder':2
+            }
         folder_path = folder +  'processed/' + animal + '/' + day + '/'
         self.exp_file = h5py.File(
             folder_path + 'full_' + animal + '_' + day + '_' +
@@ -186,3 +191,73 @@ class ExpGTE:
         if to_plot:
             visualize_gte_matrices(grouped_results)
         return grouped_results
+
+    def shuffled_whole_exp(self, frame_size, frame_step, parameters=None,
+        iters=100):
+        '''
+        Runs GTE over 'shuffled' instances of neurons over the whole experiment.
+        Returns the average over many of these results.
+        Inputs:
+            FRAME_SIZE: Integer; number of frames to process in GTE
+            FRAME_STEP: Integer; number of frames for each step through the signal.
+            PARAMETERS: Dictionary; parameters for GTE.
+            ITERS: Number of 'shuffled' samples to take and average over.
+        Outputs:
+            RESULT: A GTE connectivity matrix
+        '''
+
+        exp_name = self.animal + '_' + self.day + '_' + 'wholeshuffled'
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_shuffled_input_files(
+                exp_name, exp_data, parameters, frame_size, iters
+            )
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names, pickle_results)
+        delete_gte_files(exp_name, delete_output=False)
+        self.whole_exp_results_shuffled = np.mean(results) #TODO: fix
+        return self.whole_exp_results_shuffled
+
+    def shuffled_results(self, frame_size, parameters=None,
+        iters=100): #TODO: adapt for results
+        '''
+        Runs GTE over 'shuffled' instances of neurons over the whole experiment.
+        Returns the average over many of these results.
+        Inputs:
+            FRAME_SIZE: Integer; number of frames to process in GTE
+            PARAMETERS: Dictionary; parameters for GTE.
+            ITERS: Number of 'shuffled' samples to take and average over.
+        Outputs:
+            RESULT: A GTE connectivity matrix
+        '''
+
+        exp_name = self.animal + '_' + self.day + '_' + 'rewardshuffled'
+        tbin = 10.0
+        num_secs = int(frame_size/tbin)
+        exp_data = time_lock_activity(
+            self.exp_file, [num_secs,0], tbin=10, trial_type=1
+            )
+        num_rewards = exp_data.shape[0]
+        num_neurons = exp_data.shape[1]
+        num_frames = exp_data.shape[2]
+        shuffled_data = np.zeros((iters, num_neurons, num_frames))
+        for i in range(iters):
+            for j in range(num_neurons):
+                reward_idx = np.random.choice(num_rewards)
+                # Sample the frame to start on, excluding Nans 
+                pdb.set_trace()
+                frame_idx = np.random.choice(num_frames) #TODO: correct   
+                shuffled_data[i,j,:] = exp_data[reward_idx, j, frame_idx]
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, shuffled_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names, pickle_results)
+        delete_gte_files(exp_name, delete_output=False)
+        self.reward_shuffled = np.mean(results) #TODO: fix
+        return self.reward_shuffled

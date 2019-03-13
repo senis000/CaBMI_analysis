@@ -43,7 +43,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         TO_PLOT: Boolean; whether or not to plot the changing learning rate
     Outputs:
         HPM: Numpy array; hits per minute
-        TTH: 
+        TTH: Numpy array; time to hit (in frames)
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
     '''
     folder_path = folder +  'processed/' + animal + '/' + day + '/'
@@ -71,16 +71,18 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
     else:
         diff = trial_end - trial_start[:trial_end.shape[0]]
     tth = trial_end[array_t1] - trial_start[array_t1]
-    pdb.set_trace()
     
     if to_plot:
         fig1 = plt.figure()
         ax = fig1.add_subplot(121)
         sns.regplot(xx[1:]/60.0, hpm, label='hits per min')
-        ax.set_xlabel('Hits/min')
+        ax.set_xlabel('Minutes')
+        ax.set_ylabel('Hit Rate (hit/min)')
         ax1 = fig1.add_subplot(122)
         sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
-        ax1.set_xlabel('Time to hit')
+        ax1.set_xlabel('Reward Trial')
+        ax1.set_ylabel('Number of Frames')
+        ax1.yaxis.set_label_position('right')
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
@@ -94,7 +96,10 @@ def activity_hits(folder, animal, day, sec_var=''):
         DAY: String; date of the experiment in YYMMDD format 
     '''
     folder_path = folder +  'processed/' + animal + '/' + day + '/'
-    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '_data.hdf5', 'r')
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
     C = np.asarray(f['C'])
 
 #def neuron_activity(folder, animal, day, sec_var='', to_plot=True):
@@ -109,7 +114,10 @@ def frequency_tuning(folder, animal, day, to_plot=True):
     folder_dest = folder +  'analysis/' + animal + '/'
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
-    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '_data.hdf5', 'r')
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
     frequency_data = np.asarray(f['frequency'])
     dff_data = np.asarray(f['dff'])
     blen = f.attrs['blen']
