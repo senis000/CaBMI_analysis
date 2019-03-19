@@ -101,7 +101,6 @@ def plot_trial_end_ens(folder, animal, day,
         folder_path + 'full_' + animal + '_' + day + '_' +
         sec_var + '_data.hdf5', 'r'
         )
-
     t_size = [50,30]
     time_lock_data = time_lock_activity(f, t_size=t_size)
     time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
@@ -202,16 +201,14 @@ def plot_avg_trial_end_ens(folder, animal, day,
         )
     plt.show()
 
-def plot_truncated_zscore(folder, animal, day, sec_var=''):
+def plot_zscore_activity(folder, animal, day, sec_var=''):
     '''
-    Plot z-scored calcium activity of each neuron, as well as a truncating line
+    Plot z-scored calcium activity of each neuron, truncated at 10.0
     at arbitrary values
     Inputs:
         FOLDER: String; path to folder containing data files
         ANIMAL: String; ID of the animal
         DAY: String; date of the experiment in TTMMDD format
-        TRIAL_TYPE: an integer from [0,1,2]. 0 indicates all trials,
-            1 indicates hit trials, 2 indicates miss trials.
     '''
     folder_path = folder +  'processed/' + animal + '/' + day + '/'
     folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
@@ -223,7 +220,7 @@ def plot_truncated_zscore(folder, animal, day, sec_var=''):
     exp_data = exp_data[np.array(f['nerden']),:]
     num_neurons, num_frames = exp_data.shape
     
-    # Z Score
+    # Z Score (truncated)
     exp_data = zscore(exp_data, axis=1)
     exp_data = np.minimum(exp_data, np.ones(exp_data.shape)*10)
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -232,6 +229,7 @@ def plot_truncated_zscore(folder, animal, day, sec_var=''):
     ax.axhline(10, color='r', lw=1.25)
     ax.set_xlabel("Frame Number")
     ax.set_ylabel("Z-Scored Calcium Activity")
+    ax.set_ylim((-3,4.5))
     plt.title("Neuron Activity Over Experiment " + day)
     axcolor = 'lightgoldenrodyellow'
     axneurons = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
@@ -242,9 +240,111 @@ def plot_truncated_zscore(folder, animal, day, sec_var=''):
         for l in ax.get_lines():
             ax.lines.remove(l)
         ax.plot(trial_data) 
-        ax.axhline(10, color='r', lw=1.25)
-        ax.set_ylim((np.min(trial_data)*.9, np.max*trial_data)*1.1)
+        ax.set_ylim((-3,4.5))
         fig.canvas.draw_idle()
     neurons_slider.on_changed(update)
+    pdb.set_trace()
+    plt.show()
+
+def plot_zscore_rewards(folder, animal, day, sec_var=''):
+    '''
+    Plot z-scored calcium activity of each neuron, as well as a truncating line
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in TTMMDD format
+    '''
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
+    t_size = [300,0]
+    time_lock_data = time_lock_activity(f, t_size=t_size)
+    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
+    array_t1 = np.array(f['array_t1'])
+    time_lock_data = time_lock_data[array_t1,:,:]
+    num_rewards, num_neurons, num_frames = time_lock_data.shape
+
+    # Z Score (untruncated)
+    fluor_vals = zscore(time_lock_data, axis=2)
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    plt.subplots_adjust(bottom=0.25)
+    ax.plot(fluor_vals[0,0,:])
+    ax.set_ylabel("Z-Scored Calcium Activity")
+    ax.set_xlabel("Number of Frames")
+    ax.axhline(4, color='r', lw=1.25)
+    plt.title("Fluorescent Value Histogram for Day " + day)
+    axcolor = 'lightgoldenrodyellow'
+    axtrials = plt.axes([0.1, 0.05, 0.8, 0.03], facecolor=axcolor)
+    trial_slider = Slider(axtrials, 'Trial', 0, num_rewards-1, valinit=0)
+    axneurons = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
+    neurons_slider = Slider(axneurons, 'Neuron', 0, num_neurons-1,valinit=0)
+    def update(val):
+        trial_idx = int(trial_slider.val)
+        neuron_idx = int(neurons_slider.val)
+        trial_data = fluor_vals[trial_idx,neuron_idx,:]
+        for l in ax.get_lines():
+            ax.lines.remove(l)
+        ax.plot(trial_data)
+        ax.axhline(4, color='r', lw=1.25)
+        ax.set_ylim((np.min(trial_data)*.9, np.max(trial_data)*1.1))
+        fig.canvas.draw_idle()
+    trial_slider.on_changed(update)
+    neurons_slider.on_changed(update)
+    pdb.set_trace()
+    plt.show()
+
+def plot_reward_histograms(folder, animal, day, sec_var=''):
+    '''
+    Plot the histogram of the calcium activity over each reward trial.
+    Z-score values are truncated at 4.
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in TTMMDD format
+    '''
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        )
+    t_size = [300,0]
+    time_lock_data = time_lock_activity(f, t_size=t_size)
+    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
+    array_t1 = np.array(f['array_t1'])
+    time_lock_data = time_lock_data[array_t1,:,:]
+    num_rewards, num_neurons, num_frames = time_lock_data.shape
+    
+    # Z Score (untruncated)
+    fluor_vals = zscore(time_lock_data, axis=2)
+    fluor_vals = fluor_vals.reshape(num_rewards, num_neurons*num_frames) 
+    fluor_vals = np.minimum(fluor_vals, 4.0)
+    trial_data = fluor_vals[0,:]
+    trial_data = trial_data[~np.isnan(trial_data)]
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    plt.subplots_adjust(bottom=0.25)
+    ax.hist(trial_data,100)
+    ax.set_xlabel("Z-Scored Calcium Activity")
+    ax.set_ylabel("Number of Instances")
+    plt.title("Fluorescent Value Histogram for Day " + day)
+    axcolor = 'lightgoldenrodyellow'
+    axtrial = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
+    trial_slider = Slider(axtrial, 'Reward Trial', 0, num_rewards-1, valinit=0)
+    def update(val):
+        trial_idx = int(trial_slider.val)
+        trial_data = fluor_vals[trial_idx,:]
+        trial_data = trial_data[~np.isnan(trial_data)]
+        for l in ax.get_lines():
+            ax.lines.remove(l)
+        patches = ax.patches
+        _ = [p.remove() for p in patches]
+        ax.hist(trial_data,100)
+        #ax.axhline(10, color='r', lw=1.25)
+        #ax.set_ylim((np.min(trial_data)*.9, np.max(trial_data)*1.1))
+        fig.canvas.draw_idle()
+    trial_slider.on_changed(update)
     pdb.set_trace()
     plt.show()

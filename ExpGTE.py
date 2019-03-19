@@ -7,18 +7,23 @@ from utils_cabmi import *
 
 class ExpGTE:
     """A class that wraps around an experiment and runs GTE in various ways"""
+    # Z-score threshold values
+    reward_threshold = 4.0
+    whole_exp_threshold = 10.0
 
+    # Where GTE results go
     whole_exp_results = None
     reward_end_results = None
     reward_sliding_results = None
-    reward_shuffled = None
+    reward_shuffled_results = None
 
     def __init__(self, folder, animal, day, sec_var=''):
         self.folder = folder
         self.animal = animal
         self.day = day
         self.parameters = {
-            'bins':5, 'SourceMarkovOrder':2, 'TargetMarkovOrder':2
+            'AutoBinNumberQ': True, 'SourceMarkovOrder':2, 'TargetMarkovOrder':2,
+            'StartSampleIndex':2
             }
         folder_path = folder +  'processed/' + animal + '/' + day + '/'
         self.exp_file = h5py.File(
@@ -41,8 +46,9 @@ class ExpGTE:
         exp_data = np.array(self.exp_file['C']) # (neurons x frames)
         exp_data = exp_data[np.array(self.exp_file['nerden']),:]
         exp_data = zscore(exp_data, axis=1)
-        assert(np.sum(np.isnan(exp_data)) == 0)
-        exp_data = np.minimum(exp_data, 10.0)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_experiment_threshold)
+        exp_data = np.minimum(exp_data, self.whole_experiment_threshold)
         exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
@@ -50,10 +56,9 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, exp_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names, pickle_results)
+            output_file_names, pickle_results=pickle_results)
         if to_plot:
             visualize_gte_results(results, neuron_locations)
-        delete_gte_files(exp_name, delete_output=False)
         self.whole_exp_results = results
         return results
     
@@ -81,12 +86,14 @@ class ExpGTE:
             parameters = self.parameters
 
         control_file_names, exclude_file_names, output_file_names = \
-            create_gte_input_files(exp_name, exp_data, parameters, to_zscore=True)
+            create_gte_input_files(
+                exp_name, exp_data, parameters,
+                to_zscore=True, zscore_threshold=self.reward_threshold
+                )
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names, pickle_results)
+            output_file_names, pickle_results=pickle_results)
         if to_plot:
             visualize_gte_results(results, neuron_locations)
-        delete_gte_files(exp_name, delete_output=False)
         self.reward_end_results = results
         return results
 
@@ -94,7 +101,7 @@ class ExpGTE:
         to_plot=True, pickle_results=True):
         '''
         Run general transfer of entropy over each reward trial, with a sliding
-        window of size FRAME_SIZE.
+        window of size FRAME_SIZE, from the last 300 frames of each trial.
         Inputs:
             FRAME_SIZE: Integer; number of frames to process in GTE.
             FRAME_STEP: Integer; number of frames for each step through signal.
@@ -109,7 +116,7 @@ class ExpGTE:
                 RESULTS[i] = [].
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'rewardsliding'
-        exp_data = time_lock_activity(self.exp_file)
+        exp_data = time_lock_activity(self.exp_file, t_size=[300,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
         exp_data = exp_data[:,np.array(self.exp_file['nerden']),:]
@@ -121,6 +128,7 @@ class ExpGTE:
 
         # Try to run sliding GTE over each reward trial.
         for reward_idx in range(num_rewards):
+            exp_name_idx = exp_name + str(reward_idx)
             # Chop off the NaN sections of the reward trial.
             reward_data = exp_data[reward_idx,:,:]
             if np.sum(np.isnan(reward_data[0,:])) == 0:
@@ -130,25 +138,27 @@ class ExpGTE:
             reward_data = reward_data[:,non_nan_idx:]
 
             # If the reward trial is too short, skip it.
-            if reward_data.shape[1] > frame_size:
+            if reward_data.shape[1] < frame_size:
                 results.append([])
                 continue
 
             # Otherwise, z-score the signal and GTE as normal
             reward_data = zscore(reward_data, axis=1)
-            reward_data = np.minimum(reward_data, 10.0)
+            reward_data = np.nan_to_num(reward_data)
+            reward_data = np.maximum(reward_data, -1*self.reward_threshold)
+            reward_data = np.minimum(reward_data, self.reward_threshold)
             control_file_names, exclude_file_names, output_file_names = \
-                create_gte_input_files(
-                    exp_name, reward_data, parameters, frame_size, frame_step
+                create_gte_input_files_sliding(
+                    exp_name_idx, reward_data, parameters,
+                    frame_size, frame_step=frame_step
                     )
             result = run_gte(
                 control_file_names, exclude_file_names,
-                output_file_names, pickle_results
+                output_file_names, pickle_results=pickle_results
                 )
             if to_plot:
                 print("Plotting reward trial " + str(reward_idx) + ".")
                 visualize_gte_results(result, neuron_locations)
-            delete_gte_files(exp_name, delete_output=False)
             results.append(result)
         self.reward_sliding_results = results
         return results
@@ -207,7 +217,7 @@ class ExpGTE:
     def shuffled_results(self, frame_size, parameters=None,
         iters=100):
         '''
-        Runs GTE over 'shuffled' instances of neurons over the whole experiment.
+        Runs GTE over 'shuffled' instances of neurons over reward trials.
         Returns the average over many of these results.
         Inputs:
             FRAME_SIZE: Integer; number of frames to process in GTE
@@ -238,7 +248,7 @@ class ExpGTE:
         num_rewards = exp_data.shape[0]
         num_neurons = exp_data.shape[1]
         num_frames = exp_data.shape[2]
-        shuffled_data = np.zeros((iters, num_neurons, num_frames))
+        shuffled_data = np.zeros((iters, num_neurons, frame_size))
         for i in range(iters):
             for j in range(num_neurons):
                 # Sample the reward trial to use
@@ -253,7 +263,9 @@ class ExpGTE:
                     np.arange(non_nan_idx, num_frames-frame_size+1)
                 frame_idx = np.random.choice(valid_frame_idxs)
                 full_signal = zscore(full_signal)
-                full_signal = np.minimum(full_signal, 10.0)
+                full_signal = np.nan_to_num(full_signal)
+                full_signal = np.maximum(full_signal, -1*self.reward_threshold)
+                full_signal = np.minimum(full_signal, self.reward_threshold)
                 shuffled_data[i,j,:] = \
                     full_signal[frame_idx:frame_idx+frame_size]
         neuron_locations = np.array(self.exp_file['com_cm'])
@@ -264,7 +276,23 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, shuffled_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names, pickle_results)
-        delete_gte_files(exp_name, delete_output=False)
-        self.reward_shuffled = np.mean(results) #TODO: fix
-        return self.reward_shuffled
+            output_file_names)
+        
+        # Compute the average information transfer over shuffled instances.
+        reward_shuffled_results = np.ones(results[0].shape)*np.nan
+        num_results = len(results)
+        for i in range(num_neurons):
+            for j in range(num_neurons):
+                num_samples = 0.0
+                value_sum = 0.0
+                for result_idx in range(num_results): # Loop over all results
+                    val = results[result_idx][i][j]
+                    if np.isnan(val):
+                        continue
+                    else:
+                        num_samples += 1.0
+                        value_sum += val
+                if num_samples > 0: # Calculate the average
+                    reward_shuffled_results[i][j] = value_sum/num_samples
+        self.reward_shuffled_results = reward_shuffled_results 
+        return reward_shuffled_results

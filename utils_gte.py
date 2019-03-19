@@ -19,9 +19,9 @@ def write_params_to_ctrl_file(parameters, control_file_name):
             GTE params
         CONTROL_FILE_NAME: a String; the path to the control.txt file to write
     """
-    f = open(control_file_name, "w+") 
-    for key in parameters.keys():
-        f.write(key + " = " + str(parameters[key]) + ";\n")
+    with open(control_file_name, "w+") as f:
+        for key in parameters.keys():
+            f.write(key + " = " + str(parameters[key]) + ";\n")
 
 def write_signal_to_file(signal, idx, frame_size, signal_file_name,
         exclude_file_name):
@@ -44,17 +44,17 @@ def write_signal_to_file(signal, idx, frame_size, signal_file_name,
         if np.max(signal_window) == np.min(signal_window):
             signal[i,idx] += 0.1
             flat_signal_idxs.append(i)
-    f = open(signal_file_name, "w+")
-    num_neurons = signal.shape[0]
-    num_frames = frame_size
-    for i in range(idx, idx+frame_size):
-        line = ""
-        for j in range(num_neurons):
-            if j==0:
-                line += str(signal[j,i])
-            else:
-                line+=(","+str(signal[j,i]))
-        f.write(line+"\n") 
+    with open(signal_file_name, "w+") as f:
+        num_neurons = signal.shape[0]
+        num_frames = frame_size
+        for i in range(idx, idx+frame_size):
+            line = ""
+            for j in range(num_neurons):
+                if j==0:
+                    line += str(signal[j,i])
+                else:
+                    line+=(","+str(signal[j,i]))
+            f.write(line+"\n") 
     with open(exclude_file_name, 'wb') as fp:
         pickle.dump(flat_signal_idxs, fp)
 
@@ -67,9 +67,8 @@ def parse_mathematica_list(file_name):
     Output:
         CONNECTIVITY_MATRIX: the corresponding Numpy array
     """
-
-    f = file(file_name)
-    x = f.read()    # Gets the whole mathematica array
+    with open(file_name) as f:
+        x = f.read()    # Gets the whole mathematica array
     x1 = x[1:-2]    #Strip off the outer brackets
     matches = re.findall('{(.*?)}\\n', x1, flags=0) # Collects each matrix row
     matrix = [m.split(', ') for m in matches]
@@ -134,7 +133,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     return im, cbar
 
-def create_gte_input_files(
+def create_gte_input_files_sliding(
         exp_name, exp_data, parameters,
         frame_size, frame_step=1):
     """
@@ -199,7 +198,8 @@ def create_gte_input_files(
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
-def create_gte_input_files(exp_name, exp_data, parameters, to_zscore=False):
+def create_gte_input_files(exp_name, exp_data,
+        parameters, to_zscore=False, zscore_threshold=0.0):
     """
     Given the input, this function will create the necessary directories,
     control files, and signal files that defines an input to the GTE library.
@@ -213,7 +213,7 @@ def create_gte_input_files(exp_name, exp_data, parameters, to_zscore=False):
             'inputfile', 'outputfile', 'outputparsfile'-- defined values 
             for these parameters will be overwritten
         TO_ZSCORE: a boolean flag indicating whether the data needs to be
-            zscored and thresholded (at 10).
+            zscored and thresholded (at ZSCORE_THRESHOLD).
     Output:
         CONTROL_FILE_NAMES: an array of Strings. Each String is a path to a 
             control.txt file, itself an input to the GTE library.
@@ -245,7 +245,9 @@ def create_gte_input_files(exp_name, exp_data, parameters, to_zscore=False):
         signal = signal[:,signal_start:]
         if to_zscore:
             signal = zscore(signal, axis=1)
-            signal = np.minimum(signal, 10.0)
+            signal = np.nan_to_num(signal)
+            signal = np.maximum(signal, -1.0*zscore_threshold)
+            signal = np.minimum(signal, zscore_threshold)
         control_file_name = exp_path + "/control" + str(idx) + ".txt"
         signal_file_name = exp_path + "/signal" + str(idx) + ".txt"
         exclude_file_name = exp_path + "/exclude" + str(idx) + ".txt"
@@ -259,14 +261,16 @@ def create_gte_input_files(exp_name, exp_data, parameters, to_zscore=False):
         # Generate the CONTROL.TXT and SIGNAL.TXT file. Save the file path of 
         # the control file and the result file (which is not yet generated).
         write_params_to_ctrl_file(parameters, control_file_name)
-        write_signal_to_file(signal, 0, signal.shape[1], signal_file_name)
+        write_signal_to_file(
+            signal, 0, signal.shape[1], signal_file_name, exclude_file_name
+            )
         control_file_names.append(control_file_name)
         exclude_file_names.append(exclude_file_name)
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
 def run_gte(control_file_names, exclude_file_names, output_file_names,
-        pickle_results):
+        pickle_results=False):
     """
     Runs GTE on each control file.
 
@@ -292,15 +296,16 @@ def run_gte(control_file_names, exclude_file_names, output_file_names,
             ])
         result = parse_mathematica_list(output_file_names[idx])
         exclude_file_name = exclude_file_names[idx]
-        with open(exclude_file_name, 'rb') as fp:
-            exclude_idxs = pickle.load(fp)
+        with open(exclude_file_name, 'rb') as p_file:
+            exclude_idxs = pickle.load(p_file)
         for idx in exclude_idxs:
             result[idx,:] = np.nan
             result[:,idx] = np.nan
         results.append(result)
     if pickle_results:
         results_path = os.path.dirname(control_file_name) + "/outputs/results.p"
-        pickle.dump(results, open(results_path, "wb"))
+        with open(results_path, "wb") as p_file:
+            pickle.dump(results, p_file)
     return results
 
 def visualize_gte_results(results, neuron_locations, cmap='r'):
@@ -412,22 +417,25 @@ def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
                                    init_func=init, interval=500, blit=False)
     plt.show()
 
-def delete_gte_files(exp_name, delete_output=True):
+def delete_gte_files(dir_names=None, remove_only_input_files=False):
     """
-    Deletes GTE files created to run the GTE library.
+    Deletes GTE directories in files created to run the GTE library.
     Input:
-        EXP_NAME: Deletes /te-causality/transferentropy-sim/experiments/EXP_NAME.
-            The directory contents are deleted as well.
-        DELETE_OUTPUT: A boolean flag, default True. If set to False, the
-            function will delete everything inside
-            /te-causality/transferentropy-sim/experiments/EXP_NAME, 
-            except for the 'output' directory. 
+        DIR_NAMES: A list; the names of specific directories to remove from
+            /te-causality/transferentropy-sim/experiments/. If not provided,
+            the function by default removes all directories.
+        REMOVE_ONLY_INPUT_FILES: If True, only the parameter, control, and
+            exclude files are removed from the directories in DIR_NAMES.
     """
 
-    exp_dir = "./te-causality/transferentropy-sim/experiments/" + exp_name 
-    if delete_output:
-        shutil.rmtree(exp_dir) 
-    else:
-        for f in os.listdir(exp_dir):
-            if f.endswith(".txt") or f.endswith(".p"):
-                subprocess.call(["rm", "-rf", exp_dir + "/" + f])
+    exp_dir = "./te-causality/transferentropy-sim/experiments"
+    if dir_names is None:
+        dir_names = os.listdir(exp_dir) # Assumes only directories exist here
+    for dir_name in dir_names: # Loop through each directory found
+        dir_path = exp_dir + "/" + dir_name
+        if remove_only_input_files:
+            for f in os.listdir(dir_path):
+                if f.endswith(".txt") or f.endswith(".p"):
+                    subprocess.call(["rm", "-rf", dir_path + "/" + f])
+        else:
+            shutil.rmtree(dir_path)
