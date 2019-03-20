@@ -269,8 +269,7 @@ def create_gte_input_files(exp_name, exp_data,
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
-def run_gte(control_file_names, exclude_file_names, output_file_names,
-        pickle_results=False):
+def run_gte(control_file_names, exclude_file_names, output_file_names):
     """
     Runs GTE on each control file.
 
@@ -302,10 +301,6 @@ def run_gte(control_file_names, exclude_file_names, output_file_names,
             result[idx,:] = np.nan
             result[:,idx] = np.nan
         results.append(result)
-    if pickle_results:
-        results_path = os.path.dirname(control_file_name) + "/outputs/results.p"
-        with open(results_path, "wb") as p_file:
-            pickle.dump(results, p_file)
     return results
 
 def visualize_gte_results(results, neuron_locations, cmap='r'):
