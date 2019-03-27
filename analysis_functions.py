@@ -66,11 +66,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
     bins = np.arange(0, trial_end[-1]/fr, 60)
     [hpm, xx] = np.histogram(hits/fr, bins)
 
-    if trial_end.shape[0] == trial_start.shape[0]:
-        diff = trial_end - trial_start
-    else:
-        diff = trial_end - trial_start[:trial_end.shape[0]]
-    tth = trial_end[array_t1] - trial_start[array_t1]
+    tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot:
         fig1 = plt.figure()
@@ -121,7 +117,7 @@ def frequency_tuning(folder, animal, day, to_plot=True):
     frequency_data = np.asarray(f['frequency'])
     dff_data = np.asarray(f['dff'])
     blen = f.attrs['blen']
-    end_trial = f['trial_end'][0]
+    end_trial = f['trial_end'][0] + 1
     
     f = h5py.File(
         folder_dest + 'tuning_' + animal + '_' + day + '_' +

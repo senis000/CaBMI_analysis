@@ -54,9 +54,13 @@ def time_lock_activity(f, t_size=[300,30]):
     C = np.asarray(f['C'])
     assert(np.sum(np.isnan(C)) == 0)
     neuron_activity = np.ones(
-        (trial_end.shape[0], C.shape[0], np.sum(t_size))
+        (trial_end.shape[0], C.shape[0], np.sum(t_size) + 1)
         )*np.nan # (num_trials x num_neurons x num_frames)
     for ind, trial in enumerate(trial_end):
-        aux_act = C[:, trial - t_size[0]:trial + t_size[1]]
-        neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+        try:
+            start_idx = max(trial - t_size[0], trial_start[ind])
+            aux_act = C[:, start_idx:trial + 1 + t_size[1]]
+            neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+        except:
+            pdb.set_trace()
     return neuron_activity
