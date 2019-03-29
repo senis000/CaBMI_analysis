@@ -248,9 +248,8 @@ class ExpGTE:
                     non_nan_idx = np.where(np.isnan(full_signal))[0][-1] + 1
                 else:
                     non_nan_idx = 0
-                valid_frame_idxs = \
-                    np.arange(non_nan_idx, num_frames-frame_size+1)
-                frame_idx = np.random.choice(valid_frame_idxs)
+                full_signal = full_signal[non_nan_idx:]
+                frame_idx = np.random.choice(full_signal.size)
                 full_signal = zscore(full_signal)
                 full_signal = np.nan_to_num(full_signal)
                 full_signal = np.maximum(full_signal, -1*self.reward_threshold)
