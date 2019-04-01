@@ -36,6 +36,71 @@ def sliding_mean(data_array, window=5):
         new_list.append(avg)
     return np.array(new_list)
 
+
+def shuffle_peaks(data_array, sf, ef, ipi_proc, axis=0):
+    """
+    Takes in data_array of calcium peaks and shuffle with respect to axis.
+
+    Input:
+        data_array: ndarray
+            Numpy array with peak data and inter-peak intervals
+        sf: function
+            start function that takes in (data_array, i) where i is the
+            index that signifies the start of a peak region (inclusive)
+        ef: function
+            end function that takes in (data_array, j) where j the index
+            that signifies the end of a peak region (exclusive),
+            therefore, data_array[i:j] would represent one peak region
+        ipi_proc: function
+            randomizing procedure for ipi data shuffling
+        axis: int
+            axis for shuffling
+
+    Returns:
+        shuffled: ndarray
+            shuffled version of peak array with respect to axis
+    """
+    peak_regions = []
+    prev_end = 0
+    IPI = np.array(np.empty(data_array.shape[:axis]+(0,)+data_array.shape[
+        axis+1:]))
+    pk_start = None
+    # TODO: PROCEDURE ONLY APPLIES TO 1D NOW
+    for i in range(len(data_array)):
+        if pk_start is None:
+            # Outside of peak regions, wait for criterion sf to be met
+            if sf(data_array, i):
+                pk_start = i
+                IPI = np.concatenate((IPI,
+                    np.take(data_array, range(prev_end, pk_start),
+                            axis=axis)), axis=axis)
+        else:
+            # Within peak_regions, record the peak if ef criterion is met
+            if ef(data_array, i):
+                peak_regions.append((pk_start, i))
+                prev_end = i
+                pk_start = None
+
+    IPI = np.concatenate((IPI,
+        np.take(data_array, range(prev_end, data_array.shape[axis]),
+                axis=axis)), axis=axis)
+
+    # TODO: USE NUMPY Parallelization later to expedite the process, so far
+    #  use naive method
+    np.random.shuffle(peak_regions)
+    newIPI = ipi_proc(IPI)
+    s_inds = np.random.choice(len(IPI)+1, len(peak_regions))
+    # TODO: RETURN SEQUENCE SUCH THAT all peak region sequences will be
+    #  appended in accordance
+
+
+
+
+
+
+
+
+
 def time_lock_activity(f, t_size=[300,30]):
     '''
     Creates a 3d matrix time-locking activity to trial end.
