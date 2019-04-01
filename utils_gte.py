@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pickle
 from matplotlib import animation
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.widgets import Slider
 
 def write_params_to_ctrl_file(parameters, control_file_name):
     """
@@ -359,8 +360,8 @@ def visualize_gte_results(results, neuron_locations, cmap='r'):
 
 def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
     """
-    This function will make an animated heatmap of the connectivity matrices
-    changing over time.
+    This function will make heatmaps of the connectivity matrices, adjustable
+    by a slider bar.
     Input:
         RESULTS: an array of connectivity matrices in temporal sequence.
             The matrix is square, where the i,jth entry corresponds to the 
@@ -370,47 +371,31 @@ def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
             by 0-indexing.
         CMAP: a String; the colormap to use for IMSHOW (the matrix heat map) 
     """ #TODO: Add save_video flag via anim.save("anim.mp4", fps=1)
-    max_val = max([m.max() for m in results])
-    min_val = min([m.min() for m in results])
+    max_val = max([np.max(np.nan_to_num(m)) for m in results])
+    min_val = min([np.min(np.nan_to_num(m)) for m in results])
     num_neurons = results[0].shape[0]
-    dummy_m = np.zeros((num_neurons, num_neurons))
-    dummy_m[0,0] = max_val
-    dummy_m[1,1] = min_val
     if labels is None:
         labels = np.arange(num_neurons)
-    fig, ax = plt.subplots()
-    im, cbar = heatmap(dummy_m, labels, labels, ax=ax,
-                       cmap=cmap, cbarlabel="Transfer Entropy")
-    ax.imshow(results[0], cmap=cmap)
+    
+    # Initial plot
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    im = ax.imshow(results[0], cmap=cmap, vmin=min_val, vmax=max_val)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    plt.subplots_adjust(bottom=0.25, top=0.825)
     ax.set_title('Change in Transfer Entropy Over Time')
-    plt.figtext(0.1, 0.9, "Frame 0", size=15,
-        ha="center", va="center",
-        bbox=dict(boxstyle="round",
-            ec=(1., 0.5, 0.5),
-            fc=(1., 0.8, 0.8),
-            )
-        )
-    fig.tight_layout()
-    
-    def init():
-        return ax,
-    
-    def animate(i):
-        for t in ax.texts:
-            t.remove()
-        m = results[i]
-        ax.imshow(m, cmap=cmap)
-        plt.figtext(0.1, 0.9, "Frame " + str(i), size=15,
-            ha="center", va="center",
-            bbox=dict(boxstyle="round",
-                ec=(1., 0.5, 0.5),
-                fc=(1., 0.8, 0.8),
-                )
-            )
-        return ax
-    anim = animation.FuncAnimation(fig, animate, frames=range(0, len(results)),
-                                   init_func=init, interval=500, blit=False)
+
+    axcolor = 'lightgoldenrodyellow'
+    axtrials = plt.axes([0.1, 0.05, 0.8, 0.03], facecolor=axcolor)
+    trial_slider = Slider(axtrials, 'Frame', 0, len(results)-1, valinit=0)
+    def update(val, max_val=max_val, min_val=min_val):
+        trial = int(trial_slider.val)
+        ax.clear()
+        im = ax.imshow(results[trial], cmap=cmap, vmin=min_val, vmax=max_val)
+        ax.set_title('Change in Transfer Entropy Over Time')
+        fig.canvas.draw_idle()
+    trial_slider.on_changed(update)
     plt.show()
+    pdb.set_trace()
 
 def delete_gte_files(dir_names=None, remove_only_input_files=False):
     """
