@@ -4,7 +4,7 @@
 #*************************************************************************
 
 
-__author__ = 'Nuria'
+__author__ = 'Nuria & Ching & Albert'
 
 
 import numpy as np
