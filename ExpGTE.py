@@ -41,8 +41,8 @@ class ExpGTE:
         exp_data = exp_data[np.array(self.exp_file['nerden']),:]
         exp_data = zscore(exp_data, axis=1)
         exp_data = np.nan_to_num(exp_data)
-        exp_data = np.maximum(exp_data, -1*self.whole_experiment_threshold)
-        exp_data = np.minimum(exp_data, self.whole_experiment_threshold)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
         exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
@@ -286,3 +286,65 @@ class ExpGTE:
             with open(self.folder_path + 'reward_shuffled.p', 'wb') as p_file:
                 pickle.dump(reward_shuffled_results, p_file)
         return reward_shuffled_results
+
+    def shuffled_whole(self, frame_size, parameters=None,
+        iters=100, pickle_results=True):
+        '''
+        Runs GTE over 'shuffled' instances of neurons over the whole experiment.
+        Returns the average over many of these results.
+        Inputs:
+            FRAME_SIZE: Integer; number of frames to process in GTE
+            PARAMETERS: Dictionary; parameters for GTE.
+            ITERS: Number of 'shuffled' samples to take and average over.
+        Outputs:
+            RESULT: A GTE connectivity matrix
+        '''
+
+        exp_name = self.animal + '_' + self.day + '_' + 'wholeshuffled' + str(frame_size)
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        
+        # Extract out 'shuffled' windows to use
+        num_neurons = exp_data.shape[0]
+        num_frames = exp_data.shape[1]
+        shuffled_data = np.zeros((iters, num_neurons, frame_size))
+        for i in range(iters):
+            for j in range(num_neurons):
+                # Sample the frame to start on
+                full_signal = exp_data[j,:]
+                frame_idx = np.random.choice(np.arange(0,full_signal.size-frame_size+1))
+                shuffled_data[i,j,:] = \
+                    full_signal[frame_idx:frame_idx+frame_size]
+        if parameters is None:
+            parameters = self.parameters
+        
+        # Run GTE on shuffled data
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, shuffled_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        
+        # Compute the average information transfer over shuffled instances.
+        whole_shuffled_results = np.ones(results[0].shape)*np.nan
+        num_results = len(results)
+        for i in range(num_neurons):
+            for j in range(num_neurons):
+                num_samples = 0.0
+                value_sum = 0.0
+                for result_idx in range(num_results): # Loop over all results
+                    val = results[result_idx][i][j]
+                    if np.isnan(val):
+                        continue
+                    else:
+                        num_samples += 1.0
+                        value_sum += val
+                if num_samples > 0: # Calculate the average
+                    whole_shuffled_results[i][j] = value_sum/num_samples
+        if pickle_results:
+            with open(self.folder_path + 'whole_shuffled.p', 'wb') as p_file:
+                pickle.dump(whole_shuffled_results, p_file)
+        return whole_shuffled_results
