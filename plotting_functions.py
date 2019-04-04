@@ -103,7 +103,6 @@ def plot_trial_end_ens(folder, animal, day,
         )
     t_size = [50,30]
     time_lock_data = time_lock_activity(f, t_size=t_size)
-    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -170,7 +169,6 @@ def plot_avg_trial_end_ens(folder, animal, day,
 
     t_size = [50,30]
     time_lock_data = time_lock_activity(f, t_size=t_size)
-    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -187,7 +185,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         for irow in range(2):
             neuron_idx = int(ens_neurons[icol+2*irow])
             axs[irow, icol].plot(
-                np.mean(time_lock_data[:,neuron_idx,:], axis=0)
+                np.nanmean(time_lock_data[:,neuron_idx,:], axis=0)
                 )
             axs[irow, icol].set_title('Neuron ' + str(neuron_idx))
             axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
