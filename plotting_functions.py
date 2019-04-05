@@ -151,8 +151,8 @@ def plot_trial_end_ens(folder, animal, day,
 def plot_avg_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
     '''
-    Plot the average calcium activity of ensemble neurons from the last 5
-    seconds before the end of a trial to 3 seconds after the trial.
+    Plot the average calcium activity of ensemble neurons from the last
+    second before the end of a trial to one second after the trial.
     Inputs:
         FOLDER: String; path to folder containing data files
         ANIMAL: String; ID of the animal
@@ -167,7 +167,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         sec_var + '_data.hdf5', 'r'
         )
 
-    t_size = [50,30]
+    t_size = [10,10]
     time_lock_data = time_lock_activity(f, t_size=t_size)
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
