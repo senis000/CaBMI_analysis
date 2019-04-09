@@ -39,6 +39,7 @@ Note that the `.gitignore` file will ignore the entire `te-causality` directory.
    ```
 4. Install GSL
    ```
+   cd $GTE
    sudo wget -O gsl.tgz http://ftp.gnu.org/gnu/gsl/gsl-1.16.tar.gz \
     && tar -zxf gsl.tgz \
     && mkdir gsl \
@@ -54,7 +55,7 @@ Note that the `.gitignore` file will ignore the entire `te-causality` directory.
     ```
 6. Install SimKernel:
     ```
-    cd $GTE/te-causality
+    cd $GTE
     sudo apt-get install --yes unzip \
         && wget -O simkernel.zip http://github.com/ChristophKirst/SimKernel/archive/master.zip \
         && unzip simkernel.zip \
@@ -68,6 +69,7 @@ Note that the `.gitignore` file will ignore the entire `te-causality` directory.
     ```
 8. Install yaml-cpp
     ```
+    cd $GTE
     sudo apt-get install --yes cmake \
         && wget -O yaml-cpp.zip https://github.com/jbeder/yaml-cpp/archive/release-0.5.3.zip \
         && unzip yaml-cpp.zip \

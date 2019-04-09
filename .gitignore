@@ -3,5 +3,7 @@ te-causality
 .gitignore
 __pycache__
 *.pyc
-Sandbox.py
+Sandbox*
 processed
+tmp*
+*.swp
