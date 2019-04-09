@@ -631,7 +631,13 @@ def check_trials(matinfo, vars, fr, trial_time=30):
     # to remove false end of trials
     if trial_start[0] > trial_end[0]:
         trial_end = trial_end[1:]
-    if (trial_end.shape[0] > trial_start.shape[0]) or (len(np.where((trial_end - trial_start)<0)[0])>0):
+    if trial_start.shape[0] > trial_end.shape[0]:
+        trial_start = trial_start[:-1]
+    flag_correct = False
+    if (trial_end.shape[0] > trial_start.shape[0]): flag_correct = True
+    if not flag_correct:
+        if (len(np.where((trial_end - trial_start)<0)[0])>0): flag_correct = True
+    if flag_correct:
         ind = 0
         while ind < trial_start.shape[0]: # CAREFUL it can get stack foreveeeeeer
             tokeep = np.ones(trial_end.shape[0]).astype('bool')
@@ -1071,8 +1077,12 @@ def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits,
     all_neuron_act = all_neuron_act [:,:len_experiment]
     trial_end = trial_end[:np.where(trial_end>len_experiment)[0][0]]
     trial_start = trial_start[:np.where(trial_start>len_experiment)[0][0]]
-    hits = hits[:np.where(hits>len_experiment)[0][0]]
-    miss = miss[:np.where(miss>len_experiment)[0][0]]
+    auxhit = np.where(hits>len_experiment)[0]
+    auxmiss = np.where(miss>len_experiment)[0]
+    if len(auxhit) != 0:
+        hits = hits[:auxhit[0]]
+    if len(auxmiss) != 0:
+        miss = miss[:auxmiss[0]]
     cursor = cursor[:(len_experiment - len_base)]
     if np.nansum(frequency)>0:
         frequency = frequency[:(len_experiment - len_base)]
@@ -1162,7 +1172,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     mc.motion_correct_pwrigid(save_movie=True)
     bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
                                      np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
-                                     
+                            
     totdes = [np.nansum(mc.x_shifts_els), np.nansum(mc.y_shifts_els)]
     print('***************Motion correction has ended*************')
     # maximum shift to be used for trimming against NaNs
@@ -1170,9 +1180,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     #%% MEMORY MAPPING
     # memory map the file in order 'C'
     fnames = mc.fname_tot_els   # name of the pw-rigidly corrected file.
-    border_to_0 = bord_px_els     # number of pixels to exclude
-    fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
-                               border_to_0=bord_px_els)  # exclude borders
+    fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C', border_to_0=bord_px_els)  # exclude borders
     
     # now load the file
     Yr, dims, T = cm.load_memmap(fname_new)
