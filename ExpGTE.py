@@ -103,7 +103,8 @@ class ExpGTE:
         Outputs:
             RESULTS: An array of numpy matrices (GTE connectivity matrices)
         '''
-        exp_name = self.animal + '_' + self.day + '_' + 'rewardsliding'
+        exp_name = self.animal + '_' + self.day + '_' +\
+            'rewardsliding' + str(frame_size) + '_'
         exp_data = time_lock_activity(self.exp_file, t_size=[300,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]

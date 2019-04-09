@@ -109,6 +109,7 @@ def plot_trial_end_ens(folder, animal, day,
     elif trial_type == 2:
         array_miss = np.array(f['array_miss'])
         time_lock_data = time_lock_data[array_miss,:,:]
+    num_trials = time_lock_data.shape[0]
     end_frame = time_lock_data.shape[2] - t_size[1]
     ens_neurons = np.array(f['ens_neur'])
 
