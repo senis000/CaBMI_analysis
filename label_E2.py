@@ -53,7 +53,11 @@ def label_E2(animal):
                 best_e2_combo = e2
 
         # Write the most probable E2 combination to the H5 file
-        f['e2_neur'] = np.array([best_e2_combo[0], best_e2_combo[1]])
+        if 'e2_neur' in f:
+            data = f['e2_neur']
+            data[...] = np.array([best_e2_combo[0], best_e2_combo[1]])
+        else:
+            f['e2_neur'] = np.array([best_e2_combo[0], best_e2_combo[1]])
         f.close()
 
-label_E2('PT7')
+label_E2('IT4')
