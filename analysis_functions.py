@@ -20,6 +20,8 @@ import random
 import scipy
 import copy
 from skimage import io
+import statsmodels.api as sm
+import statsmodels.sandbox.stats.multicomp as sms
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import host_subplot
