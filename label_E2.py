@@ -20,8 +20,8 @@ def label_E2(animal):
         trial_end = np.array(f['trial_end'])
         cursor = np.array(f['cursor'])
         ens_neur = np.array(f['ens_neur'])
-        exp_data = dff
-        cursor = np.concatenate((np.zeros(blen), cursor)) # Pad cursor
+        exp_data = C
+        cursor = np.concatenate((np.zeros(blen-1), cursor)) # Pad cursor
 
         # Generate all possible E2 combinations. We will find the combination
         # with the maximal correlation value.
@@ -43,9 +43,12 @@ def label_E2(animal):
                 simulated_cursor = \
                     np.sum(exp_data[e2_neur,start_idx:end_idx], axis=0) - \
                     np.sum(exp_data[e1_neur,start_idx:end_idx], axis=0)
-                trial_corr = np.nansum(
-                    cursor[start_idx:end_idx]*simulated_cursor
-                    )
+                try:
+                    trial_corr = np.nansum(
+                        cursor[start_idx:end_idx]*simulated_cursor
+                        )
+                except:
+                    pdb.set_trace()
                 correlation += trial_corr
             # If this is the best E2 combo so far, record it
             if correlation > best_e2_combo_val:
