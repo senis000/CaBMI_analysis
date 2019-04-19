@@ -88,7 +88,7 @@ class ExpGTE:
                 pickle.dump(results, p_file)
         return results
 
-    def experiment_end(self, end_frame=-1, length=0,
+    def experiment_end(self, end_frame=0, length=0,
             parameters=None, pickle_results = True):
         '''
         Run GTE over all neurons, over the end of the experiment.
