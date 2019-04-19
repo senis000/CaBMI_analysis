@@ -6,7 +6,7 @@ import community
 import networkx as nx
 import markov_clustering as mc
 from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklean.cluster import DBSCAN
+from sklearn.cluster import DBSCAN
 from sklearn import metrics
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
