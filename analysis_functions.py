@@ -28,6 +28,7 @@ from scipy import stats
 from scipy.stats.mstats import zscore
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 from matplotlib import interactive
 import utils_cabmi as ut
 
@@ -82,6 +83,43 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
+def learning_params(folder, animal, day, sec_var=''):
+    '''
+    Obtain the learning rate over time.
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in YYMMDD format
+        TO_PLOT: Boolean; whether or not to plot the changing learning rate
+    Outputs:
+        HPM: Numpy array; hits per minute
+        TTH: Numpy array; time to hit (in frames)
+        PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
+    '''
+    
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        ) 
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    fr = f.attrs['fr']
+    blen = f.attrs['blen']
+    hits = np.asarray(f['hits'])
+    miss = np.asarray(f['miss'])
+    array_t1 = np.asarray(f['array_t1'])
+    array_miss = np.asarray(f['array_miss'])
+    trial_end = np.asarray(f['trial_end'])
+    trial_start = np.asarray(f['trial_start'])
+    percentage_correct = hits.shape[0]/trial_end.shape[0]
+    bins = np.arange(0, trial_end[-1]/fr, 60)
+    [hpm, xx] = np.histogram(hits/fr, bins)
+    xx_axis = xx[1:]/60.0
+    xx_axis = np.expand_dims(xx_axis, axis=1)
+    reg = LinearRegression().fit(xx_axis, hpm)
+    return hpm, percentage_correct, reg
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
