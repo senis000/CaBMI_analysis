@@ -7,6 +7,7 @@ import numpy as np
 import pdb
 import matplotlib.pyplot as plt
 import pickle
+from scipy.stats import zscore
 from matplotlib import animation
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.widgets import Slider
@@ -244,6 +245,13 @@ def create_gte_input_files(exp_name, exp_data,
         signal = exp_data[idx,:,:]
         signal_start = np.argwhere(~np.isnan(signal[0,:]))[0,0]
         signal = signal[:,signal_start:]
+
+        # Check the trial is long enough to run GTE. Arbitrarily,
+        # it should be at least 30 frames long.
+        if signal.shape[1] < 30:
+            continue
+
+        # Process the signal
         if to_zscore:
             signal = zscore(signal, axis=1)
             signal = np.nan_to_num(signal)
@@ -394,8 +402,7 @@ def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
         ax.set_title('Change in Transfer Entropy Over Time')
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
-    plt.show()
-    pdb.set_trace()
+    plt.show(block=True)
 
 def delete_gte_files(dir_names=None, remove_only_input_files=False):
     """

@@ -40,7 +40,7 @@ def sort_matrix_by_clusters(matrix, labels):
 
 def normalized_cc(x, y): # The affinity function
     num_frames = x.size
-    padding = 4 # Allow at most 4 frames for time-shifted correlations
+    padding = 1 # Allow at most 4 frames for time-shifted correlations
     min_frames = 100
     frame_size = num_frames - padding
     if num_frames < min_frames:
