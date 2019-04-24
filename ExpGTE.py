@@ -239,42 +239,6 @@ class ExpGTE:
                 parameters=parameters, pickle_results=True
                 )
 
-    def group_results(self, results, grouping):
-        '''
-        Groups an existing GTE connectivity matrix by averaging scores
-        over user-defined groupings of neurons. Here it is assumed that GTE
-        is already run; otherwise, an exception is thrown.
-        Inputs:
-            RESULTS_TYPE: An array of numpy matrices (GTE connectivity matrices)
-            GROUPING: Numpy array of NUM_NEURONS size; an integer ID is given
-                to each neuron, defining their group. This array is 0-indexed.
-        Outputs:
-            GROUPED_RESULTS: An array of numpy matrices (GTE connectivity matrices) 
-        '''
-        num_neurons = results[0].shape[0]
-        num_groups = np.unique(grouping).size
-        if grouping.size != num_neurons:
-            raise RuntimeError('Wrong dimensions for GROUPING')
-
-        grouped_results = []
-        for result in results:
-            grouped_result = np.zeros((num_groups, num_groups))
-            for i in range(num_groups):
-                for j in range(num_groups):
-                    if i == j:
-                        continue
-                    relevant_vals = []
-                    for k in range(num_neurons):
-                        if grouping[k] != i:
-                            continue
-                        for l in range(num_neurons):
-                            if grouping[l] != j:
-                                continue
-                            relevant_vals.append(result[k, l])
-                    grouped_result[i, j] = np.mean(relevant_vals)
-            grouped_results.append(grouped_result)
-        return grouped_results
-
     def shuffled_results(self, frame_size, parameters=None,
         iters=100, pickle_results=True):
         '''
