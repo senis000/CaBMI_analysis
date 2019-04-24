@@ -101,7 +101,7 @@ def plot_trial_end_ens(folder, animal, day,
         folder_path + 'full_' + animal + '_' + day + '_' +
         sec_var + '_data.hdf5', 'r'
         )
-    t_size = [10,7]
+    t_size = [30,5]
     time_lock_data = time_lock_activity(f, t_size=t_size)
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])

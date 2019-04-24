@@ -83,18 +83,20 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
-def learning_params(folder, animal, day, sec_var=''):
+def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
     '''
-    Obtain the learning rate over time.
+    Obtain the learning rate over time, including the fitted linear regression
+    model. This function also allows for longer bin sizes.
     Inputs:
         FOLDER: String; path to folder containing data files
         ANIMAL: String; ID of the animal
         DAY: String; date of the experiment in YYMMDD format
-        TO_PLOT: Boolean; whether or not to plot the changing learning rate
+        BIN_SIZE: The number of minutes to bin over. Default is one minute
+        TO_PLOT: Bool; whether to generate hpm plots or not.
     Outputs:
         HPM: Numpy array; hits per minute
-        TTH: Numpy array; time to hit (in frames)
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
+        REG: The fitted linear regression model
     '''
     
     folder_path = folder +  'processed/' + animal + '/' + day + '/'
@@ -114,9 +116,27 @@ def learning_params(folder, animal, day, sec_var=''):
     trial_end = np.asarray(f['trial_end'])
     trial_start = np.asarray(f['trial_start'])
     percentage_correct = hits.shape[0]/trial_end.shape[0]
-    bins = np.arange(0, trial_end[-1]/fr, 60)
+    bins = np.arange(0, trial_end[-1]/fr, bin_size*60)
     [hpm, xx] = np.histogram(hits/fr, bins)
-    xx_axis = xx[1:]/60.0
+    tth = trial_end[array_t1] + 1 - trial_start[array_t1]
+    
+    if to_plot:
+        fig1 = plt.figure()
+        ax = fig1.add_subplot(121)
+        sns.regplot(xx[1:]/(bin_size*60.0), hpm, label='hits per min')
+        ax.set_xlabel('Minutes')
+        ax.set_ylabel('Hit Rate (hit/min)')
+        ax1 = fig1.add_subplot(122)
+        sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
+        ax1.set_xlabel('Reward Trial')
+        ax1.set_ylabel('Number of Frames')
+        ax1.yaxis.set_label_position('right')
+        fig1.savefig(
+            folder_path + 'hpm' + str(bin_size) + '.png',
+            bbox_inches="tight"
+            )
+
+    xx_axis = xx[1:]/(bin_size*60.0)
     xx_axis = np.expand_dims(xx_axis, axis=1)
     reg = LinearRegression().fit(xx_axis, hpm)
     return hpm, percentage_correct, reg
