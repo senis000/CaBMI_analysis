@@ -24,6 +24,54 @@ from utils_gte import *
 from utils_clustering import *
 from clustering_functions import *
 
+def count_experiments():
+    """
+    Counts the number of experiments and animals for which a reward end GTE
+    file is created.
+    """
+
+    num_ITs = 0
+    num_PTs = 0
+    num_IT_experiments = 0
+    num_PT_experiments = 0
+    num_IT_reward_trials = 0
+    num_PT_reward_trials = 0
+    processed_dir = './processed/'
+    for animal_dir in os.listdir(processed_dir):
+        animal_path = processed_dir + animal_dir + '/'
+        include_animal = False
+        num_experiments = 0
+        num_reward_trials = 0
+        if not os.path.isdir(animal_path):
+            continue
+        for day_dir in os.listdir(animal_path):
+            day_path = animal_path + day_dir + '/'
+            reward_end_path = day_path + 'reward_end.p'
+            if not os.path.isfile(reward_end_path):
+                continue
+            with open(reward_end_path, 'rb') as f:
+                reward_end = pickle.load(f)
+            num_reward_trials += len(reward_end)
+            include_animal = True
+            num_experiments += 1
+        if include_animal:
+            if animal_dir.startswith('IT'):
+                num_ITs +=1
+                num_IT_experiments += num_experiments
+                num_IT_reward_trials += num_reward_trials
+            else:
+                num_PTs += 1
+                num_PT_experiments += num_experiments
+                num_PT_reward_trials += num_reward_trials
+    print('Number of ITs: ' + str(num_ITs))
+    print('Experiments: ' + str(num_IT_experiments))
+    print('Reward Trials: ' + str(num_IT_reward_trials))
+    print()
+    print('Number of PTs: ' + str(num_PTs))
+    print('Experiments: ' + str(num_PT_experiments))
+    print('Reward Trials: ' + str(num_PT_reward_trials))
+            
+
 def plot_earlylate_ITPT():
     """
     Plots the mean and standard deviation of information transfer in four
@@ -63,7 +111,6 @@ def plot_earlylate_ITPT():
             else:
                 early_pt += early
                 late_pt += late
-    num_exp = len(early_it)
     early_it_mean = np.nanmean(early_it)
     early_it_std = np.nanstd(early_it)
     late_it_mean = np.nanmean(late_it)
@@ -84,8 +131,7 @@ def plot_earlylate_ITPT():
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels)
-    ax.set_title('GTE Distribution in Reward Trials for ' + str(num_exp) +\
-        ' Experiments')
+    ax.set_title('GTE Distribution in Reward Trials')
     ax.yaxis.grid(True)
     plt.show(block=True)
 
@@ -163,14 +209,15 @@ def plot_IT_redgreen():
                     '__data.hdf5')
             except: # In case another process is accessing the file already.
                 continue
+            nerden = np.array(f['nerden'])
             redlabel = np.array(f['redlabel'])
+            redlabel = redlabel[nerden]
             redlabel = redlabel.astype(int) # Group 1 is red, Group 0 is green
             reward_end_rg = [\
-                group_result(m, grouping, ignore_diagonal=False)\
+                group_result(m, redlabel, ignore_diagonal=False)\
                 for m in reward_end
                 ] 
             results += reward_end_rg
-    num_exp = len(results)
     results_means = np.nanmean(results, axis=0)
     results_stds = np.nanstd(results, axis=0)
     results_means = results_mean.flatten()
@@ -183,7 +230,7 @@ def plot_IT_redgreen():
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels)
-    ax.set_title('GTE Transfer in ' + str(num_exp) + ' IT Experiments')
+    ax.set_title('GTE Transfer in IT Experiments')
     ax.yaxis.grid(True)
     plt.show(block=True)
 
@@ -212,14 +259,15 @@ def plot_PT_redgreen():
                     '__data.hdf5')
             except:
                 continue # In case another process is already accessing the file
+            nerden = np.array(f['nerden'])
             redlabel = np.array(f['redlabel'])
+            redlabel = redlabel[nerden]
             redlabel = redlabel.astype(int) # Group 1 is red, Group 0 is green
             reward_end_rg = [\
-                group_result(m, grouping, ignore_diagonal=False)\
+                group_result(m, redlabel, ignore_diagonal=False)\
                 for m in reward_end
                 ] 
             results += reward_end_rg
-    num_exp = len(results)
     results_means = np.nanmean(results, axis=0)
     results_stds = np.nanstd(results, axis=0)
     results_means = results_mean.flatten()
@@ -232,7 +280,7 @@ def plot_PT_redgreen():
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels)
-    ax.set_title('GTE Transfer in ' + str(num_exp) + ' PT Experiments')
+    ax.set_title('GTE Transfer in  PT Experiments')
     ax.yaxis.grid(True)
     plt.show(block=True)
 
@@ -266,6 +314,11 @@ def plot_IT_e2earlylate():
             e2_neur = np.array(f['e2_neur'])
             ens_neur = np.array(f['ens_neur'])
             e2_neur = ens_neur[e2_neur]
+            nerden = np.array(f['nerden'])
+            e2_mask = np.zeros(nerden.size)
+            e2_mask[e2_neur] = 1
+            e2_mask = e2_mask[nerden]
+            e2_neur = np.where(e2_mask==1)
             grouping = np.zeros(num_neurons)
             grouping[e2_neur] = 1
             reward_end_e2 = [\
@@ -273,7 +326,6 @@ def plot_IT_e2earlylate():
                 for m in reward_end
                 ] 
             results += reward_end_e2
-    num_exp = len(results)
     results_means = np.nanmean(results, axis=0)
     results_stds = np.nanstd(results, axis=0)
     results_means = results_mean.flatten()
@@ -286,7 +338,7 @@ def plot_IT_e2earlylate():
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels)
-    ax.set_title('GTE Transfer in ' + str(num_exp) + ' IT Experiments')
+    ax.set_title('GTE Transfer in IT Experiments')
     ax.yaxis.grid(True)
     plt.show(block=True)
 
@@ -320,6 +372,11 @@ def plot_PT_e2earlylate():
             e2_neur = np.array(f['e2_neur'])
             ens_neur = np.array(f['ens_neur'])
             e2_neur = ens_neur[e2_neur]
+            nerden = np.array(f['nerden'])
+            e2_mask = np.zeros(nerden.size)
+            e2_mask[e2_neur] = 1
+            e2_mask = e2_mask[nerden]
+            e2_neur = np.where(e2_mask==1)
             grouping = np.zeros(num_neurons)
             grouping[e2_neur] = 1
             reward_end_e2 = [\
@@ -327,7 +384,6 @@ def plot_PT_e2earlylate():
                 for m in reward_end
                 ] 
             results += reward_end_e2
-    num_exp = len(results)
     results_means = np.nanmean(results, axis=0)
     results_stds = np.nanstd(results, axis=0)
     results_means = results_mean.flatten()
@@ -340,7 +396,7 @@ def plot_PT_e2earlylate():
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels)
-    ax.set_title('GTE Transfer in ' + str(num_exp) + ' PT Experiments')
+    ax.set_title('GTE Transfer in PT Experiments')
     ax.yaxis.grid(True)
     plt.show(block=True)
 
