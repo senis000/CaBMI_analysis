@@ -79,10 +79,10 @@ def plot_earlylate_ITPT():
     reward trials in PT, late reward trials in PT.
     """
 
-    early_it = []
-    late_it = []
-    early_pt = []
-    late_pt = []
+    early_it = OnlineNormalEstimator()
+    late_it = OnlineNormalEstimator()
+    early_pt = OnlineNormalEstimator()
+    late_pt = OnlineNormalEstimator()
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -102,25 +102,27 @@ def plot_earlylate_ITPT():
             late = reward_end[-num_rewards:]
             early = [m.flatten().tolist() for m in early]
             late = [m.flatten().tolist() for m in late]
-            early = [val for sublist in early for val in sublist]
-            late = [val for sublist in late for val in sublist]
+            early = [
+                val for sublist in early for val in sublist\
+                if not np.isnan(val)
+                ]
+            late = [
+                val for sublist in late for val in sublist\
+                if not np.isnan(val)
+                ]
 
             if animal_dir.startswith('IT'):
-                early_it += early
-                late_it += late
+                for val in early:
+                    early_it.handle(val)
+                for val in late:
+                    late_it.handle(val)
             else:
-                early_pt += early
-                late_pt += late
-    early_it_mean = np.nanmean(early_it)
-    early_it_std = np.nanstd(early_it)
-    late_it_mean = np.nanmean(late_it)
-    late_it_std = np.nanstd(late_it)
-    early_pt_mean = np.nanmean(early_pt)
-    early_pt_std = np.nanstd(early_pt)
-    late_pt_mean = np.nanmean(late_pt)
-    late_pt_std = np.nanstd(late_pt)
-    means = [early_it_mean, late_it_mean, early_pt_mean, late_pt_mean]
-    stds = [early_it_std, late_it_std, early_pt_std, late_pt_std]
+                for val in early:
+                    early_pt.handle(val)
+                for val in late:
+                    late_pt.handle(val)
+    means = [early_it.mean(), late_it.mean(), early_pt.mean(), late_pt.mean()]
+    stds = [early_it.std(), late_it.std(), early_pt.std(), late_pt.std()]
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
     labels = ['IT Early Rewards', 'IT Late Rewards',
         'PT Early Rewards', 'PT Late Rewards'
@@ -141,8 +143,10 @@ def plot_ITPT():
     PT animals
     """
 
-    it = []
-    pt = []
+    it = OnlineNormalEstimator()
+    pt = OnlineNormalEstimator()
+    num_it_exp = 0
+    num_pt_exp = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -157,19 +161,20 @@ def plot_ITPT():
             with open(reward_end_path, 'rb') as f:
                 reward_end = pickle.load(f)
             reward_end = [m.flatten().tolist() for m in reward_end]
-            reward_end = [val for sublist in reward_end for val in sublist]
+            reward_end = [
+                val for sublist in reward_end for val in sublist\
+                if not np.isnan(val)
+                ]
             if animal_dir.startswith('IT'):
-                it += reward_end
+                for val in reward_end:
+                    it.handle(val)
+                num_it_exp += 1
             else:
-                pt += reward_end
-    num_it_exp = len(it)
-    num_pt_exp  = len(pt)
-    it_mean = np.nanmean(it)
-    it_std = np.nanstd(it)
-    pt_mean = np.nanmean(pt)
-    pt_std = np.nanstd(pt)
-    means = [it_mean, pt_mean]
-    stds = [it_std, pt_std]
+                for val in reward_end:
+                    pt.handle(val)
+                num_pt_exp += 1
+    means = [it.mean(), pt.mean()]
+    stds = [it.std(), pt.std()]
     fig, ax = plt.subplots(1, 1, figsize=(5,5))
     labels = ['IT: ' + str(num_it_exp) + ' Trials',
         'PT: ' + str(num_pt_exp) + ' Trials'
@@ -445,7 +450,10 @@ def plot_PT_depth():
 
     num_depths = max_depth - min_depth + 1
     num_exp = 0
-    depth_mat = [[[] for _ in range(num_depths)] for _ in range(num_depths)]
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
     for idx, reward_end in reward_ends:
         depth_location = depth_locations[idx]
         num_neurons = reward_end[0].shape[0]
@@ -457,10 +465,13 @@ def plot_PT_depth():
                         continue
                     depth1 = int(depth_location[neuron1])
                     depth2 = int(depth_location[neuron2])
-                    depth_mat[depth1][depth2].append(re[neuron1, neuron2])
-    means = [[np.nanmean(entry) for entry in row] for row in depth_mat]
+                    val = re[neuron1, neuron2]
+                    if np.isnan(val):
+                        continue
+                    depth_mat[depth1][depth2].handle(val)
+    means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
-    stds = [[np.nanstd(entry) for entry in row] for row in depth_mat]
+    stds = [[estimator.std() for estimator in row] for row in depth_mat]
     stds = np.array(stds)
     fig, ax = plt.subplots(1, 1, figsize=(8,8))
     im = ax.imshow(means)
@@ -531,7 +542,10 @@ def plot_shallowIT_depth():
 
     num_depths = max_depth - min_depth + 1
     num_exp = 0
-    depth_mat = [[[] for _ in range(num_depths)] for _ in range(num_depths)]
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
     for idx, reward_end in reward_ends:
         depth_location = depth_locations[idx]
         num_neurons = reward_end[0].shape[0]
@@ -543,10 +557,13 @@ def plot_shallowIT_depth():
                         continue
                     depth1 = int(depth_location[neuron1])
                     depth2 = int(depth_location[neuron2])
-                    depth_mat[depth1][depth2].append(re[neuron1, neuron2])
-    means = [[np.nanmean(entry) for entry in row] for row in depth_mat]
+                    val = re[neuron1, neuron2]
+                    if np.isnan(val):
+                        continue
+                    depth_mat[depth1][depth2].handle(val)
+    means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
-    stds = [[np.nanstd(entry) for entry in row] for row in depth_mat]
+    stds = [[estimator.std() for estimator in row] for row in depth_mat]
     stds = np.array(stds)
     fig, ax = plt.subplots(1, 1, figsize=(8,8))
     im = ax.imshow(means)
@@ -619,7 +636,10 @@ def plot_deepIT_depth():
 
     num_depths = max_depth - min_depth + 1
     num_exp = 0
-    depth_mat = [[[] for _ in range(num_depths)] for _ in range(num_depths)]
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
     for idx, reward_end in reward_ends:
         depth_location = depth_locations[idx]
         num_neurons = reward_end[0].shape[0]
@@ -631,10 +651,13 @@ def plot_deepIT_depth():
                         continue
                     depth1 = int(depth_location[neuron1])
                     depth2 = int(depth_location[neuron2])
-                    depth_mat[depth1][depth2].append(re[neuron1, neuron2])
-    means = [[np.nanmean(entry) for entry in row] for row in depth_mat]
+                    val = re[neuron1, neuron2]
+                    if np.isnan(val):
+                        continue
+                    depth_mat[depth1][depth2].handle(val)
+    means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
-    stds = [[np.nanstd(entry) for entry in row] for row in depth_mat]
+    stds = [[estimator.std() for estimator in row] for row in depth_mat]
     stds = np.array(stds)
     fig, ax = plt.subplots(1, 1, figsize=(8,8))
     im = ax.imshow(means)
@@ -664,8 +687,10 @@ def plot_learning():
     non-learning while experiments with slope > 0.4 are considered learning.
     """
 
-    learning = []
-    non_learning = []
+    learning = OnlineNormalEstimator()
+    non_learning = OnlineNormalEstimator()
+    num_learning = 0
+    num_non_learning = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -680,26 +705,30 @@ def plot_learning():
             with open(reward_end_path, 'rb') as f:
                 reward_end = pickle.load(f)
             reward_end = [m.flatten().tolist() for m in reward_end]
-            reward_end = [val for sublist in reward_end for val in sublist]
+            reward_end = [
+                val for sublist in reward_end for val in sublist\
+                if not np.isnan(val)
+                ]
             try:
                 _, _, reg = learning_params('./', animal, day, bin_size=5)
             except: # In case another process is already acessinng the file.
                 continue
             slope = reg.coef_[0]
             if slope < 0.2:
-                non_learning += reward_end
+                for val in reward_end:
+                    non_learning.handle(val)
+                num_non_learning += 1
             if slope > 0.4:
-                learning += reward_end
-    num_learning = len(learning)
-    num_non_learning = len(non_learning)
-    learning_mean = np.nanmean(learning)
-    learning_std = np.nanstd(learning)
-    non_learning_mean = np.nanmean(non_learning)
-    non_learning_std = np.nanstd(non_learning)
-    means = [learning_mean, non_learning_mean]
-    stds = [learning_std, non_learning_std]
+                for val in reward_end:
+                    learning.handle(val)
+                num_learning += 1
+    means = [learning.mean(), non_learning.mean()]
+    stds = [learning.std(), non_learning.std()]
     fig, ax = plt.subplots(1, 1, figsize=(5,5))
-    labels = ['Learning Experiments', 'Non-learning Experiments']
+    labels = [
+        'Learning Experiments (%d Total)'%num_learning,
+        'Non-learning Experiments (%d Total)'%num_non_learning
+        ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
         alpha=0.5, ecolor='black', capsize=10)
