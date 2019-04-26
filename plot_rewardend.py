@@ -412,10 +412,14 @@ def plot_PT_depth():
     generated for the std dev.
     """
 
-    reward_ends = []
-    depth_locations = []
-    min_depth = 999
-    max_depth = 0
+    min_depth = 300
+    max_depth = 700
+    num_depths = max_depth - min_depth + 1
+    num_exp = 0
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -434,41 +438,24 @@ def plot_PT_depth():
                     '__data.hdf5')
             except: # In case another process is already acessinng the file.
                 continue
+            num_exp += 1
             nerden = np.array(f['nerden'])
             depth_location = np.array(f['com_cm'])[:,2]
             depth_location = depth_location[nerden]
-
-            # Add experiment information to global variables
-            depth_locations.append(depth_location)
-            reward_ends.append(reward_end)
-            max_exp_depth = int(np.nanmax(depth_locations))
-            min_exp_depth = int(np.nanmin(depth_locations))
-            if max_exp_depth > max_depth:
-                max_depth = max_exp_depth
-            if min_exp_depth < min_depth:
-                min_depth = min_exp_depth
-
-    num_depths = max_depth - min_depth + 1
-    num_exp = 0
-    depth_mat = [
-        [OnlineNormalEstimator() for _ in range(num_depths)]\
-        for _ in range(num_depths)
-        ]
-    for idx, reward_end in reward_ends:
-        depth_location = depth_locations[idx]
-        num_neurons = reward_end[0].shape[0]
-        for re in reward_end:
-            num_exp += 1
-            for neuron1 in range(num_neurons):
-                for neuron2 in range(num_neurons):
-                    if neuron1 == neuron2:
-                        continue
-                    depth1 = int(depth_location[neuron1])
-                    depth2 = int(depth_location[neuron2])
-                    val = re[neuron1, neuron2]
-                    if np.isnan(val):
-                        continue
-                    depth_mat[depth1][depth2].handle(val)
+            num_neurons = reward_end[0].shape[0]
+            for mat in reward_end:
+                for neuron1 in range(num_neurons):
+                    for neuron2 in range(num_neurons):
+                        if neuron1 == neuron2:
+                            continue
+                        depth1 = int(depth_location[neuron1])
+                        depth2 = int(depth_location[neuron2])
+                        depth1 = min(max(depth1, min_depth), max_depth)
+                        depth2 = min(max(depth2, min_depth), max_depth)
+                        val = mat[neuron1, neuron2]
+                        if np.isnan(val):
+                            continue
+                        depth_mat[depth1-min_depth][depth2-min_depth].handle(val)
     means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
     stds = [[estimator.std() for estimator in row] for row in depth_mat]
@@ -498,12 +485,16 @@ def plot_shallowIT_depth():
     generated for the mean, and a 2D heatmap is generated for the std dev.
     """
 
-    reward_ends = []
-    depth_locations = []
-    min_depth = 999
-    max_depth = 0
-    processed_dir = './processed/'
+    min_depth = 100
+    max_depth = 500
+    num_depths = max_depth - min_depth + 1
+    num_exp = 0
     E2_depth_thresh = 300
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
+    processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
         animal_path = processed_dir + animal_dir + '/'
@@ -521,6 +512,7 @@ def plot_shallowIT_depth():
                     '__data.hdf5')
             except: # In case another process is already acessinng the file.
                 continue
+            num_exp += 1
             nerden = np.array(f['nerden'])
             depth_location = np.array(f['com_cm'])[:,2]
             e2_neur = np.array(f['e2_neur'])
@@ -529,38 +521,20 @@ def plot_shallowIT_depth():
             if np.max(depth_location[e2_neur]) > E2_depth_thresh:
                 continue
             depth_location = depth_location[nerden]
-
-            # Add experiment information to global variables
-            depth_locations.append(depth_location)
-            reward_ends.append(reward_end)
-            max_exp_depth = int(np.nanmax(depth_locations))
-            min_exp_depth = int(np.nanmin(depth_locations))
-            if max_exp_depth > max_depth:
-                max_depth = max_exp_depth
-            if min_exp_depth < min_depth:
-                min_depth = min_exp_depth
-
-    num_depths = max_depth - min_depth + 1
-    num_exp = 0
-    depth_mat = [
-        [OnlineNormalEstimator() for _ in range(num_depths)]\
-        for _ in range(num_depths)
-        ]
-    for idx, reward_end in reward_ends:
-        depth_location = depth_locations[idx]
-        num_neurons = reward_end[0].shape[0]
-        for re in reward_end:
-            num_exp += 1
-            for neuron1 in range(num_neurons):
-                for neuron2 in range(num_neurons):
-                    if neuron1 == neuron2:
-                        continue
-                    depth1 = int(depth_location[neuron1])
-                    depth2 = int(depth_location[neuron2])
-                    val = re[neuron1, neuron2]
-                    if np.isnan(val):
-                        continue
-                    depth_mat[depth1][depth2].handle(val)
+            num_neurons = reward_end[0].shape[0]
+            for mat in reward_end:
+                for neuron1 in range(num_neurons):
+                    for neuron2 in range(num_neurons):
+                        if neuron1 == neuron2:
+                            continue
+                        depth1 = int(depth_location[neuron1])
+                        depth2 = int(depth_location[neuron2])
+                        depth1 = min(max(depth1, min_depth), max_depth)
+                        depth2 = min(max(depth2, min_depth), max_depth)
+                        val = mat[neuron1, neuron2]
+                        if np.isnan(val):
+                            continue
+                        depth_mat[depth1-min_depth][depth2-min_depth].handle(val)
     means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
     stds = [[estimator.std() for estimator in row] for row in depth_mat]
@@ -592,12 +566,16 @@ def plot_deepIT_depth():
     generated for the mean, and a 2D heatmap is generated for the std dev.
     """
 
-    reward_ends = []
-    depth_locations = []
-    min_depth = 999
-    max_depth = 0
-    processed_dir = './processed/'
+    min_depth = 100
+    max_depth = 500
+    num_depths = max_depth - min_depth + 1
+    num_exp = 0
     E2_depth_thresh = 300
+    depth_mat = [
+        [OnlineNormalEstimator() for _ in range(num_depths)]\
+        for _ in range(num_depths)
+        ]
+    processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
         animal_path = processed_dir + animal_dir + '/'
@@ -615,6 +593,7 @@ def plot_deepIT_depth():
                     '__data.hdf5')
             except: # In case another process is already acessinng the file.
                 continue
+            num_exp += 1
             nerden = np.array(f['nerden'])
             depth_location = np.array(f['com_cm'])[:,2]
             e2_neur = np.array(f['e2_neur'])
@@ -623,38 +602,20 @@ def plot_deepIT_depth():
             if np.min(depth_location[e2_neur]) < E2_depth_thresh:
                 continue
             depth_location = depth_location[nerden]
-
-            # Add experiment information to global variables
-            depth_locations.append(depth_location)
-            reward_ends.append(reward_end)
-            max_exp_depth = int(np.nanmax(depth_locations))
-            min_exp_depth = int(np.nanmin(depth_locations))
-            if max_exp_depth > max_depth:
-                max_depth = max_exp_depth
-            if min_exp_depth < min_depth:
-                min_depth = min_exp_depth
-
-    num_depths = max_depth - min_depth + 1
-    num_exp = 0
-    depth_mat = [
-        [OnlineNormalEstimator() for _ in range(num_depths)]\
-        for _ in range(num_depths)
-        ]
-    for idx, reward_end in reward_ends:
-        depth_location = depth_locations[idx]
-        num_neurons = reward_end[0].shape[0]
-        for re in reward_end:
-            num_exp += 1
-            for neuron1 in range(num_neurons):
-                for neuron2 in range(num_neurons):
-                    if neuron1 == neuron2:
-                        continue
-                    depth1 = int(depth_location[neuron1])
-                    depth2 = int(depth_location[neuron2])
-                    val = re[neuron1, neuron2]
-                    if np.isnan(val):
-                        continue
-                    depth_mat[depth1][depth2].handle(val)
+            num_neurons = reward_end[0].shape[0]
+            for mat in reward_end:
+                for neuron1 in range(num_neurons):
+                    for neuron2 in range(num_neurons):
+                        if neuron1 == neuron2:
+                            continue
+                        depth1 = int(depth_location[neuron1])
+                        depth2 = int(depth_location[neuron2])
+                        depth1 = min(max(depth1, min_depth), max_depth)
+                        depth2 = min(max(depth2, min_depth), max_depth)
+                        val = mat[neuron1, neuron2]
+                        if np.isnan(val):
+                            continue
+                        depth_mat[depth1-min_depth][depth2-min_depth].handle(val)
     means = [[estimator.mean() for estimator in row] for row in depth_mat]
     means = np.array(means)
     stds = [[estimator.std() for estimator in row] for row in depth_mat]
