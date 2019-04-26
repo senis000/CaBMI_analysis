@@ -701,3 +701,87 @@ def plot_learning():
     ax.set_title('GTE Distribution in Reward Trials')
     ax.yaxis.grid(True)
     plt.show(block=True)
+
+def plot_itpt_learning():
+    """
+    Plots the mean and std dev of information transfer in learning days vs
+    non-learning days. Arbitrarily, we will use the slope of the hits/5-min
+    graph as a metric for learning. Experiments with slope < 0.2 are considered
+    non-learning while experiments with slope > 0.4 are considered learning.
+    """
+
+    it_learning = OnlineNormalEstimator()
+    it_non_learning = OnlineNormalEstimator()
+    num_it_learning = 0
+    num_it_non_learning = 0
+    pt_learning = OnlineNormalEstimator()
+    pt_non_learning = OnlineNormalEstimator()
+    num_pt_learning = 0
+    num_pt_non_learning = 0
+    processed_dir = './processed/'
+
+    for animal_dir in os.listdir(processed_dir):
+        animal_path = processed_dir + animal_dir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        for day_dir in os.listdir(animal_path):
+            day_path = animal_path + day_dir + '/'
+            reward_end_path = day_path + 'reward_end.p'
+            if not os.path.isfile(reward_end_path):
+                continue
+            with open(reward_end_path, 'rb') as f:
+                reward_end = pickle.load(f)
+            reward_end = [m.flatten().tolist() for m in reward_end]
+            reward_end = [
+                val for sublist in reward_end for val in sublist\
+                if not np.isnan(val)
+                ]
+            try:
+                _, _, reg = learning_params(
+                    './', animal_dir, day_dir, bin_size=5
+                    )
+            except: # In case another process is already acessinng the file.
+                continue
+            slope = reg.coef_[0]
+            if slope < 0.2:
+                if animal_dir.startswith('IT'):
+                    for val in reward_end:
+                        it_non_learning.handle(val)
+                    num_it_non_learning += 1
+                else:
+                    for val in reward_end:
+                        pt_non_learning.handle(val)
+                    num_pt_non_learning += 1
+            if slope > 0.4:
+                if animal_dir.startswith('IT'):
+                    for val in reward_end:
+                        it_learning.handle(val)
+                    num_it_learning += 1
+                else:
+                    for val in reward_end:
+                        pt_learning.handle(val)
+                    num_pt_learning += 1
+    means = [
+        it_learning.mean(), it_non_learning.mean(),
+        pt_learning.mean(), pt_non_learning.mean()
+        ]
+    stds = [
+        it_learning.std(), it_non_learning.std(),
+        pt_learning.std(), pt_non_learning.std()
+        ]
+    fig, ax = plt.subplots(1, 1, figsize=(12,5))
+    labels = [
+        'IT Learning Experiments\n(%d Total)'%num_it_learning,
+        'IT Non-learning Experiments\n(%d Total)'%num_it_non_learning,
+        'PT Learning Experiments\n(%d Total)'%num_pt_learning,
+        'PT Non-learning Experiments\n(%d Total)'%num_pt_non_learning
+        ]
+    x_pos = np.arange(len(labels))
+    ax.bar(x_pos, means, yerr=stds, align='center',
+        alpha=0.5, ecolor='black', capsize=10)
+    ax.set_ylabel('Information Transfer')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels)
+    ax.set_title('GTE Distribution in Reward Trials')
+    ax.yaxis.grid(True)
+    plt.show(block=True)

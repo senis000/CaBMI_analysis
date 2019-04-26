@@ -64,13 +64,13 @@ def plot_learning():
                 for val in baseline:
                     non_learning_baseline.handle(val)
                 for val in expend:
-                    non_learning_expend.handle(expend)
+                    non_learning_expend.handle(val)
                 num_non_learning += 1
             if slope > 0.4:
                 for val in baseline:
                     learning_baseline.handle(val)
                 for val in expend:
-                    learning_expend.handle(expend)
+                    learning_expend.handle(val)
                 num_learning += 1
     means = [
         learning_baseline.mean(), learning_expend.mean(),
@@ -128,15 +128,15 @@ def plot_ITPT():
             expend = [val for val in expend.flatten() if not np.isnan(val)]
             if animal_dir.startswith('PT'):
                 for val in baseline:
-                    pt_baseline.handle(val)
+                    PT_baseline.handle(val)
                 for val in expend:
-                    pt_expend.handle(expend)
+                    PT_expend.handle(val)
                 num_pt += 1
             if animal_dir.startswith('IT'):
                 for val in baseline:
-                    it_baseline.handle(val)
+                    IT_baseline.handle(val)
                 for val in expend:
-                    it_expend.handle(expend)
+                    IT_expend.handle(val)
                 num_it += 1
     means = [
         IT_baseline.mean(), IT_expend.mean(),
@@ -195,16 +195,18 @@ def plot_E2_learning():
             try:
                 f = h5py.File(day_path + 'full_' + animal_dir + '_' + day_dir +\
                     '__data.hdf5')
-                _, _, reg = learning_params('./', animal, day, bin_size=5)
+                _, _, reg = learning_params('./', animal_dir, day_dir, bin_size=5)
             except: # In case another process is already accessing the file
                 continue
             e2_neur = np.array(f['e2_neur'])
             ens_neur = np.array(f['ens_neur'])
             e2_neur = ens_neur[e2_neur]
-            grouping = np.zeros(num_neurons)
-            grouping[e2_neur] = 1
-            baseline = group_result(baseline, grouping, ignore_diagonal=False)
-            expend = group_result(expend, grouping, ignore_diagonal=False)
+            nerden = np.array(f['nerden'])
+            e2_mask = np.zeros(nerden.size)
+            e2_mask[e2_neur] = 1
+            e2_mask = e2_mask[nerden]
+            baseline = group_result(baseline, e2_mask, ignore_diagonal=False)
+            expend = group_result(expend, e2_mask, ignore_diagonal=False)
             slope = reg.coef_[0]
             if slope < 0.2:
                 non_learning_baseline.handle(baseline[0,1])
@@ -280,10 +282,12 @@ def plot_E2_ITPT():
             e2_neur = np.array(f['e2_neur'])
             ens_neur = np.array(f['ens_neur'])
             e2_neur = ens_neur[e2_neur]
-            grouping = np.zeros(num_neurons)
-            grouping[e2_neur] = 1
-            baseline = group_result(baseline, grouping, ignore_diagonal=False)
-            expend = group_result(expend, grouping, ignore_diagonal=False)
+            nerden = np.array(f['nerden'])
+            e2_mask = np.zeros(nerden.size)
+            e2_mask[e2_neur] = 1
+            e2_mask = e2_mask[nerden]
+            baseline = group_result(baseline, e2_mask, ignore_diagonal=False)
+            expend = group_result(expend, e2_mask, ignore_diagonal=False)
             if animal_dir.startswith('PT'):
                 PT_baseline.handle(baseline[0,1])
                 PT_baseline.handle(baseline[1,0])
