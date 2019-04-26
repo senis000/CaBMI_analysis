@@ -671,7 +671,9 @@ def plot_learning():
                 if not np.isnan(val)
                 ]
             try:
-                _, _, reg = learning_params('./', animal, day, bin_size=5)
+                _, _, reg = learning_params(
+                    './', animal_dir, day_dir, bin_size=5
+                    )
             except: # In case another process is already acessinng the file.
                 continue
             slope = reg.coef_[0]
@@ -687,8 +689,8 @@ def plot_learning():
     stds = [learning.std(), non_learning.std()]
     fig, ax = plt.subplots(1, 1, figsize=(5,5))
     labels = [
-        'Learning Experiments (%d Total)'%num_learning,
-        'Non-learning Experiments (%d Total)'%num_non_learning
+        'Learning Experiments\n(%d Total)'%num_learning,
+        'Non-learning Experiments\n(%d Total)'%num_non_learning
         ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
