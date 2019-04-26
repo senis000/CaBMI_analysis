@@ -225,12 +225,12 @@ def plot_IT_redgreen():
             results += reward_end_rg
     results_means = np.nanmean(results, axis=0)
     results_stds = np.nanstd(results, axis=0)
-    results_means = results_mean.flatten()
-    results_stds = results_std.flatten()
+    results_means = results_means.flatten()
+    results_stds = results_stds.flatten()
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
     labels = ['Gr->Gr', 'Gr->Red', 'Red->Gr','Gr->Gr']
     x_pos = np.arange(len(labels))
-    ax.bar(x_pos, results_mean, yerr=results_stds, align='center',
+    ax.bar(x_pos, results_means, yerr=results_stds, align='center',
         alpha=0.5, ecolor='black', capsize=10)
     ax.set_ylabel('Information Transfer')
     ax.set_xticks(x_pos)
