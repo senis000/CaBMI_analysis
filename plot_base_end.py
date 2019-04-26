@@ -31,10 +31,12 @@ def plot_learning():
     non-learning days.
     """
 
-    learning_baseline = []
-    learning_expend = []
-    non_learning_baseline = []
-    non_learning_expend = []
+    learning_baseline = OnlineNormalEstimator()
+    learning_expend = OnlineNormalEstimator()
+    non_learning_baseline = OnlineNormalEstimator()
+    non_learning_expend = OnlineNormalEstimator()
+    num_learning = 0
+    num_non_learning = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -51,39 +53,39 @@ def plot_learning():
                 baseline = pickle.load(f)[0]
             with open(expend_path, 'rb') as f:
                 expend = pickle.load(f)[0]
-            baseline = baseline.flatten().tolist()
-            expend = expend.flatten().tolist()
+            baseline = [val for val in baseline.flatten() if not np.isnan(val)]
+            expend = [val for val in expend.flatten() if not np.isnan(val)]
             try:
-                _, _, reg = learning_params('./', animal, day, bin_size=5)
+                _, _, reg = learning_params('./', animal_dir, day_dir, bin_size=5)
             except: # In case another process is already accessing this file
                 continue
             slope = reg.coef_[0]
             if slope < 0.2:
-                non_learning_baseline += baseline
-                non_learning_expend += expend
+                for val in baseline:
+                    non_learning_baseline.handle(val)
+                for val in expend:
+                    non_learning_expend.handle(expend)
+                num_non_learning += 1
             if slope > 0.4:
-                learning_baseline += baseline
-                learning_expend += expend
-    learning_baseline_mean = np.nanmean(learning_baseline)
-    learning_expend_mean = np.nanmean(learning_expend)
-    non_learning_baseline_mean = np.nanmean(non_learning_baseline)
-    non_learning_expend_mean = np.nanmean(non_learning_expend)
-    learning_baseline_std = np.nanstd(learning_baseline)
-    learning_expend_std = np.nanstd(learning_expend)
-    non_learning_baseline_std = np.nanstd(non_learning_baseline)
-    non_learning_expend_std = np.nanstd(non_learning_expend)
+                for val in baseline:
+                    learning_baseline.handle(val)
+                for val in expend:
+                    learning_expend.handle(expend)
+                num_learning += 1
     means = [
-        learning_baseline_mean, learning_expend_mean,
-        non_learning_baseline_mean, non_learning_expend_mean
+        learning_baseline.mean(), learning_expend.mean(),
+        non_learning_baseline.mean(), non_learning_expend.mean()
         ]
     stds = [
-        learning_baseline_std, learning_expend_std,
-        non_learning_baseline_std, non_learning_expend_std
+        learning_baseline.std(), learning_expend.std(),
+        non_learning_baseline.std(), non_learning_expend.std()
         ]
-    fig, ax = plt.subplots(1, 1, figsize=(5,5))
+    fig, ax = plt.subplots(1, 1, figsize=(10,5))
     labels = [
-        'Learning: Baseline', 'Learning: Exp End',
-        'Non-Learning: Baseline', 'Non-Learning: Exp End'
+        'Learning: Baseline\n(%d Total)'%num_learning,
+        'Learning: Exp End\n(%d Total)'%num_learning,
+        'Non-Learning: Baseline\n(%d Total)'%num_non_learning,
+        'Non-Learning: Exp End\n(%d Total)'%num_non_learning
         ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
@@ -100,10 +102,12 @@ def plot_ITPT():
     Comparing info. transfer in baseline vs experiment end for IT vs PT animals.
     """
 
-    IT_baseline = []
-    IT_expend = []
-    PT_baseline = []
-    PT_expend = []
+    IT_baseline = OnlineNormalEstimator()
+    IT_expend = OnlineNormalEstimator()
+    PT_baseline = OnlineNormalEstimator()
+    PT_expend = OnlineNormalEstimator()
+    num_it = 0
+    num_pt = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -120,34 +124,34 @@ def plot_ITPT():
                 baseline = pickle.load(f)[0]
             with open(expend_path, 'rb') as f:
                 expend = pickle.load(f)[0]
-            baseline = baseline.flatten().tolist()
-            expend = expend.flatten().tolist()
+            baseline = [val for val in baseline.flatten() if not np.isnan(val)]
+            expend = [val for val in expend.flatten() if not np.isnan(val)]
             if animal_dir.startswith('PT'):
-                PT_baseline += baseline
-                PT_expend += expend
+                for val in baseline:
+                    pt_baseline.handle(val)
+                for val in expend:
+                    pt_expend.handle(expend)
+                num_pt += 1
             if animal_dir.startswith('IT'):
-                IT_baseline += baseline
-                IT_expend += expend
-    IT_baseline_mean = np.nanmean(IT_baseline)
-    IT_expend_mean = np.nanmean(IT_expend)
-    PT_baseline_mean = np.nanmean(PT_baseline)
-    PT_expend_mean = np.nanmean(PT_expend)
-    IT_baseline_std = np.nanstd(IT_baseline)
-    IT_expend_std = np.nanstd(IT_expend)
-    PT_baseline_std = np.nanstd(PT_baseline)
-    PT_expend_std = np.nanstd(PT_expend)
+                for val in baseline:
+                    it_baseline.handle(val)
+                for val in expend:
+                    it_expend.handle(expend)
+                num_it += 1
     means = [
-        IT_baseline_mean, IT_expend_mean,
-        PT_baseline_mean, PT_expend_mean
+        IT_baseline.mean(), IT_expend.mean(),
+        PT_baseline.mean(), PT_expend.mean()
         ]
     stds = [
-        IT_baseline_std, IT_expend_std,
-        PT_baseline_std, PT_expend_std
+        IT_baseline.std(), IT_expend.std(),
+        PT_baseline.std(), PT_expend.std()
         ]
-    fig, ax = plt.subplots(1, 1, figsize=(5,5))
+    fig, ax = plt.subplots(1, 1, figsize=(10,5))
     labels = [
-        'IT: Baseline', 'IT: Exp End',
-        'PT: Baseline', 'PT: Exp End'
+        'IT: Baseline\n(%d Total)'%num_it,
+        'IT: Exp End\n(%d Total)'%num_it,
+        'PT: Baseline\n(%d Total)'%num_pt,
+        'PT: Exp End\n(%d Total)'%num_pt
         ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
@@ -165,10 +169,12 @@ def plot_E2_learning():
     non-learning experiments
     """
 
-    learning_baseline = []
-    learning_expend = []
-    non_learning_baseline = []
-    non_learning_expend = []
+    learning_baseline = OnlineNormalEstimator()
+    learning_expend = OnlineNormalEstimator()
+    non_learning_baseline = OnlineNormalEstimator()
+    non_learning_expend = OnlineNormalEstimator()
+    num_learning = 0
+    num_non_learning = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -201,35 +207,31 @@ def plot_E2_learning():
             expend = group_result(expend, grouping, ignore_diagonal=False)
             slope = reg.coef_[0]
             if slope < 0.2:
-                non_learning_baseline.append(baseline[0,1])
-                non_learning_baseline.append(baseline[1,0])
-                non_learning_expend.append(expend[0,1])
-                non_learning_expend.append(expend[1,0])
+                non_learning_baseline.handle(baseline[0,1])
+                non_learning_baseline.handle(baseline[1,0])
+                non_learning_expend.handle(expend[0,1])
+                non_learning_expend.handle(expend[1,0])
+                num_non_learning += 1
             if slope > 0.4:
-                learning_baseline.append(baseline[0,1])
-                learning_baseline.append(baseline[1,0])
-                learning_expend.append(expend[0,1])
-                learning_expend.append(expend[1,0])
-    non_learning_baseline_mean = np.nanmean(non_learning_baseline)
-    non_learning_baseline_std = np.nanstd(non_learning_baseline)
-    non_learning_expend_mean = np.nanmean(non_learning_expend)
-    non_learning_expend_std = np.nanstd(non_learning_expend)
-    learning_baseline_mean = np.nanmean(learning_baseline)
-    learning_baseline_std = np.nanstd(learning_baseline)
-    learning_expend_mean = np.nanmean(learning_expend)
-    learning_expend_std = np.nanstd(learning_expend)
+                learning_baseline.handle(baseline[0,1])
+                learning_baseline.handle(baseline[1,0])
+                learning_expend.handle(expend[0,1])
+                learning_expend.handle(expend[1,0])
+                num_learning += 1
     means = [
-        learning_baseline_mean, learning_expend_mean
-        non_learning_baseline_mean, non_learning_expend_mean
+        learning_baseline.mean(), learning_expend.mean(),
+        non_learning_baseline.mean(), non_learning_expend.mean()
         ]
     stds = [
-        learning_baseline_std, learning_expend_std
-        non_learning_baseline_std, non_learning_expend_std
+        learning_baseline.std(), learning_expend.std(),
+        non_learning_baseline.std(), non_learning_expend.std()
         ]
-    fig, ax = plt.subplots(1, 1, figsize=(5,5))
+    fig, ax = plt.subplots(1, 1, figsize=(10,5))
     labels = [
-        'Learning: Baseline', 'Learning: Exp End',
-        'Non-Learning: Baseline', 'Non-Learning: Exp End'
+        'Learning: Baseline\n(%d Total)'%num_learning,
+        'Learning: Exp End\n(%d Total)'%num_learning,
+        'Non-Learning: Baseline\n(%d Total)'%num_non_learning,
+        'Non-Learning: Exp End\n(%d Total)'%num_non_learning
         ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
@@ -247,10 +249,12 @@ def plot_E2_ITPT():
     IT vs PT animals.
     """
 
-    IT_baseline = []
-    IT_expend = []
-    PT_baseline = []
-    PT_expend = []
+    IT_baseline = OnlineNormalEstimator()
+    IT_expend = OnlineNormalEstimator()
+    PT_baseline = OnlineNormalEstimator()
+    PT_expend = OnlineNormalEstimator()
+    num_it = 0
+    num_pt = 0
     processed_dir = './processed/'
 
     for animal_dir in os.listdir(processed_dir):
@@ -281,35 +285,31 @@ def plot_E2_ITPT():
             baseline = group_result(baseline, grouping, ignore_diagonal=False)
             expend = group_result(expend, grouping, ignore_diagonal=False)
             if animal_dir.startswith('PT'):
-                PT_baseline.append(baseline[0,1])
-                PT_baseline.append(baseline[1,0])
-                PT_expend.append(expend[0,1])
-                PT_expend.append(expend[1,0])
+                PT_baseline.handle(baseline[0,1])
+                PT_baseline.handle(baseline[1,0])
+                PT_expend.handle(expend[0,1])
+                PT_expend.handle(expend[1,0])
+                num_pt += 1
             else:
-                IT_baseline.append(baseline[0,1])
-                IT_baseline.append(baseline[1,0])
-                IT_expend.append(expend[0,1])
-                IT_expend.append(expend[1,0])
-    PT_baseline_mean = np.nanmean(PT_baseline)
-    PT_baseline_std = np.nanstd(PT_baseline)
-    PT_expend_mean = np.nanmean(PT_expend)
-    PT_expend_std = np.nanstd(PT_expend)
-    IT_baseline_mean = np.nanmean(IT_baseline)
-    IT_baseline_std = np.nanstd(IT_baseline)
-    IT_expend_mean = np.nanmean(IT_expend)
-    IT_expend_std = np.nanstd(IT_expend)
+                IT_baseline.handle(baseline[0,1])
+                IT_baseline.handle(baseline[1,0])
+                IT_expend.handle(expend[0,1])
+                IT_expend.handle(expend[1,0])
+                num_it += 1
     means = [
-        IT_baseline_mean, IT_expend_mean
-        PT_baseline_mean, PT_expend_mean
+        IT_baseline.mean(), IT_expend.mean(),
+        PT_baseline.mean(), PT_expend.mean()
         ]
     stds = [
-        IT_baseline_std, IT_expend_std
-        PT_baseline_std, PT_expend_std
+        IT_baseline.std(), IT_expend.std(),
+        PT_baseline.std(), PT_expend.std()
         ]
     fig, ax = plt.subplots(1, 1, figsize=(5,5))
     labels = [
-        'Learning: Baseline', 'Learning: Exp End',
-        'Non-Learning: Baseline', 'Non-Learning: Exp End'
+        'IT: Baseline\n(%d Total)'%num_it,
+        'IT: Exp End\n(%d Total)'%num_it,
+        'PT: Baseline\n(%d Total)'%num_pt,
+        'PT: Exp End\n(%d Total)'%num_pt
         ]
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, means, yerr=stds, align='center',
