@@ -79,7 +79,7 @@ def plot_trial_end_all(folder, animal, day,
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
     neurons_slider.on_changed(update)
-    plt.show()
+    plt.show(block=True)
     
 def plot_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -101,7 +101,7 @@ def plot_trial_end_ens(folder, animal, day,
         folder_path + 'full_' + animal + '_' + day + '_' +
         sec_var + '_data.hdf5', 'r'
         )
-    t_size = [50,30]
+    t_size = [30,5]
     time_lock_data = time_lock_activity(f, t_size=t_size)
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
@@ -147,7 +147,7 @@ def plot_trial_end_ens(folder, animal, day,
                 axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
-    plt.show()
+    plt.show(block=True)
 
 def plot_avg_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -198,7 +198,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         'Average Trial End Activity of Ensemble Neurons:\n' + \
         trial_type_names[trial_type], fontsize='large'
         )
-    plt.show()
+    plt.show(block=True)
 
 def plot_zscore_activity(folder, animal, day, sec_var=''):
     '''
