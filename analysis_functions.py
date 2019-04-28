@@ -236,7 +236,7 @@ def frequency_tuning(folder, animal, day, to_plot=True):
                 )
 
 
-def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, score_min=0.95):
+def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, score_min=0.99, toplot=True):
     """Function to select neurons that are relevant to the task, it goes iteratively through a
     temporal vector defined by sec_bin with bins of step
     folder (str): folder where the input/output is/will be stored 
@@ -268,14 +268,21 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, sco
     
     # init neur
     neur = np.zeros(C_ord.shape[1]).astype('bool')
+    succesful_steps = np.zeros(steps.shape[0])
     
     # run models through each step
     for ind, s in enumerate(steps[1::]):
         data = np.nansum(C_ord[:, :, steps[ind]:s], 2)
         sel_neur = selector.fit(data, classif)
         # if the info is good keep the neurons
-        if sel_neur.score(data, classif) > score_min:
+        if max(sel_neur.grid_scores_) > score_min:
             neur = np.logical_or(sel_neur.support_, neur)
+        succesful_steps[ind] = max(sel_neur.grid_scores_)
+        if toplot:
+            plt.plot(sel_neur.grid_scores_, label=str(ind))
+    
+    if toplot:
+        plt.legend()
     
     return neur, np.sum(neur)
 
