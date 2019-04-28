@@ -236,7 +236,7 @@ def frequency_tuning(folder, animal, day, to_plot=True):
                 )
 
 
-def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, score_min=0.99, toplot=True):
+def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, score_min=0.9, toplot=True):
     """Function to select neurons that are relevant to the task, it goes iteratively through a
     temporal vector defined by sec_bin with bins of step
     folder (str): folder where the input/output is/will be stored 
@@ -254,6 +254,7 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, sco
  
     # obtain C divided by trial
     C_ord = ut.time_lock_activity(f, sec_bin)
+    array_t1 = np.asarray(f['array_t1'])
     
     # trial label 
     classif = np.zeros(C_ord.shape[0])
@@ -264,7 +265,7 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[50, 0], step=5, sco
         
     # prepare models
     lr = sklearn.linear_model.LogisticRegression()
-    selector = sklearn.feature_selection.RFECV(lr, step=1, cv=5)
+    selector = sklearn.feature_selection.RFECV(lr, step=1, cv=5, scoring='balanced_accuracy')
     
     # init neur
     neur = np.zeros(C_ord.shape[1]).astype('bool')
