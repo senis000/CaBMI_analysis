@@ -109,6 +109,7 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
         os.makedirs(folder_path)
     fr = f.attrs['fr']
     blen = f.attrs['blen']
+    blen_min = blen//600
     hits = np.asarray(f['hits'])
     miss = np.asarray(f['miss'])
     array_t1 = np.asarray(f['array_t1'])
@@ -118,6 +119,8 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
     percentage_correct = hits.shape[0]/trial_end.shape[0]
     bins = np.arange(0, trial_end[-1]/fr, bin_size*60)
     [hpm, xx] = np.histogram(hits/fr, bins)
+    hpm = hpm[blen_min//bin_size:]
+    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot:
@@ -139,7 +142,7 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
     xx_axis = xx[1:]/(bin_size*60.0)
     xx_axis = np.expand_dims(xx_axis, axis=1)
     reg = LinearRegression().fit(xx_axis, hpm)
-    return hpm, percentage_correct, reg
+    return xx_axis, hpm, percentage_correct, reg
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
