@@ -25,6 +25,53 @@ from utils_gte import *
 from utils_clustering import *
 from clustering_functions import *
 
+def count_experiments():
+    """
+    Counts the number of experiments and animals for which a reward end GTE
+    file is created.
+    """
+
+    num_ITs = 0
+    num_PTs = 0
+    num_IT_base = 0
+    num_IT_expend = 0
+    num_PT_base = 0
+    num_PT_expend = 0
+    processed_dir = './processed/'
+    for animal_dir in os.listdir(processed_dir):
+        animal_path = processed_dir + animal_dir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        include_animal = False
+        num_baseline = 0
+        num_expend = 0
+        for day_dir in os.listdir(animal_path):
+            day_path = animal_path + day_dir + '/'
+            baseline_path = day_path + 'baseline.p'
+            expend_path = day_path + 'experiment_end.p'
+            if os.path.isfile(baseline_path):
+                num_baseline += 1
+                include_animal = True
+            if os.path.isfile(expend_path):
+                num_expend += 1
+                include_animal = True
+        if include_animal:
+            if animal_dir.startswith('IT'):
+                num_ITs +=1
+                num_IT_base += num_baseline
+                num_IT_expend += num_expend
+            else:
+                num_PTs += 1
+                num_PT_base += num_baseline
+                num_PT_expend += num_expend
+    print('Number of ITs: ' + str(num_ITs))
+    print('Baselines: ' + str(num_IT_base))
+    print('Experiment Ends: ' + str(num_IT_expend))
+    print()
+    print('Number of PTs: ' + str(num_PTs))
+    print('Baselines: ' + str(num_PT_base))
+    print('Experiment Ends: ' + str(num_PT_expend))
+
 def plot_learning():
     """
     Comparing info. transfer in baseline vs experiment end for learning vs
@@ -324,3 +371,5 @@ def plot_E2_ITPT():
     ax.set_title('GTE into/out-of E2 Neurons')
     ax.yaxis.grid(True)
     plt.show(block=True)
+
+count_experiments()
