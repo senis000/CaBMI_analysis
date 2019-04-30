@@ -238,9 +238,57 @@ def frequency_tuning(folder, animal, day, to_plot=True):
                 bbox_inches="tight"
                 )
 
-# def prediction(folder, animal, day, sec_var='', to_plot=True):
-    # Can we predict the result of the hit by looking at the activity of neurons?
-    # separate ensamble/indirect neurons, IT/PT/REST
+
+def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, score_min=0.9, toplot=True):
+    """Function to select neurons that are relevant to the task, it goes iteratively through a
+    temporal vector defined by sec_bin with bins of step
+    folder (str): folder where the input/output is/will be stored 
+    animal (str): animal to be analyzed
+    day (str): day to be analyzed
+    sec_var (str): secondary variable to identify type of experiment
+    sec_bin (tuple): frames before and after exp.
+    score_min: minimum value to consider the feature selection
+    return 
+    neur : index of neurons to consider
+    and number of neurons selected
+    """
+    folder_path = folder +  'processed/' + animal + '/' 
+    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '__data.hdf5', 'r')
+ 
+    # obtain C divided by trial
+    C_ord = ut.time_lock_activity(f, sec_bin)
+    array_t1 = np.asarray(f['array_t1'])
+    
+    # trial label 
+    classif = np.zeros(C_ord.shape[0])
+    classif[array_t1] = 1
+    
+    # steps to run throuhg C_ord
+    steps = np.arange(0, np.nansum(sec_bin) + step, step)
+        
+    # prepare models
+    lr = sklearn.linear_model.LogisticRegression()
+    selector = sklearn.feature_selection.RFECV(lr, step=1, cv=5, scoring='balanced_accuracy')
+    
+    # init neur
+    neur = np.zeros(C_ord.shape[1]).astype('bool')
+    succesful_steps = np.zeros(steps.shape[0])
+    
+    # run models through each step
+    for ind, s in enumerate(steps[1::]):
+        data = np.nansum(C_ord[:, :, steps[ind]:s], 2)
+        sel_neur = selector.fit(data, classif)
+        # if the info is good keep the neurons
+        if max(sel_neur.grid_scores_) > score_min:
+            neur = np.logical_or(sel_neur.support_, neur)
+        succesful_steps[ind] = max(sel_neur.grid_scores_)
+        if toplot:
+            plt.plot(sel_neur.grid_scores_, label=str(ind))
+    
+    if toplot:
+        plt.legend()
+    
+    return neur, np.sum(neur)
 
 
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
