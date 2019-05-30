@@ -17,6 +17,7 @@ from matplotlib import interactive
 from matplotlib.widgets import Slider
 from utils_cabmi import *
 
+
 def plot_trial_end_all(folder, animal, day,
         trial_type=0, sec_var=''):
     '''
@@ -201,6 +202,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         )
     plt.show()
 
+
 def plot_zscore_activity(folder, animal, day, sec_var=''):
     '''
     Plot z-scored calcium activity of each neuron, truncated at 10.0
@@ -245,6 +247,7 @@ def plot_zscore_activity(folder, animal, day, sec_var=''):
     neurons_slider.on_changed(update)
     pdb.set_trace()
     plt.show()
+
 
 def plot_zscore_rewards(folder, animal, day, sec_var=''):
     '''
