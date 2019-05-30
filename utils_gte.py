@@ -7,6 +7,7 @@ import numpy as np
 import pdb
 import matplotlib.pyplot as plt
 import pickle
+from scipy.stats import zscore
 from matplotlib import animation
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.widgets import Slider
@@ -244,6 +245,13 @@ def create_gte_input_files(exp_name, exp_data,
         signal = exp_data[idx,:,:]
         signal_start = np.argwhere(~np.isnan(signal[0,:]))[0,0]
         signal = signal[:,signal_start:]
+
+        # Check the trial is long enough to run GTE. Arbitrarily,
+        # it should be at least 30 frames long.
+        if signal.shape[1] < 30:
+            continue
+
+        # Process the signal
         if to_zscore:
             signal = zscore(signal, axis=1)
             signal = np.nan_to_num(signal)
@@ -394,8 +402,42 @@ def visualize_gte_matrices(results, labels=None, cmap="YlGn"):
         ax.set_title('Change in Transfer Entropy Over Time')
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
-    plt.show()
-    pdb.set_trace()
+    plt.show(block=True)
+
+def compare_gte_matrices(result1, result2, labels=None, cmap="YlGn"):
+    """
+    This function will make heatmaps of to compare two GTE matrices,
+    side-by-side. Assumes both matrices are the same size.
+    Input:
+        RESULT1: A square numpy matrix where the i,jth entry corresponds to the 
+            transfer of information from group i to group j.
+        RESULT2: A square numpy matrix where the i,jth entry corresponds to the 
+            transfer of information from group i to group j. 
+        LABELS: a 1D Numpy array; contains the labels for each group in results.
+            If not provided, the default is to label each group numerically,
+            by 0-indexing.
+        CMAP: a String; the colormap to use for IMSHOW (the matrix heat map) 
+    """ #TODO: Add save_video flag via anim.save("anim.mp4", fps=1)
+    max_val = max([np.max(np.nan_to_num(m)) for m in [result1, result2]])
+    min_val = min([np.min(np.nan_to_num(m)) for m in [result1, result2]])
+    num_neurons = result1.shape[0]
+    if labels is None:
+        labels = np.arange(num_neurons)
+    
+    # Make basic imshow plot
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(7,5))
+    im1 = ax1.imshow(result1, cmap=cmap, vmin=min_val, vmax=max_val)
+    im2 = ax2.imshow(result2, cmap=cmap, vmin=min_val, vmax=max_val)
+    cbar = ax2.figure.colorbar(im2, ax=ax2)
+    # Add in labels
+    for ax in [ax1, ax2]:
+        ax.set_xticks(np.arange(labels.size))
+        ax.set_yticks(np.arange(labels.size))
+        ax.set_xticklabels(labels)
+        ax.set_yticklabels(labels)
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+    return fig, (ax1, ax2)
 
 def delete_gte_files(dir_names=None, remove_only_input_files=False):
     """
@@ -419,3 +461,37 @@ def delete_gte_files(dir_names=None, remove_only_input_files=False):
                     subprocess.call(["rm", "-rf", dir_path + "/" + f])
         else:
             shutil.rmtree(dir_path)
+
+
+def group_result(result, grouping, ignore_diagonal=True):
+    '''
+    Groups an existing GTE connectivity matrix by averaging scores
+    over user-defined groupings of neurons.
+    Inputs:
+        RESULT: A numpy matrix (GTE connectivity matrix)
+        GROUPING: Numpy array of NUM_NEURONS size; an integer ID is given
+            to each neuron, defining their group. This array is 0-indexed.
+    Outputs:
+        GROUPED_RESULT: If GROUPING has N unique values, GROUPED_RESULT is
+            a numpy matrix of dimension (N, N)
+    '''
+    num_neurons = result.shape[0]
+    num_groups = np.unique(grouping).size
+    if grouping.size != num_neurons:
+        raise RuntimeError('Wrong dimensions for GROUPING')
+
+    grouped_result = np.zeros((num_groups, num_groups))
+    for i in range(num_groups):
+        for j in range(num_groups):
+            if (i == j) and ignore_diagonal:
+                continue
+            relevant_vals = []
+            for k in range(num_neurons): # Find k in group i
+                if grouping[k] != i:
+                    continue
+                for l in range(num_neurons): # Compare to l in group j
+                    if (grouping[l] != j) or (k==l):
+                        continue
+                    relevant_vals.append(result[k, l])
+            grouped_result[i, j] = np.nanmean(relevant_vals)
+    return grouped_result

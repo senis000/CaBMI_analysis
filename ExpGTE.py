@@ -26,6 +26,37 @@ class ExpGTE:
             folder_path + 'full_' + animal + '_' + day + '_' +
             sec_var + '_data.hdf5', 'r'
             )
+        self.blen = self.exp_file.attrs['blen']
+
+    def baseline(self, parameters=None, pickle_results = True):
+        '''
+        Run GTE over all neurons, over the baseline.
+        Inputs:
+            PARAMETERS: Dictionary; parameters for GTE
+            PICKLE_RESULTS: Boolean; whether or not to save the results matrix
+        Outputs:
+            RESULTS: An array of numpy matrices (GTE connectivity matrices)
+        '''
+        exp_name = self.animal + '_' + self.day + '_' + 'baseline'
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,:self.blen] # Isolate the baseline
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, exp_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        if pickle_results:
+            with open(self.folder_path + 'baseline.p', 'wb') as p_file:
+                pickle.dump(results, p_file)
+        return results
 
     def whole_experiment(self, parameters=None, pickle_results = True):
         '''
@@ -38,11 +69,12 @@ class ExpGTE:
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'whole'
         exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,self.blen:] # Isolate the experiment
         exp_data = exp_data[np.array(self.exp_file['nerden']),:]
         exp_data = zscore(exp_data, axis=1)
         exp_data = np.nan_to_num(exp_data)
-        exp_data = np.maximum(exp_data, -1*self.whole_experiment_threshold)
-        exp_data = np.minimum(exp_data, self.whole_experiment_threshold)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
         exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
@@ -53,6 +85,45 @@ class ExpGTE:
             output_file_names)
         if pickle_results:
             with open(self.folder_path + 'whole_experiment.p', 'wb') as p_file:
+                pickle.dump(results, p_file)
+        return results
+
+    def experiment_end(self, end_frame=0, length=0,
+            parameters=None, pickle_results = True):
+        '''
+        Run GTE over all neurons, over the end of the experiment.
+        Inputs:
+            END_FRAME: The frame to consider as the 'end' of the experiment.
+                By default this is the last frame in the matrix C. However,
+                you may wish to define another frame as the 'end' (for instance,
+                if you are selecting for the optimal performance).
+            LENGTH: This is the number of frames to process, up to END_FRAME.
+                If not overwritten, SELF.BLEN will be used by default.
+            PARAMETERS: Dictionary; parameters for GTE
+            PICKLE_RESULTS: Boolean; whether or not to save the results matrix
+        Outputs:
+            RESULTS: An array of numpy matrices (GTE connectivity matrices)
+        '''
+        if length == 0:
+            length = self.blen
+        exp_name = self.animal + '_' + self.day + '_' + 'expend'
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,end_frame-length:] # Isolate the experiment
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, exp_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        if pickle_results:
+            with open(self.folder_path + 'experiment_end.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
     
@@ -103,7 +174,8 @@ class ExpGTE:
         Outputs:
             RESULTS: An array of numpy matrices (GTE connectivity matrices)
         '''
-        exp_name = self.animal + '_' + self.day + '_' + 'rewardsliding'
+        exp_name = self.animal + '_' + self.day + '_' +\
+            'rewardsliding' + str(frame_size) + '_'
         exp_data = time_lock_activity(self.exp_file, t_size=[300,0])
         array_t1 = np.array(self.exp_file['array_t1'])
         exp_data = exp_data[array_t1,:,:]
@@ -166,42 +238,6 @@ class ExpGTE:
                 reward_idx, frame_size, frame_step,
                 parameters=parameters, pickle_results=True
                 )
-
-    def group_results(self, results, grouping):
-        '''
-        Groups an existing GTE connectivity matrix by averaging scores
-        over user-defined groupings of neurons. Here it is assumed that GTE
-        is already run; otherwise, an exception is thrown.
-        Inputs:
-            RESULTS_TYPE: An array of numpy matrices (GTE connectivity matrices)
-            GROUPING: Numpy array of NUM_NEURONS size; an integer ID is given
-                to each neuron, defining their group. This array is 0-indexed.
-        Outputs:
-            GROUPED_RESULTS: An array of numpy matrices (GTE connectivity matrices) 
-        '''
-        num_neurons = results[0].shape[0]
-        num_groups = np.unique(grouping).size
-        if grouping.size != num_neurons:
-            raise RuntimeError('Wrong dimensions for GROUPING')
-
-        grouped_results = []
-        for result in results:
-            grouped_result = np.zeros((num_groups, num_groups))
-            for i in range(num_groups):
-                for j in range(num_groups):
-                    if i == j:
-                        continue
-                    relevant_vals = []
-                    for k in range(num_neurons):
-                        if grouping[k] != i:
-                            continue
-                        for l in range(num_neurons):
-                            if grouping[l] != j:
-                                continue
-                            relevant_vals.append(result[k, l])
-                    grouped_result[i, j] = np.mean(relevant_vals)
-            grouped_results.append(grouped_result)
-        return grouped_results
 
     def shuffled_results(self, frame_size, parameters=None,
         iters=100, pickle_results=True):
@@ -286,3 +322,65 @@ class ExpGTE:
             with open(self.folder_path + 'reward_shuffled.p', 'wb') as p_file:
                 pickle.dump(reward_shuffled_results, p_file)
         return reward_shuffled_results
+
+    def shuffled_whole(self, frame_size, parameters=None,
+        iters=100, pickle_results=True):
+        '''
+        Runs GTE over 'shuffled' instances of neurons over the whole experiment.
+        Returns the average over many of these results.
+        Inputs:
+            FRAME_SIZE: Integer; number of frames to process in GTE
+            PARAMETERS: Dictionary; parameters for GTE.
+            ITERS: Number of 'shuffled' samples to take and average over.
+        Outputs:
+            RESULT: A GTE connectivity matrix
+        '''
+
+        exp_name = self.animal + '_' + self.day + '_' + 'wholeshuffled' + str(frame_size)
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        
+        # Extract out 'shuffled' windows to use
+        num_neurons = exp_data.shape[0]
+        num_frames = exp_data.shape[1]
+        shuffled_data = np.zeros((iters, num_neurons, frame_size))
+        for i in range(iters):
+            for j in range(num_neurons):
+                # Sample the frame to start on
+                full_signal = exp_data[j,:]
+                frame_idx = np.random.choice(np.arange(0,full_signal.size-frame_size+1))
+                shuffled_data[i,j,:] = \
+                    full_signal[frame_idx:frame_idx+frame_size]
+        if parameters is None:
+            parameters = self.parameters
+        
+        # Run GTE on shuffled data
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, shuffled_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        
+        # Compute the average information transfer over shuffled instances.
+        whole_shuffled_results = np.ones(results[0].shape)*np.nan
+        num_results = len(results)
+        for i in range(num_neurons):
+            for j in range(num_neurons):
+                num_samples = 0.0
+                value_sum = 0.0
+                for result_idx in range(num_results): # Loop over all results
+                    val = results[result_idx][i][j]
+                    if np.isnan(val):
+                        continue
+                    else:
+                        num_samples += 1.0
+                        value_sum += val
+                if num_samples > 0: # Calculate the average
+                    whole_shuffled_results[i][j] = value_sum/num_samples
+        if pickle_results:
+            with open(self.folder_path + 'whole_shuffled.p', 'wb') as p_file:
+                pickle.dump(whole_shuffled_results, p_file)
+        return whole_shuffled_results

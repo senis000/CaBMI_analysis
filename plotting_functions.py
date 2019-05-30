@@ -80,7 +80,7 @@ def plot_trial_end_all(folder, animal, day,
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
     neurons_slider.on_changed(update)
-    plt.show()
+    plt.show(block=True)
     
 def plot_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -102,15 +102,15 @@ def plot_trial_end_ens(folder, animal, day,
         folder_path + 'full_' + animal + '_' + day + '_' +
         sec_var + '_data.hdf5', 'r'
         )
-    t_size = [50,30]
+    t_size = [30,5]
     time_lock_data = time_lock_activity(f, t_size=t_size)
-    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
     elif trial_type == 2:
         array_miss = np.array(f['array_miss'])
         time_lock_data = time_lock_data[array_miss,:,:]
+    num_trials = time_lock_data.shape[0]
     end_frame = time_lock_data.shape[2] - t_size[1]
     ens_neurons = np.array(f['ens_neur'])
 
@@ -148,13 +148,13 @@ def plot_trial_end_ens(folder, animal, day,
                 axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
-    plt.show()
+    plt.show(block=True)
 
 def plot_avg_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
     '''
-    Plot the average calcium activity of ensemble neurons from the last 5
-    seconds before the end of a trial to 3 seconds after the trial.
+    Plot the average calcium activity of ensemble neurons from the last
+    second before the end of a trial to one second after the trial.
     Inputs:
         FOLDER: String; path to folder containing data files
         ANIMAL: String; ID of the animal
@@ -169,9 +169,8 @@ def plot_avg_trial_end_ens(folder, animal, day,
         sec_var + '_data.hdf5', 'r'
         )
 
-    t_size = [50,30]
+    t_size = [10,10]
     time_lock_data = time_lock_activity(f, t_size=t_size)
-    time_lock_data = time_lock_data[:,np.array(f['nerden']),:]
     if trial_type == 1:
         array_t1 = np.array(f['array_t1'])
         time_lock_data = time_lock_data[array_t1,:,:]
@@ -188,7 +187,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         for irow in range(2):
             neuron_idx = int(ens_neurons[icol+2*irow])
             axs[irow, icol].plot(
-                np.mean(time_lock_data[:,neuron_idx,:], axis=0)
+                np.nanmean(time_lock_data[:,neuron_idx,:], axis=0)
                 )
             axs[irow, icol].set_title('Neuron ' + str(neuron_idx))
             axs[irow, icol].axvline(end_frame, color='r', lw=1.25)
@@ -200,7 +199,7 @@ def plot_avg_trial_end_ens(folder, animal, day,
         'Average Trial End Activity of Ensemble Neurons:\n' + \
         trial_type_names[trial_type], fontsize='large'
         )
-    plt.show()
+    plt.show(block=True)
 
 
 def plot_zscore_activity(folder, animal, day, sec_var=''):

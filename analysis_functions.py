@@ -28,6 +28,7 @@ from scipy import stats
 from scipy.stats.mstats import zscore
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 from matplotlib import interactive
 import utils_cabmi as ut
 
@@ -82,6 +83,63 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
+def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
+    '''
+    Obtain the learning rate over time, including the fitted linear regression
+    model. This function also allows for longer bin sizes.
+    Inputs:
+        FOLDER: String; path to folder containing data files
+        ANIMAL: String; ID of the animal
+        DAY: String; date of the experiment in YYMMDD format
+        BIN_SIZE: The number of minutes to bin over. Default is one minute
+        TO_PLOT: Bool; whether to generate hpm plots or not.
+    Outputs:
+        HPM: Numpy array; hits per minute
+        PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
+        REG: The fitted linear regression model
+    '''
+    
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(
+        folder_path + 'full_' + animal + '_' + day + '_' +
+        sec_var + '_data.hdf5', 'r'
+        ) 
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    fr = f.attrs['fr']
+    blen = f.attrs['blen']
+    hits = np.asarray(f['hits'])
+    miss = np.asarray(f['miss'])
+    array_t1 = np.asarray(f['array_t1'])
+    array_miss = np.asarray(f['array_miss'])
+    trial_end = np.asarray(f['trial_end'])
+    trial_start = np.asarray(f['trial_start'])
+    percentage_correct = hits.shape[0]/trial_end.shape[0]
+    bins = np.arange(0, trial_end[-1]/fr, bin_size*60)
+    [hpm, xx] = np.histogram(hits/fr, bins)
+    tth = trial_end[array_t1] + 1 - trial_start[array_t1]
+    
+    if to_plot:
+        fig1 = plt.figure()
+        ax = fig1.add_subplot(121)
+        sns.regplot(xx[1:]/(bin_size*60.0), hpm, label='hits per min')
+        ax.set_xlabel('Minutes')
+        ax.set_ylabel('Hit Rate (hit/min)')
+        ax1 = fig1.add_subplot(122)
+        sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
+        ax1.set_xlabel('Reward Trial')
+        ax1.set_ylabel('Number of Frames')
+        ax1.yaxis.set_label_position('right')
+        fig1.savefig(
+            folder_path + 'hpm' + str(bin_size) + '.png',
+            bbox_inches="tight"
+            )
+
+    xx_axis = xx[1:]/(bin_size*60.0)
+    xx_axis = np.expand_dims(xx_axis, axis=1)
+    reg = LinearRegression().fit(xx_axis, hpm)
+    return hpm, percentage_correct, reg
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
@@ -177,9 +235,57 @@ def frequency_tuning(folder, animal, day, to_plot=True):
                 bbox_inches="tight"
                 )
 
-# def prediction(folder, animal, day, sec_var='', to_plot=True):
-    # Can we predict the result of the hit by looking at the activity of neurons?
-    # separate ensamble/indirect neurons, IT/PT/REST
+
+def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, score_min=0.9, toplot=True):
+    """Function to select neurons that are relevant to the task, it goes iteratively through a
+    temporal vector defined by sec_bin with bins of step
+    folder (str): folder where the input/output is/will be stored 
+    animal (str): animal to be analyzed
+    day (str): day to be analyzed
+    sec_var (str): secondary variable to identify type of experiment
+    sec_bin (tuple): frames before and after exp.
+    score_min: minimum value to consider the feature selection
+    return 
+    neur : index of neurons to consider
+    and number of neurons selected
+    """
+    folder_path = folder +  'processed/' + animal + '/' 
+    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '__data.hdf5', 'r')
+ 
+    # obtain C divided by trial
+    C_ord = ut.time_lock_activity(f, sec_bin)
+    array_t1 = np.asarray(f['array_t1'])
+    
+    # trial label 
+    classif = np.zeros(C_ord.shape[0])
+    classif[array_t1] = 1
+    
+    # steps to run throuhg C_ord
+    steps = np.arange(0, np.nansum(sec_bin) + step, step)
+        
+    # prepare models
+    lr = sklearn.linear_model.LogisticRegression()
+    selector = sklearn.feature_selection.RFECV(lr, step=1, cv=5, scoring='balanced_accuracy')
+    
+    # init neur
+    neur = np.zeros(C_ord.shape[1]).astype('bool')
+    succesful_steps = np.zeros(steps.shape[0])
+    
+    # run models through each step
+    for ind, s in enumerate(steps[1::]):
+        data = np.nansum(C_ord[:, :, steps[ind]:s], 2)
+        sel_neur = selector.fit(data, classif)
+        # if the info is good keep the neurons
+        if max(sel_neur.grid_scores_) > score_min:
+            neur = np.logical_or(sel_neur.support_, neur)
+        succesful_steps[ind] = max(sel_neur.grid_scores_)
+        if toplot:
+            plt.plot(sel_neur.grid_scores_, label=str(ind))
+    
+    if toplot:
+        plt.legend()
+    
+    return neur, np.sum(neur)
 
 
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
