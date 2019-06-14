@@ -54,3 +54,12 @@ def std_filter(size=20, thres=2):
         return dc.get_val()
     return fil, dc
 
+
+
+
+def fft_filter(sig, start, end):
+    ftf = np.fft.fft(sig)
+    ftred = np.copy(ftf)
+    ftred[:start] = 0
+    ftred[end:] = 0
+    return abs(np.fft.ifft(ftred))
