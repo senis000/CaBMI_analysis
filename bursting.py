@@ -1,6 +1,11 @@
 import numpy as np
 from scipy.signal import find_peaks
+from scipy import io
+from scipy import stats
+import os
 from shuffling_functions import signal_partition
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 
 
 def fake_neuron(burst, dur, p0=0.3):
@@ -82,26 +87,39 @@ def neuron_pr_fano(sig, perc=30, W=None, T=100, debug=False):
         return neuron_fano(sig_prime, W, T)
 
 
-def neuron_fano_norm(sig, W=None, T=100, pre=True):
-    peaks, _ = find_peaks(sig)
-    n = min(peaks, key=lambda p: sig[p])
+def neuron_fano_norm(sig, W=None, T=100, lingress=False, pre=True):
+    peaks, _ = find_peaks(sig, threshold=1e-08) # use 1E-08 as a threshold to distinguish from 0
+    if len(peaks) == 0:
+        peaks = [np.argmax(sig)]
+        if np.isclose(sig[peaks[0]], 0):
+            return 0
+    lmaxes = sig[peaks]
+    positves = lmaxes[~np.isclose(lmaxes, 0)]
+    if lingress:
+        A = np.vstack((positves), np.ones_like(positves)).T
+    n = np.min(positves)
     if pre:
-        return neuron_fano(sig / n, W, T)
+        return neuron_fano(sig / (n), W, T)
     else:
-        return neuron_fano(sig, W, T) / n
+        return neuron_fano(sig, W, T) / (n)
 
-def raw_deconv_fano_contrast(hIT, hPT):
-    norm = True
+
+def deconv_fano_contrast(hIT, hPT, fano_opt='raw'):
+    nneg = True
     W = None
     step = 100
     OPT = 'IT VS PT'
-
-
+    if fano_opt == 'raw':
+        fano_metric = neuron_fano
+    elif fano_opt == 'norm_pre':
+        fano_metric = lambda *args: neuron_fano_norm(*args, pre=True)
+    else:
+        fano_metric = lambda *args: neuron_fano_norm(*args, pre=False)
     def get_datas(hfile, data_opt, expr_opt):
         redlabels = np.array(hfile['redlabel'])
         datas = np.array(hfile[data_opt])
         blen = hfile.attrs['blen']
-        if norm:
+        if nneg:
             datas = datas - np.min(datas, axis=1, keepdims=True)
         if expr_opt.find('IT') != -1:
             datas_it = datas[np.logical_and(redlabels, hfile['nerden'])]
@@ -116,90 +134,91 @@ def raw_deconv_fano_contrast(hIT, hPT):
                 'PT': {'N': datas_pt.shape[0], 'data': datas_pt,
                        'base': datas_pt[:, :blen], 'online': datas_pt[:, blen:]}}
 
+    def fano_series(all_data, W, step, out=None, label=None):
+        datas, datas_base, datas_online, N = all_data['data'], all_data['base'], \
+                                             all_data['online'], all_data['N']
+        nfanos = np.empty(N)
+        base_fanos = np.empty(N)
+        online_fanos = np.empty(N)
+        for j in range(N):
+            fano = fano_metric(datas[j], W, step)
+            fano_base = fano_metric(datas_base[j], W, step)
+            fano_online = fano_metric(datas_online[j], W, step)
+            print(j, fano)
+            nfanos[j] = fano
+            base_fanos[j] = fano_base
+            online_fanos[j] = fano_online
+        if out:
+            out['nfanos'][label], out['base_fanos'][label], out['online_fanos'][label] = \
+                nfanos, base_fanos, online_fanos
+        else:
+            return out
 
     datas_IT_expr = get_datas(hIT, 'neuron_act', 'IT')
     datas_PT_expr = get_datas(hPT, 'neuron_act', 'PT')
 
-
-    def subroutine(W, step, perc):
-        def common(datas, datas_base, datas_online, N):
-            nfanos = []
-            base_fanos = []
-            online_fanos = []
-            print(datas.shape)
-            for j in range(N):
-                fano = neuron_pr_fano(datas[j], perc, W, step)
-                fano_base = neuron_pr_fano(datas_base[j], perc, W, step)
-                fano_online = neuron_pr_fano(datas_online[j], perc, W, step)
-                print(j, fano)
-                nfanos.append(fano)
-                base_fanos.append(fano_base)
-                online_fanos.append(fano_online)
-            return nfanos, base_fanos, online_fanos
+    def subroutine(W, step):
         vars = ['IT_expr_IT', 'IT_expr_PT', 'PT_expr_IT', 'PT_expr_PT']
+        labels = ['nfanos', 'base_fanos', 'online_fanos']
         plot_datas = {'nfanos': {d: None for d in vars},
                       'base_fanos': {d: None for d in vars},
                       'online_fanos': {d: None for d in vars}}
-        plot_datas['nfanos']['IT_expr_IT'], plot_datas['base_fanos']['IT_expr_IT'], \
-        plot_datas['online_fanos']['IT_expr_IT'] = common(datas_IT_expr['IT'],datas_it, datas_base_it,
-                                                          datas_online_it, N_it)
-        nfanos_pt, base_fanos_pt, online_fanos_pt = common(datas_pt, datas_base_pt, datas_online_pt, N_pt)
+        fano_series(datas_IT_expr['IT'], W, step, plot_datas, 'IT_expr_IT')
+        fano_series(datas_IT_expr['PT'], W, step, plot_datas, 'IT_expr_PT')
+        fano_series(datas_PT_expr['IT'], W, step, plot_datas, 'PT_expr_IT')
+        fano_series(datas_PT_expr['PT'], W, step, plot_datas, 'PT_expr_PT')
 
-        ax[0][0].plot(nfanos_it)
-        ax[0][0].plot(nfanos_pt)
-        ax[0][0].legend(['IT', 'PT'])
+        for v in vars:
+            ax[0][0].plot(plot_datas['nfanos'][v])
+        ax[0][0].legend(vars)
         ax[0][0].set_xlabel("Neuron")
         ax[0][0].set_title("Fano Factor for all neurons")
-        ax[0][1].hist(base_fanos_it, bins=100)
-        ax[0][1].hist(base_fanos_pt, bins=100)
-        ax[0][1].legend(['IT', 'PT'])
-        ax[0][1].set_title("baseline FANO, Mean(it, pt): {}|{} Std: {}|{}, N: {}|{}"
-                           .format(np.around(np.nanmean(base_fanos_it), 5),
-                                   np.around(np.nanmean(base_fanos_pt), 5),
-                                   np.around(np.nanstd(base_fanos_it), 2), np.around(np.nanstd(base_fanos_pt), 2),
-                                   N_it, N_pt))
-        ax[1][0].hist(online_fanos_it, bins=100)
-        ax[1][0].hist(online_fanos_pt, bins=100)
-        ax[1][0].legend(['IT', 'PT'])
-        ax[1][0].set_title("online FANO, Mean(it, pt): {}|{} Std: {}|{}, N: {}|{}"
-                           .format(np.around(np.nanmean(online_fanos_it), 5),
-                                   np.around(np.nanmean(online_fanos_pt), 5),
-                                   np.around(np.nanstd(online_fanos_it), 2),
-                                   np.around(np.nanstd(online_fanos_pt), 2), N_it, N_pt))
-        ax[1][1].hist(nfanos_it, bins=100)
-        ax[1][1].hist(nfanos_pt, bins=100)
-        ax[1][1].legend(['IT', 'PT'])
-        ax[1][1].set_title("whole_expr FANO, Mean(it, pt): {}|{} Std: {}|{}, N: {}|{}"
-                           .format(np.around(np.nanmean(nfanos_it), 5), np.around(np.nanmean(nfanos_pt), 5),
-                                   np.around(np.nanstd(nfanos_it), 2), np.around(np.nanstd(nfanos_pt), 2), N_it,
-                                   N_pt))
-
-
+        all_stats = {l: {v: {} for v in vars} for l in labels}
+        all_stats['meta'] = {'W': W if W else -1, 'T': step}
+        for i, label in enumerate(labels):
+            curr = i+1
+            stat = [None] * 12
+            r, c = curr // 2, curr % 2
+            for j, v in enumerate(vars):
+                fanos = plot_datas[label][v]
+                # Choice of bin size: Ref: https://www.fmrib.ox.ac.uk/datasets/techrep/tr00mj2/tr00mj2/node24
+                # .html
+                miu, sigma, N = np.around(np.nanmean(fanos), 5), np.around(np.nanstd(fanos), 5), len(fanos)
+                binsize = 3.49 * sigma * N ** (-1/3) # or 2 IQR N ^(-1/3)
+                ax[r][c].hist(fanos, bins=int((max(fanos)- min(fanos)) / binsize + 1), density=True,
+                              alpha=0.6)
+                stat[j], stat[j+4], stat[j+8] = miu, sigma, N
+                all_stats[label][v]['mean'] = stat[j]
+                all_stats[label][v]['std'] = stat[j+4]
+                all_stats[label][v]['N'] = stat[j + 8]
+            ax[r][c].legend(vars)
+            ax[r][c].set_title(
+                "{}, Mean(ITIT, ITPT, PTIT, PTPT): {}|{}|{}|{}\nStd: {}|{}|{}|{}, N: {}|{}|{}|{}"
+                               .format(label, *stat), fontsize=10)
+        outpath = "/Users/albertqu/Documents/7.Research/BMI/analysis_data/bursty_log"
+        io.savemat(os.path.join(outpath, 'fano_{}_stats_{}.mat'.format(fano_opt, all_stats['meta'])),
+                   all_stats)
+    plt.style.use('bmh')
     fig, ax = plt.subplots(nrows=2, ncols=2)
     plt.subplots_adjust(bottom=0.3, wspace=0.3, hspace=0.5)
     fig.suptitle(OPT)
-    subroutine(W, step, perc)
+    subroutine(W, step)
     axcolor = 'lightgoldenrodyellow'
     axW = plt.axes([0.1, 0.05, 0.8, 0.03], facecolor=axcolor)
     W_slider = Slider(axW, 'Window', valmin=50, valmax=1000, valinit=W if W else -1, valstep=1)
-    axstep = plt.axes([0.1, 0.15, 0.8, 0.03], facecolor=axcolor)
+    axstep = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
     step_slider = Slider(axstep, 'step', valmin=1, valmax=1000, valinit=step, valstep=1)
-    axperc = plt.axes([0.1, 0.1, 0.8, 0.03], facecolor=axcolor)
-    perc_slider = Slider(axperc, 'percentage', valmin=1, valmax=100, valinit=perc, valstep=1)
-
 
     def update(val):
-        W, step, perc = int(W_slider.val), int(step_slider.val), perc_slider.val
+        W, step = int(W_slider.val), int(step_slider.val)
         if W == -1:
             W = None
         for cax in ax.ravel():
             cax.clear()
-        subroutine(W, step, perc)
+        subroutine(W, step)
         fig.canvas.draw_idle()
-
 
     step_slider.on_changed(update)
     W_slider.on_changed(update)
-    perc_slider.on_changed(update)
     plt.show()
 

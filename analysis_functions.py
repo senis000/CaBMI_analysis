@@ -10,6 +10,7 @@ import time
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+import sklearn
 import pdb
 import sys
 import pandas as pd
@@ -83,7 +84,9 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
-def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
+def learning_params(
+    folder, animal, day, sec_var='', bin_size=1,
+    to_plot=False, end_bin=None):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -109,6 +112,7 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
         os.makedirs(folder_path)
     fr = f.attrs['fr']
     blen = f.attrs['blen']
+    blen_min = blen//600
     hits = np.asarray(f['hits'])
     miss = np.asarray(f['miss'])
     array_t1 = np.asarray(f['array_t1'])
@@ -118,6 +122,13 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
     percentage_correct = hits.shape[0]/trial_end.shape[0]
     bins = np.arange(0, trial_end[-1]/fr, bin_size*60)
     [hpm, xx] = np.histogram(hits/fr, bins)
+    hpm = hpm[blen_min//bin_size:]
+    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
+    xx = xx[1:]
+    if end_bin is not None:
+        end_frame = end_bin//bin_size + 1
+        hpm = hpm[:end_frame]
+        xx = xx[:end_frame]
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot:
@@ -136,10 +147,10 @@ def learning_params(folder, animal, day, sec_var='', bin_size=1, to_plot=False):
             bbox_inches="tight"
             )
 
-    xx_axis = xx[1:]/(bin_size*60.0)
+    xx_axis = xx/(bin_size*60.0)
     xx_axis = np.expand_dims(xx_axis, axis=1)
     reg = LinearRegression().fit(xx_axis, hpm)
-    return hpm, percentage_correct, reg
+    return xx_axis, hpm, percentage_correct, reg
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
@@ -236,7 +247,8 @@ def frequency_tuning(folder, animal, day, to_plot=True):
                 )
 
 
-def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, score_min=0.9, toplot=True):
+def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
+    score_min=0.9, toplot=True):
     """Function to select neurons that are relevant to the task, it goes iteratively through a
     temporal vector defined by sec_bin with bins of step
     folder (str): folder where the input/output is/will be stored 
@@ -246,11 +258,12 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, sco
     sec_bin (tuple): frames before and after exp.
     score_min: minimum value to consider the feature selection
     return 
+    sel_neurs: an array of the fitted RFECV models
     neur : index of neurons to consider
     and number of neurons selected
     """
-    folder_path = folder +  'processed/' + animal + '/' 
-    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '__data.hdf5', 'r')
+    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    f = h5py.File(folder_path + 'full_' + animal + '_' + day + '__data.hdf5','r')
  
     # obtain C divided by trial
     C_ord = ut.time_lock_activity(f, sec_bin)
@@ -265,11 +278,14 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, sco
         
     # prepare models
     lr = sklearn.linear_model.LogisticRegression()
-    selector = sklearn.feature_selection.RFECV(lr, step=1, cv=5, scoring='balanced_accuracy')
+    selector = sklearn.feature_selection.RFECV(
+        lr, step=1, cv=5, scoring='balanced_accuracy'
+        )
     
     # init neur
     neur = np.zeros(C_ord.shape[1]).astype('bool')
     succesful_steps = np.zeros(steps.shape[0])
+    sel_neurs = []
     
     # run models through each step
     for ind, s in enumerate(steps[1::]):
@@ -281,11 +297,12 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5, sco
         succesful_steps[ind] = max(sel_neur.grid_scores_)
         if toplot:
             plt.plot(sel_neur.grid_scores_, label=str(ind))
+        sel_neurs.append(sel_neur)
     
     if toplot:
         plt.legend()
     
-    return neur, np.sum(neur)
+    return sel_neurs, neur, np.sum(neur)
 
 
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
