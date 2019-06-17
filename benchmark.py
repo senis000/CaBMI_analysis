@@ -1,13 +1,16 @@
 from bursting import neuron_fano, neuron_fano_norm
+from plotting_functions import best_nbins
 from caiman.source_extraction.cnmf import deconvolution
+from scipy import stats
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+plt.style.use('bmh')
 import itertools
 import os
 
 
-def deconv_fano_spikefinder(dataset, fano, p=2):
+def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
     dataset = os.path.join(dataset, '{}')
     W = None
     T = 100
@@ -32,6 +35,19 @@ def deconv_fano_spikefinder(dataset, fano, p=2):
             nonnan = ~np.isnan(spike)
             fano_spike = neuron_fano(np.array(spike[nonnan]), W, T)
             deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[0]
+            if outpath:
+                fano_record = np.around(fano_spike, 4)
+                deconv_ptv = deconv[~np.isclose(deconv, 0)]
+                bsize1 = best_nbins(deconv)
+                bsize2 = best_nbins(deconv_ptv)
+                plt.subplot(211)
+                plt.hist(deconv, bins=bsize1)
+                plt.subplot(212)
+                plt.hist(deconv_ptv, bins=bsize2)
+                plt.suptitle('#{} Neuron {}, Fano: {}'.format(i, n, fano_record))
+                plt.savefig(os.path.join(outpath, 'distribution', "spikefinder_{}_neuron{}_fano_{}.png"
+                             .format(i, n, fano_record)))
+                plt.close('all')
             fano_calcium = fano_metric(deconv, W, T)
             measures['spike'][i]['fano'][int(n)] = fano_spike
             measures['calcium'][i]['fano'][int(n)] = fano_calcium
@@ -66,7 +82,7 @@ def test_fano():
         saveopt = 'deconvFano_p{}_{}_{}'.format(p, fano, source_name)
         outpath = "/Users/albertqu/Documents/7.Research/BMI/plots/bursty"
         dataset = os.path.join(root, source_name)
-        measures = deconv_fano_spikefinder(dataset, fano, p)
+        measures = deconv_fano_spikefinder(dataset, fano, p, outpath=outpath)
         visualize_measure(measures, outpath, saveopt)
 
 
