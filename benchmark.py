@@ -1,7 +1,6 @@
 from bursting import neuron_fano, neuron_fano_norm
 from plotting_functions import best_nbins
 from caiman.source_extraction.cnmf import deconvolution
-from scipy import stats
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
