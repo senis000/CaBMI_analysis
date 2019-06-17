@@ -34,7 +34,7 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
             spike, calcium = spikes_train[n], calcium_train[n]
             nonnan = ~np.isnan(spike)
             fano_spike = neuron_fano(np.array(spike[nonnan]), W, T)
-            deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[0]
+            deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[2]
             if outpath:
                 fano_record = np.around(fano_spike, 4)
                 deconv_ptv = deconv[~np.isclose(deconv, 0)]
@@ -42,10 +42,12 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
                 bsize2 = best_nbins(deconv_ptv)
                 plt.subplot(211)
                 plt.hist(deconv, bins=bsize1)
+                plt.title('Deconv All')
                 plt.subplot(212)
                 plt.hist(deconv_ptv, bins=bsize2)
+                plt.title('Deconv Positive')
                 plt.suptitle('{}_{} #{} Neuron {}, Fano: {}'.format(fano, p, i, n, fano_record))
-                savepath = os.path.join(outpath, 'distribution', "{}_{}")
+                savepath = os.path.join(outpath, 'distribution', "{}_{}".format(fano, p))
                 if not os.path.exists(savepath):
                     os.makedirs(savepath)
                 plt.savefig(os.path.join(savepath, "spikefinder_{}_neuron{}_fano_{}.png"
@@ -53,12 +55,12 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
                 plt.close('all')
                 fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(20, 10))
                 axes[0].plot(spike[:300])
-                plt.legend('spike')
+                axes[0].legend('spike')
                 axes[1].plot(calcium[:300])
-                plt.legend('calcium')
+                axes[1].legend('calcium')
                 axes[2].plot(deconv[:300])
-                plt.legend('deconv')
-                plt.savefig(savepath+'/{}_{}.png'.format(i, n))
+                axes[2].legend('deconv')
+                plt.savefig(savepath+'/signal_{}_neuron{}.png'.format(i, n))
                 plt.close('all')
             fano_calcium = fano_metric(deconv, W, T)
             measures['spike'][i]['fano'][int(n)] = fano_spike
