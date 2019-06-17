@@ -34,7 +34,7 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
             spike, calcium = spikes_train[n], calcium_train[n]
             nonnan = ~np.isnan(spike)
             fano_spike = neuron_fano(np.array(spike[nonnan]), W, T)
-            deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[2]
+            deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[5]
             if outpath:
                 fano_record = np.around(fano_spike, 4)
                 deconv_ptv = deconv[~np.isclose(deconv, 0)]
