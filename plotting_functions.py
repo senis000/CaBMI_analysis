@@ -357,4 +357,6 @@ def best_nbins(data):
         binsize = 2 * iqr(data, nan_policy='omit') * len(data) ** (-1 / 3)
     except:
         binsize = 3.49 * np.nanstd(data) * len(data) ** (-1 / 3)
+    if binsize == 0:
+        return 1
     return int((np.max(data) - np.min(data)) / binsize) + 1
