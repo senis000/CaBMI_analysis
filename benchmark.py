@@ -52,6 +52,15 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
                 plt.savefig(os.path.join(savepath, "spikefinder_{}_neuron{}_fano_{}.png"
                     .format(i, n, fano_record)))
                 plt.close('all')
+                fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(20, 10))
+                axes[0].plot(spike[:300])
+                plt.legend('spike')
+                axes[1].plot(calcium[:300])
+                plt.legend('calcium')
+                axes[2].plot(deconv[:300])
+                plt.legend('deconv')
+                plt.savefig(savepath+'/{}_{}.png'.format(i, n))
+                plt.close('all')
             fano_calcium = fano_metric(deconv, W, T)
             measures['spike'][i]['fano'][int(n)] = fano_spike
             measures['calcium'][i]['fano'][int(n)] = fano_calcium
