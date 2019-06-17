@@ -17,7 +17,6 @@ import networkx as nx
 from networkx.algorithms import community
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from ExpGTE import ExpGTE
-from ExpGTECopy import ExpGTECopy
 from utils_cabmi import *
 from plotting_functions import *
 from analysis_functions import *
