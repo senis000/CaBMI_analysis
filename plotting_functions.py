@@ -8,7 +8,7 @@ import os
 import math
 import random
 import copy
-from scipy.stats import zscore
+from scipy.stats import zscore, iqr
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import host_subplot
@@ -350,3 +350,11 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
     trial_slider.on_changed(update)
     pdb.set_trace()
     plt.show()
+
+
+def best_nbins(data):
+    try:
+        binsize = 2 * iqr(data, nan_policy='omit') * len(data) ** (-1 / 3)
+    except:
+        binsize = 3.49 * np.nanstd(data) * len(data) ** (-1 / 3)
+    return int((np.max(data) - np.min(data)) / binsize) + 1
