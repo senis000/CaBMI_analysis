@@ -2,6 +2,7 @@ from bursting import neuron_fano, neuron_fano_norm
 from plotting_functions import best_nbins
 from caiman.source_extraction.cnmf import deconvolution
 from scipy import stats
+from scipy import io
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,15 +45,17 @@ def deconv_fano_spikefinder(dataset, fano, p=2, outpath=None):
                 plt.hist(deconv, bins=bsize1)
                 plt.subplot(212)
                 plt.hist(deconv_ptv, bins=bsize2)
-                plt.suptitle('#{} Neuron {}, Fano: {}'.format(i, n, fano_record))
-                plt.savefig(os.path.join(outpath, 'distribution', "spikefinder_{}_neuron{}_fano_{}.png"
-                             .format(i, n, fano_record)))
+                plt.suptitle('{}_{} #{} Neuron {}, Fano: {}'.format(fano, p, i, n, fano_record))
+        		savepath = os.path.join(outpath, 'distribution', "{}_{}")   
+        		if not os.path.exists(savepath):
+        			os.makedirs(savepath)             
+        		plt.savefig(os.path.join(savepath, "spikefinder_{}_neuron{}_fano_{}.png"
+                                     .format(i, n, fano_record)))
                 plt.close('all')
             fano_calcium = fano_metric(deconv, W, T)
             measures['spike'][i]['fano'][int(n)] = fano_spike
             measures['calcium'][i]['fano'][int(n)] = fano_calcium
             print(n, fano_spike, fano_calcium)
-
     return measures
 
 
@@ -73,16 +76,17 @@ def visualize_measure(measures, outpath, saveopt):
 
 
 def test_fano():
-    root = "/Users/albertqu/Documents/7.Research/BMI/analysis_data/"
+    root = "/home/user/bursting/"
     #fano = 'raw' # Fano Measure Method
     #p = 2 # AR order for foopsi algorithm
     source_name = 'spikefinder'
     for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
         print('opt:', fano, p)
         saveopt = 'deconvFano_p{}_{}_{}'.format(p, fano, source_name)
-        outpath = "/Users/albertqu/Documents/7.Research/BMI/plots/bursty"
+        outpath = "/home/user/bursting/plots"
         dataset = os.path.join(root, source_name)
         measures = deconv_fano_spikefinder(dataset, fano, p, outpath=outpath)
+        io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
         visualize_measure(measures, outpath, saveopt)
 
 
