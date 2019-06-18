@@ -24,12 +24,12 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
         calcium_train = pd.read_csv(dataset.format(i) + '.train.calcium.csv')
         spikes_train = pd.read_csv(dataset.format(i) + '.train.spikes.csv')
         neurons = spikes_train.columns
-        measures['deconv_corr'][i] = np.empty(len(neurons))
+        measures['deconv_corr'][i] = np.zeros(len(neurons))
         for m in measures.keys():
             if m != 'deconv_corr':
                 measures[m][i] = {}
                 measures[m][i]['neurons'] = neurons
-                measures[m][i]['fano'] = np.empty(len(neurons))
+                measures[m][i]['fano'] = np.zeros(len(neurons))
 
         for n in neurons:
             spike, calcium = spikes_train[n], calcium_train[n]
@@ -94,6 +94,8 @@ def visualize_measure(measures, outpath, saveopt):
     plt.xlabel('spikes')
     plt.ylabel('calcium')
     plt.title('Fano Corr spike vs calcium {}'.format(corr))
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
     plt.savefig(os.path.join(outpath, saveopt))
     plt.close()
 
@@ -113,7 +115,7 @@ def test_fano():
         dataset = os.path.join(root, source_name)
         measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, outpath=outpath)
         io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
-        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W), saveopt))
+        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W)), saveopt)
 
 
 if __name__ == '__main__':
