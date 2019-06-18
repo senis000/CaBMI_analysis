@@ -5,9 +5,9 @@ from scipy import io
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-plt.style.use('bmh')
 import itertools
 import os
+plt.style.use('bmh')
 
 
 def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_deconv=True, outpath=None):
@@ -26,10 +26,10 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
         neurons = spikes_train.columns
         measures['deconv_corr'][i] = np.empty(len(neurons))
         for m in measures.keys():
-        	if m != 'deconv_corr':
-	            measures[m][i] = {}
-	            measures[m][i]['neurons'] = neurons
-	            measures[m][i]['fano'] = np.empty(len(neurons))
+            if m != 'deconv_corr':
+                measures[m][i] = {}
+                measures[m][i]['neurons'] = neurons
+                measures[m][i]['fano'] = np.empty(len(neurons))
 
         for n in neurons:
             spike, calcium = spikes_train[n], calcium_train[n]
@@ -41,12 +41,12 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
                 fano_record = np.around(fano_spike, 4)
                 deconv_ptv = deconv[~np.isclose(deconv, 0)]
                 if binT > 1:
-                	r, c = len(deconv) // binT, binT 
-                	r_p, c_p = len(deconv_ptv) // binT, binT
-                	deconv_bin = np.sum(deconv[:r * c].reshape((r, c)), axis=1).ravel()
-                	deconv_ptv_bin = np.sum(deconv_ptv[:r_p*c_p].reshape((r_p, c_p)), axis=1).ravel()
+                    r, c = len(deconv) // binT, binT
+                    r_p, c_p = len(deconv_ptv) // binT, binT
+                    deconv_bin = np.sum(deconv[:r * c].reshape((r, c)), axis=1).ravel()
+                    deconv_ptv_bin = np.sum(deconv_ptv[:r_p * c_p].reshape((r_p, c_p)), axis=1).ravel()
                 else:
-                	deconv_bin, deconv_ptv_bin = deconv, deconv_ptv
+                    deconv_bin, deconv_ptv_bin = deconv, deconv_ptv
                 bsize1 = best_nbins(deconv_bin)
                 bsize2 = best_nbins(deconv_ptv_bin)
                 plt.subplots_adjust(bottom=0.1, wspace=0.3, hspace=0.5)
@@ -57,22 +57,23 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
                 plt.hist(deconv_ptv_bin, bins=bsize2)
                 plt.title('Deconv Positive')
                 plt.suptitle('{}_{} #{} Neuron {}, Fano: {}'.format(fano, p, i, n, fano_record))
-                savepath = os.path.join(outpath, 'distribution_binT_{}'.format(binT), "{}_T{}_W{}_p{}".format(fano, T, W, p))
+                savepath = os.path.join(outpath, 'distribution_binT_{}'.format(binT),
+                                        "{}_T{}_W{}_p{}".format(fano, T, W, p))
                 if not os.path.exists(savepath):
                     os.makedirs(savepath)
                 plt.savefig(os.path.join(savepath, "spikefinder_{}_neuron{}_fano_{}_corr_{}.png"
-                    .format(i, n, fano_record, np.around(corr, 4))))
+                                         .format(i, n, fano_record, np.around(corr, 4))))
                 plt.close('all')
                 if sample_deconv:
-	                fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(20, 10))
-	                axes[0].plot(spike[:300])
-	                axes[0].legend('spike')
-	                axes[1].plot(calcium[:300])
-	                axes[1].legend('calcium')
-	                axes[2].plot(deconv[:300])
-	                axes[2].legend('deconv')
-	                plt.savefig(savepath+'/signal_{}_neuron{}_corr_{}.png'.format(i, n, np.around(corr, 4)))
-	                plt.close('all')
+                    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(20, 10))
+                    axes[0].plot(spike[:300])
+                    axes[0].legend('spike')
+                    axes[1].plot(calcium[:300])
+                    axes[1].legend('calcium')
+                    axes[2].plot(deconv[:300])
+                    axes[2].legend('deconv')
+                    plt.savefig(savepath + '/signal_{}_neuron{}_corr_{}.png'.format(i, n, np.around(corr, 4)))
+                    plt.close('all')
             fano_calcium = fano_metric(deconv, W, T)
             measures['spike'][i]['fano'][int(n)] = fano_spike
             measures['calcium'][i]['fano'][int(n)] = fano_calcium
@@ -99,25 +100,21 @@ def visualize_measure(measures, outpath, saveopt):
 
 def test_fano():
     root = "/home/user/bursting/"
-    #fano = 'raw' # Fano Measure Method
-    #p = 2 # AR order for foopsi algorithm
+    # fano = 'raw' # Fano Measure Method
+    # p = 2 # AR order for foopsi algorithm
     source_name = 'spikefinder'
     T = 10
     W = None
-    binT = 100
+    binT = 10
     for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
         print('opt:', fano, p)
         saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
         outpath = "/home/user/bursting/plots"
         dataset = os.path.join(root, source_name)
-        measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=10, outpath=outpath)
+        measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, outpath=outpath)
         io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
-        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W), saveopt)
+        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W), saveopt))
 
 
 if __name__ == '__main__':
-	test_fano()
-
-
-
-
+    test_fano()
