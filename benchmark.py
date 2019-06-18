@@ -105,17 +105,19 @@ def test_fano():
     # fano = 'raw' # Fano Measure Method
     # p = 2 # AR order for foopsi algorithm
     source_name = 'spikefinder'
-    T = 10
     W = None
     binT = 10
-    for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
-        print('opt:', fano, p)
-        saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
-        outpath = "/home/user/bursting/plots"
-        dataset = os.path.join(root, source_name)
-        measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, outpath=outpath)
-        io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
-        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W)), saveopt)
+    sampled = False
+    for T in [10, 1, 20, 50]:
+        for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
+            print('opt:', fano, p)
+            saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
+            outpath = "/home/user/bursting/plots"
+            dataset = os.path.join(root, source_name)
+            measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, sample_deconv=sampled, outpath=outpath)
+            io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
+            visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W)), saveopt)
+            sampled = True
 
 
 if __name__ == '__main__':
