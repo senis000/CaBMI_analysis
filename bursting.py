@@ -225,7 +225,7 @@ def deconv_fano_contrast_single_pair(hIT, hPT, fano_opt='raw'):
     plt.show()
 
 
-def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100):
+def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=True):
     all_files = get_PTIT_over_days(root)
     nneg = True
     OPT = 'IT VS PT bursting {}'.format(fano_opt)
@@ -307,6 +307,9 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100):
     fig, ax = plt.subplots(nrows=2, ncols=2)
     plt.subplots_adjust(bottom=0.3, wspace=0.3, hspace=0.5)
     fig.suptitle(OPT)
+    all_stats = {l: {d: {v: {} for v in vars} for d in day_range} for l in labels}
+    all_stats['meta'] = {'W': W if W else -1, 'T': step}
+    outpath = "/home/user/bursting/plots/ITPT_contrast"
     for day in day_range:
         for v in vars:
             ax[0][0].plot(plot_datas['nfanos'][day][v])
@@ -314,8 +317,6 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100):
         ax[0][0].set_xlabel("Neuron")
         ax[0][0].set_title("Fano Factor for all neurons")
 
-        all_stats = {l: {d: {v: {} for v in vars} for d in day_range} for l in labels}
-        all_stats['meta'] = {'W': W if W else -1, 'T': step}
         for i, label in enumerate(labels):
             curr = i + 1
             stat = ['NA'] * 12
@@ -333,10 +334,17 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100):
                     all_stats[label][day][v]['mean'] = stat[j]
                     all_stats[label][day][v]['std'] = stat[j + 4]
                     all_stats[label][day][v]['N'] = stat[j + 8]
-                    legs.append(v)
-            ax[r][c].legend(legs)
-            ax[r][c].set_title("{}".format(label), fontsize=10)
-        outpath = "/Users/albertqu/Documents/7.Research/BMI/analysis_data/bursty_log"
-        io.savemat(os.path.join(outpath, 'fano_{}_stats_{}.mat'.format(fano_opt, all_stats['meta'])))
+                	legs.append(v)
+        	ax[r][c].legend(legs)
+        	ax[r][c].set_title("{}".format(label), fontsize=10)
+	    fig.savefig(os.path.join(outpath, "d{}_ITPT_contrast_deconvFano_{}_{}_{}.png".format(day, fano_opt, W, step)))
+    	if eps:
+    	    fig.savefig(os.path.join(outpath,"d{}_ITPT_contrast_deconvFano_{}_{}_{}.eps".format(day, fano_opt, W, step)))
+    io.savemat(os.path.join(outpath, 'fano_{}_stats_{}.mat'.format(fano_opt, all_stats['meta'])), all_stats)
+    io.savemat(os.path.join(outpath, 'plot_data_fano_{}_{}.mat'.format(fano_opt, all_stats['meta'])), plot_datas)
 
-
+if __name__ == '__main__':
+	root = "/home/user/CaBMI_analysis/processed"
+	W, T = None, 100
+	for opt in 'norm_pre', 'raw', 'norm_post':
+		deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
