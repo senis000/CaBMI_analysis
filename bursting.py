@@ -334,17 +334,17 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
                     all_stats[label][day][v]['mean'] = stat[j]
                     all_stats[label][day][v]['std'] = stat[j + 4]
                     all_stats[label][day][v]['N'] = stat[j + 8]
-                	legs.append(v)
-        	ax[r][c].legend(legs)
-        	ax[r][c].set_title("{}".format(label), fontsize=10)
-	    fig.savefig(os.path.join(outpath, "d{}_ITPT_contrast_deconvFano_{}_{}_{}.png".format(day, fano_opt, W, step)))
-    	if eps:
-    	    fig.savefig(os.path.join(outpath,"d{}_ITPT_contrast_deconvFano_{}_{}_{}.eps".format(day, fano_opt, W, step)))
+                legs.append(v)
+        ax[r][c].legend(legs)
+        ax[r][c].set_title("{}".format(label), fontsize=10)
+        fig.savefig(os.path.join(outpath, "d{}_ITPT_contrast_deconvFano_{}_{}_{}.png".format(day, fano_opt, W, step)))
+        if eps:
+            fig.savefig(os.path.join(outpath,"d{}_ITPT_contrast_deconvFano_{}_{}_{}.eps".format(day, fano_opt, W, step)))
     io.savemat(os.path.join(outpath, 'fano_{}_stats_{}.mat'.format(fano_opt, all_stats['meta'])), all_stats)
     io.savemat(os.path.join(outpath, 'plot_data_fano_{}_{}.mat'.format(fano_opt, all_stats['meta'])), plot_datas)
 
 if __name__ == '__main__':
-	root = "/home/user/CaBMI_analysis/processed"
-	W, T = None, 100
-	for opt in 'norm_pre', 'raw', 'norm_post':
+    root = "/home/user/CaBMI_analysis/processed"
+    W, T = None, 100
+    for opt in 'norm_pre', 'raw', 'norm_post':
 		deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
