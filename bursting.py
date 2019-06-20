@@ -347,4 +347,4 @@ if __name__ == '__main__':
     root = "/home/user/CaBMI_analysis/processed"
     W, T = None, 100
     for opt in 'norm_pre', 'raw', 'norm_post':
-		deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
+        deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
