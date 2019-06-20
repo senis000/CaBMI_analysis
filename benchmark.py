@@ -24,19 +24,19 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
         calcium_train = pd.read_csv(dataset.format(i) + '.train.calcium.csv')
         spikes_train = pd.read_csv(dataset.format(i) + '.train.spikes.csv')
         neurons = spikes_train.columns
-        measures['deconv_corr'][i] = np.empty(len(neurons))
+        measures['deconv_corr'][i] = np.zeros(len(neurons))
         for m in measures.keys():
             if m != 'deconv_corr':
                 measures[m][i] = {}
                 measures[m][i]['neurons'] = neurons
-                measures[m][i]['fano'] = np.empty(len(neurons))
+                measures[m][i]['fano'] = np.zeros(len(neurons))
 
         for n in neurons:
             spike, calcium = spikes_train[n], calcium_train[n]
             nonnan = ~np.isnan(spike)
             fano_spike = neuron_fano(np.array(spike[nonnan]), W, T)
             deconv = deconvolution.constrained_foopsi(np.array(calcium[nonnan]), p=p)[5]
-            corr = np.corrcoef(deconv, spike)[0, 1]
+            corr = np.corrcoef(deconv, spike[nonnan])[0, 1]
             if outpath:
                 fano_record = np.around(fano_spike, 4)
                 deconv_ptv = deconv[~np.isclose(deconv, 0)]
@@ -94,6 +94,8 @@ def visualize_measure(measures, outpath, saveopt):
     plt.xlabel('spikes')
     plt.ylabel('calcium')
     plt.title('Fano Corr spike vs calcium {}'.format(corr))
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
     plt.savefig(os.path.join(outpath, saveopt))
     plt.close()
 
@@ -103,17 +105,19 @@ def test_fano():
     # fano = 'raw' # Fano Measure Method
     # p = 2 # AR order for foopsi algorithm
     source_name = 'spikefinder'
-    T = 10
     W = None
     binT = 10
-    for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
-        print('opt:', fano, p)
-        saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
-        outpath = "/home/user/bursting/plots"
-        dataset = os.path.join(root, source_name)
-        measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, outpath=outpath)
-        io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
-        visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W), saveopt))
+    sampled = False
+    for T in [10, 1, 20, 50]:
+        for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
+            print('opt:', fano, p)
+            saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
+            outpath = "/home/user/bursting/plots"
+            dataset = os.path.join(root, source_name)
+            measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, sample_deconv=sampled, outpath=outpath)
+            io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
+            visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W)), saveopt)
+            sampled = True
 
 
 if __name__ == '__main__':

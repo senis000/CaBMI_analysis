@@ -35,8 +35,7 @@ def plot_trial_end_all(folder, animal, day,
     folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
     f = h5py.File(
         folder_path + 'full_' + animal + '_' + day + '_' +
-        sec_var + '_data.hdf5', 'r'
-        )
+        sec_var + '_data.hdf5', 'r')
 
     t_size = [50,30] # 50 frames before and 30 frames after trial end
     time_lock_data = time_lock_activity(f, t_size=t_size)
@@ -358,5 +357,6 @@ def best_nbins(data):
     except:
         binsize = 3.49 * np.nanstd(data) * len(data) ** (-1 / 3)
     if binsize == 0:
-        return len(data) // 100
-    return min(int((np.max(data) - np.min(data)) / binsize) + 1, len(data) // 20)
+        return max(len(data) // 100, len(data) // 10, 1)
+    nbins = int((np.max(data) - np.min(data)) / binsize) + 1 
+    return nbins if nbins < len(data) / 4 else max(len(data) // 20, 1)
