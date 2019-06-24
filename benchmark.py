@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 import os
-plt.style.use('bmh')
+#plt.style.use('bmh')
 
 
 def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_deconv=True, outpath=None):
@@ -82,6 +82,65 @@ def deconv_fano_spikefinder(dataset, fano, p=2, W=None, T=100, binT=1, sample_de
     return measures
 
 
+def plot_calcium_dist_spikefinder(outpath=None, W=None, T=100, eps=True):
+    root = "/home/user/bursting/"
+    # fano = 'raw' # Fano Measure Method
+    # p = 2 # AR order for foopsi algorithm
+    source_name = 'spikefinder'
+    dataset = os.path.join(root, source_name, '{}')
+    measures = {'spike_fano': {}, 'calcium_mean': {}, 'calcium_std':{}}
+    for i in range(1, 11):
+        print(i)
+        calcium_train = pd.read_csv(dataset.format(i) + '.train.calcium.csv')
+        spikes_train = pd.read_csv(dataset.format(i) + '.train.spikes.csv')
+        neurons = spikes_train.columns
+        for k in measures:
+            measures[k][i] = np.zeros(len(neurons))
+
+        for n in neurons:
+            spike, calcium = spikes_train[n], calcium_train[n]
+            nonnan = ~np.isnan(spike)
+            fano_spike = neuron_fano(np.array(spike[nonnan]), W, T)
+            if outpath:
+                nncalcium = calcium[nonnan]
+                fano_record = np.around(fano_spike, 4)
+                bsize1 = best_nbins(nncalcium)
+                m = np.mean(nncalcium)
+                s = np.std(nncalcium)
+                fig = plt.figure(figsize=(20,10))
+                plt.hist(nncalcium, bins=bsize1)
+                plt.title('Calcium Distribution, mean:{}, std:{}'.format(np.around(m, 4), np.around(s, 4)))
+                savepath = os.path.join(outpath, 'distribution_W{}_T{}'.format(W, T))
+                if not os.path.exists(savepath):
+                    os.makedirs(savepath)
+                iname = os.path.join(savepath, "spikefinder_{}_neuron{}_fano_{}_calciumDist"
+                                         .format(i, n, fano_record))
+                fig.savefig(iname+'.png')
+                if eps:
+                    fig.savefig(iname+'.eps')
+                plt.close('all')
+            
+            measures['spike_fano'][i][int(n)] = fano_spike
+            measures['calcium_mean'][i][int(n)] = m
+            measures['calcium_std'][i][int(n)] = s
+            print(int(n), fano_spike, m, s)
+    all_spikes = np.concatenate([measures['spike_fano'][i] for i in measures['spike_fano']])
+    calcium_m = np.concatenate([measures['calcium_mean'][i]for i in measures['calcium_mean']])
+    calcium_s = np.concatenate([measures['calcium_std'][i]for i in measures['calcium_std']])
+    idsort = np.argsort(all_spikes)
+    sorted_spikes, sorted_cm, sorted_cs = all_spikes[idsort], calcium_m[idsort], calcium_s[idsort]
+    fig = plt.figure(figsize=(20,10))
+    plt.plot(sorted_spikes, sorted_cm)
+    plt.fill_between(sorted_spikes, sorted_cm+sorted_cs, sorted_cm-sorted_cs, color='#089FFF', alpha=0.2)
+    iname = os.path.join(outpath, 'fano_calcium_trend_W{}_T{}'.format(W, T))
+    fig.savefig(iname+'.png')
+    if eps:
+        fig.savefig(iname+'.eps')
+    plt.close('all')
+    io.savemat(os.path.join(root, 'datalog', "calcium_distribution_W{}_T{}".format(W, T) + '.mat'), measures)
+    return measures
+
+
 def visualize_measure(measures, outpath, saveopt):
     all_spikes = np.concatenate([measures['spike'][i]['fano'] for i in measures['spike']])
     all_calcium = np.concatenate([measures['calcium'][i]['fano'] for i in measures['calcium']])
@@ -108,6 +167,25 @@ def test_fano():
     W = None
     binT = 10
     sampled = False
+    for T in [100, 200]:
+        for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
+            print('opt:', fano, p)
+            saveopt = 'deconvFano_T{}_p{}_{}_{}'.format(T, p, fano, source_name)
+            outpath = "/home/user/bursting/plots"
+            dataset = os.path.join(root, source_name)
+            measures = deconv_fano_spikefinder(dataset, fano, p, W=W, T=T, binT=binT, sample_deconv=sampled, outpath=outpath)
+            io.savemat(os.path.join(root, 'datalog', saveopt + '.mat'), measures)
+            visualize_measure(measures, os.path.join(outpath, "deconvFano_T{}_W{}".format(T, W)), saveopt)
+            sampled = True
+
+def test_calcium_dist():
+    root = "/home/user/bursting/"
+    # fano = 'raw' # Fano Measure Method
+    # p = 2 # AR order for foopsi algorithm
+    source_name = 'spikefinder'
+    W = None
+    binT = 10
+    sampled = False
     for T in [10, 1, 20, 50]:
         for fano, p in list(itertools.product(['norm_pre', 'raw', 'norm_post'], [1, 2])):
             print('opt:', fano, p)
@@ -121,4 +199,6 @@ def test_fano():
 
 
 if __name__ == '__main__':
-    test_fano()
+    #test_fano()
+    for T in [10, 1, 20, 50]:
+        plot_calcium_dist_spikefinder("/home/user/bursting/plots", T=T)
