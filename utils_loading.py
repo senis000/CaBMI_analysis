@@ -19,3 +19,10 @@ def get_PTIT_over_days(root):
                 results[group][j] = [file]
     return results
 
+
+def path_prefix_free(path, symbol):
+    if path[-len(symbol):] == symbol:
+        return path[path.rfind(symbol,0, -len(symbol))+len(symbol):-len(symbol)]
+    else:
+        return path[path.rfind(symbol)+len(symbol):]
+

@@ -61,6 +61,7 @@ def shuffle_peaks(data_array, sf, ef, ipi_proc, axis=0):
 
 
 def shuffle_peaks_1d(data_array, ipi_proc, perc=50, debug=False):
+    data_array = data_array[~np.isnan(data_array)]
     if debug:
         peak_regions, IPIs = signal_partition(data_array, perc, debug)
     else:
@@ -143,6 +144,7 @@ def signal_partition(data_array, perc=50, debug=False):
         IPIs: array of sub-arrays
             array of inter peak region interval arrays
     """
+    data_array = data_array[~np.isnan(data_array)]
     data_array, bg, sf, ef = background_processing(data_array, perc, debug)
     peak_regions = []
     prev_end = 0
