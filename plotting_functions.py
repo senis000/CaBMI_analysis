@@ -358,5 +358,5 @@ def best_nbins(data):
         binsize = 3.49 * np.nanstd(data) * len(data) ** (-1 / 3)
     if binsize == 0:
         return max(len(data) // 100, len(data) // 10, 1)
-    nbins = int((np.max(data) - np.min(data)) / binsize) + 1 
+    nbins = min(int((np.max(data) - np.min(data)) / binsize) + 1, 1000)
     return nbins if nbins < len(data) / 4 else max(len(data) // 20, 1)

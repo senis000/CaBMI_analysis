@@ -325,6 +325,7 @@ def deconv_fano_contrast_single_pair(hIT, hPT, fano_opt='raw', density=True):
 
 def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=True):
     all_files = get_PTIT_over_days(root)
+    print(all_files)
     nneg = True
     OPT = 'IT VS PT bursting {}'.format(fano_opt)
     if fano_opt == 'raw':
@@ -373,17 +374,17 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
                     out['nfanos'][day][label], out['base_fanos'][day][label], \
                     out['online_fanos'][day][label] = nfanos, base_fanos, online_fanos
                 else:
-                    out['nfanos'][day][label] += nfanos
-                    out['base_fanos'][day][label] += base_fanos
-                    out['online_fanos'][day][label] += online_fanos
+                    out['nfanos'][day][label] = np.concatenate((out['nfanos'][day][label], nfanos))
+                    out['base_fanos'][day][label] = np.concatenate((out['base_fanos'][day][label], base_fanos))
+                    out['online_fanos'][day][label] = np.concatenate((out['online_fanos'][day][label], online_fanos))
             else:
                 if out['nfanos'][label] is None:
                     out['nfanos'][label], out['base_fanos'][label], out['online_fanos'][label] = \
                         nfanos, base_fanos, online_fanos
                 else:
-                    out['nfanos'][label] += nfanos
-                    out['base_fanos'][label] += base_fanos
-                    out['online_fanos'][label] += online_fanos
+                    out['nfanos'][label] = np.concatenate((out['nfanos'][label], nfanos))
+                    out['base_fanos'][label] = np.concatenate((out['base_fanos'][label], base_fanos))
+                    out['online_fanos'][label] = np.concatenate((out['online_fanos'][label], online_fanos))
         else:
             return nfanos, base_fanos, online_fanos
 
@@ -397,9 +398,10 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
             for expr in all_files[group][day]:
                 hfile = h5py.File(expr, 'r')
                 for celltype in 'IT', 'PT':
-                    data_expr = get_datas(hfile, 'neuron_act', celltype)
+                    print(group, day, celltype)
+                    data_expr = get_datas(hfile, 'neuron_act', group)
                     var = '{}_expr_{}'.format(group, celltype)
-                    fano_series(data_expr[celltype], W, step, plot_datas, var)
+                    fano_series(data_expr[celltype], W, step, day, plot_datas, var)
 
     plt.style.use('bmh')
     fig, ax = plt.subplots(nrows=2, ncols=2)
@@ -408,6 +410,8 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
     all_stats = {l: {d: {v: {} for v in vars} for d in day_range} for l in labels}
     all_stats['meta'] = {'W': W if W else -1, 'T': step}
     outpath = "/home/user/bursting/plots/ITPT_contrast"
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
     for day in day_range:
         for v in vars:
             ax[0][0].plot(plot_datas['nfanos'][day][v])
@@ -424,7 +428,7 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
                 fanos = plot_datas[label][day][v]
                 # Choice of bin size: Ref: https://www.fmrib.ox.ac.uk/datasets/techrep/tr00mj2/tr00mj2/node24
                 # .html
-                if fanos:
+                if fanos is not None:
                     miu, sigma, N = np.around(np.nanmean(fanos), 5), np.around(np.nanstd(fanos), 5), len(fanos)
                     nbins = best_nbins(fanos)
                     ax[r][c].hist(fanos, bins=int((max(fanos) - min(fanos)) / nbins + 1), density=True, alpha=0.6)
@@ -433,11 +437,13 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
                     all_stats[label][day][v]['std'] = stat[j + 4]
                     all_stats[label][day][v]['N'] = stat[j + 8]
                 legs.append(v)
+
             ax[r][c].legend(legs)
             ax[r][c].set_title("{}".format(label), fontsize=10)
             fig.savefig(os.path.join(outpath, "d{}_ITPT_contrast_deconvFano_{}_{}_{}.png".format(day, fano_opt, W, step)))
             if eps:
                 fig.savefig(os.path.join(outpath,"d{}_ITPT_contrast_deconvFano_{}_{}_{}.eps".format(day, fano_opt, W, step)))
+            plt.close('all')
     io.savemat(os.path.join(outpath, 'fano_{}_stats_{}.mat'.format(fano_opt, all_stats['meta'])), all_stats)
     io.savemat(os.path.join(outpath, 'plot_data_fano_{}_{}.mat'.format(fano_opt, all_stats['meta'])), plot_datas)
 

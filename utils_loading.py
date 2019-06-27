@@ -8,11 +8,14 @@ def get_PTIT_over_days(root):
             continue
         animal_path = os.path.join(root, animal)
         for i, day in enumerate(os.listdir(animal_path)):
-            j = i+1
-            if day.find('IT') == -1 and day.find('PT') == -1:
+            if not day.isnumeric():
                 continue
+            j = i+1
             group = animal[:2]
-            file = os.path.join(animal_path, day)
+            daypath = os.path.join(animal_path, day)
+            for p in os.listdir(daypath):
+                if p.find('full') != -1:
+                    file = os.path.join(daypath, p)
             if j in results[group]:
                 results[group][j].append(file)
             else:
