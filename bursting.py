@@ -342,6 +342,95 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
     return mats
 
 
+def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp=True, IBI_dist=False,
+                                     eps=True):
+    """
+    Params:
+        folder: str
+            root folder
+        ITs/PTs: dict {animal: [days]}
+        window: None or int
+                sliding window for calculating IBIs.
+                if None, use 'blen' in hdf5 file instead, but inputs have to be str/h5py.File
+        perc: float
+            hyperparameter for partitioning algorithm, correlated with tail length of splitted calcium trace
+        ptp: boolean
+            True if IBI is based on peak to peak measurement, otherwise tail to tail
+        IBI_dist: boolean
+            generate the IBI_distribution matrix if True
+
+    :return:
+    """
+    hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+    processed = os.path.join(folder, 'processed')
+    IBIs = os.path.join(folder, 'bursting/IBI')
+    out = os.path.join(folder, 'bursting/plots')
+    def get_matrix(group_dict):
+        maxA, maxD, maxN, maxS, maxIBI = \
+            len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0, 0, 0
+        temp = {}
+        redlabels = np.empty((maxA, maxD), dtype=bool)
+        for animal, day in group_dict.items():
+            with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
+                redlabel = np.copy(f['redlabel'])
+            with h5py.File(encode_to_filename(IBIs, animal, day, hyperparams=hyperparam), 'r') as f:
+                CVs = f['CVs']
+                ibi_dist = f['IBIs']
+                maxN = max(CVs.shape[0], maxN)
+                maxS = max(CVs.shape[1], maxS)
+                maxIBI = max(ibi_dist.shape[-1], maxIBI)
+                if animal in temp:
+                    temp[animal][day] = {k: np.copy(f[k]) for k in f.keys()}
+                else:
+                    temp[animal] = {day: {k: np.copy(f[k]) for k in f.keys()}}
+                temp[animal][day]['redlabel'] = redlabel
+        animal_maps = {}
+        metric_mats = {k: np.full((maxA, maxD, maxN, maxS)) for k in 'CVs', 'mean', 'stds'}
+        IBI_mat = np.full((maxA, maxD, maxN, maxS, maxIBI))
+
+        for i, animal in enumerate(temp):
+            animal_maps[i] = animal
+            for j, d in sorted(temp[animal].values()):
+                # TODO: Add day Map, which could be better perfected using navigation.mat
+                redlabels[i, j] = temp[animal][d]['redlabel']
+                del temp[animal][d]['redlabel']
+                for k in metric_mats:
+                    target = temp[animal][d][k]
+                    metric_mats[k][i, j, :target.shape[0], :target.shape[1]] = target
+                targetIBI = temp[animal][d]['IBIs']
+                IBI_mat[i, j, :targetIBI.shape[0], :targetIBI.shape[1], :targetIBI.shape[2]] \
+                    = targetIBI
+        return metric_mats, IBI_mat, redlabels
+    IT_metric, IT_IBI, IT_redlabels = get_matrix(ITs)
+    PT_metric, PT_IBI, PT_redlabels = get_matrix(PTs)
+    savepath = os.path.join(out, 'IBI')
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
+    for s in range(IT_IBI.shape[-2]):
+        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
+        for i, k in enumerate(IT_metric):
+            dataIT = IT_metric[IT_redlabels][:, :, :, s].reshape(-1)
+            dataIT = dataIT[~np.isnan(dataIT)]
+            r, c = i // 2, i % 2
+            sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[r][c])
+            if s < PT_IBI.shape[-2]:
+                dataPT = PT_metric[PT_redlabels][:, :, :, s].reshape(-1)
+                dataPT = dataPT[~np.isnan(dataPT)]
+                sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True,ax=axes[r][c])
+        dataIT = IT_IBI[IT_redlabels][:, :, :, s, :].reshape(-1)
+        dataIT = dataIT[~np.isnan(dataIT)]
+        sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[1][1])
+        if s < PT_IBI.shape[-2]:
+            dataPT = PT_IBI[PT_redlabels][:, :, :, s, :].reshape(-1)
+            dataPT = dataPT[~np.isnan(dataPT)]
+            sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True, ax=axes[1][1])
+
+        imgname = "IT_PT_contrast_session_{}".format(s)
+        fig.savefig(os.path.join(savepath, imgname+'.png'))
+        if eps:
+            fig.savefig(os.path.join(savepath, imgname + '.eps'))
+
+
 def deconv_fano_contrast_single_pair(hIT, hPT, fano_opt='raw', density=True):
     nneg = True
     W = None
