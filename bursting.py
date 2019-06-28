@@ -362,37 +362,37 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     :return:
     """
     hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
-    processed = os.path.join(folder, 'processed')
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
     IBIs = os.path.join(folder, 'bursting/IBI')
     out = os.path.join(folder, 'bursting/plots')
     def get_matrix(group_dict):
         maxA, maxD, maxN, maxS, maxIBI = \
             len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0, 0, 0
         temp = {}
-        redlabels = np.empty((maxA, maxD), dtype=bool)
-        for animal, day in group_dict.items():
-            with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
-                redlabel = np.copy(f['redlabel'])
-            with h5py.File(encode_to_filename(IBIs, animal, day, hyperparams=hyperparam), 'r') as f:
-                CVs = f['CVs']
-                ibi_dist = f['IBIs']
-                maxN = max(CVs.shape[0], maxN)
-                maxS = max(CVs.shape[1], maxS)
-                maxIBI = max(ibi_dist.shape[-1], maxIBI)
-                if animal in temp:
-                    temp[animal][day] = {k: np.copy(f[k]) for k in f.keys()}
-                else:
-                    temp[animal] = {day: {k: np.copy(f[k]) for k in f.keys()}}
-                temp[animal][day]['redlabel'] = redlabel
+        for animal in group_dict:
+            for day in group_dict[animal]:
+                with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
+                    redlabel = np.copy(f['redlabel'])
+                with h5py.File(encode_to_filename(IBIs, animal, day, hyperparams=hyperparam), 'r') as f:
+                    CVs = f['CVs']
+                    ibi_dist = f['IBIs']
+                    maxN = max(CVs.shape[0], maxN)
+                    maxS = max(CVs.shape[1], maxS)
+                    maxIBI = max(ibi_dist.shape[-1], maxIBI)
+                    if animal in temp:
+                        temp[animal][day] = {k: np.copy(f[k]) for k in f.keys()}
+                    else:
+                        temp[animal] = {day: {k: np.copy(f[k]) for k in f.keys()}}
+                    temp[animal][day]['redlabel'] = redlabel
         animal_maps = {}
-        metric_mats = {k: np.full((maxA, maxD, maxN, maxS)) for k in 'CVs', 'mean', 'stds'}
-        IBI_mat = np.full((maxA, maxD, maxN, maxS, maxIBI))
-
+        metric_mats = {k: np.full((maxA, maxD, maxN, maxS), np.nan) for k in ('CVs', 'mean', 'stds')}
+        IBI_mat = np.full((maxA, maxD, maxN, maxS, maxIBI), np.nan)
+        redlabels = np.empty((maxA, maxD, ), dtype=bool)
         for i, animal in enumerate(temp):
             animal_maps[i] = animal
-            for j, d in sorted(temp[animal].values()):
+            for j, d in enumerate(sorted([k for k in temp[animal].keys() if k != 'redlabel'])):
                 # TODO: Add day Map, which could be better perfected using navigation.mat
-                redlabels[i, j] = temp[animal][d]['redlabel']
+                redlabels[i, j, :] = temp[animal][d]['redlabel']
                 del temp[animal][d]['redlabel']
                 for k in metric_mats:
                     target = temp[animal][d][k]
