@@ -5,8 +5,10 @@ import seaborn as sns
 import os, h5py
 from shuffling_functions import signal_partition
 from plotting_functions import best_nbins
-from utils_loading import get_PTIT_over_days, path_prefix_free, decode_from_filename, encode_to_filename
+from utils_loading import get_PTIT_over_days, path_prefix_free, \
+    decode_from_filename, encode_to_filename, get_redlabel
 import matplotlib.pyplot as plt
+from scipy import io
 from matplotlib.widgets import Slider
 
 
@@ -161,6 +163,18 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
         if window is None:
             window = f.attrs['blen']
         f.close()
+    if animal is None:
+        savepath = os.path.join(out, 'sample_IBI.hdf5')
+    else:
+        hyperparams = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+        savepath = os.path.join(out, animal, day)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+        savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
+    if os.path.exists(savepath):
+        with h5py.File(savepath, 'r') as f:
+            N, nsessions = f['mean'].shape[:2]
+        return savepath, N, nsessions
     nsessions = int(np.ceil(C.shape[1] / window))
     rawibis = {}
     maxLen = -1
@@ -179,14 +193,6 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
     means = np.nanmean(all_ibis, axis=2)
     stds = np.nanstd(all_ibis, axis=2)
     cvs = stds / means
-    if animal is None:
-        savepath = os.path.join(out, 'sample_IBI.hdf5')
-    else:
-        hyperparams = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
-        savepath = os.path.join(out, animal, day)
-        if not os.path.exists(savepath):
-            os.makedirs(savepath)
-        savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
     outfile = h5py.File(savepath, 'w-')
     outfile['mean'], outfile['stds'], outfile['CVs'] = means, stds, cvs
     outfile['IBIs'] = all_ibis
@@ -267,6 +273,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
             mats[group]['mat_ibi'] = np.full(tuple(summary_mat[group][:4]) + (3,), np.nan)
             if IBI_dist:
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+        mats[group]['redlabels'] = np.empty(summary_mat[group][:2], dtype=bool)
         for d in all_files[group]:
             if d == 'maps':
                 continue
@@ -285,6 +292,8 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 #try:
                 burst_data = h5py.File(burst_file, 'r')
                 metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
+                animal_ind = animal_map[animal]
+                mats[group]['redlabels'][animal_ind, d-1] = get_redlabel(processed, animal, day)
                 if calculate:
                     temp[d][animal] = {'mat_ibi': metrics}
                     if IBI_dist:
