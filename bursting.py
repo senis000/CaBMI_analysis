@@ -248,7 +248,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
     else:
         all_files = get_PTIT_over_days(processed)
     calculate = True
-    summary_file = os.path.join(out, 'summary.mat')
+    summary_file = os.path.join(out, 'summary.json')
     summary_mat = {}
     if os.path.exists(summary_file):
         with open(summary_file, 'r') as jf:
@@ -264,7 +264,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
             summary_mat[group] = [len(animal_map), len(all_files[group]) - 1] + [0] * 3
             temp = {}
         else:
-            mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+            mats[group]['mat_ibi'] = np.full(tuple(summary_mat[group][:4]) + (3,), np.nan)
             if IBI_dist:
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
         for d in all_files[group]:
@@ -278,56 +278,58 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 animal, day = decode_from_filename(filename)
                 if calculate:
                     burst_file = calcium_IBI_single_session((processed, animal, day),
-                                            out, window=window, perc=perc, ptp=ptp)
+                                            out, window=window, perc=perc, ptp=ptp)[0]
                 else:
                     burst_file = os.path.join(out, animal, day,
                                               encode_to_filename(out, animal, day, hyperparam))
-                try:
-                    burst_data = h5py.File(burst_file, 'r')
-                    metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
-                    if calculate:
-                        temp[d][animal] = {'mat_ibi': metrics}
-                        if IBI_dist:
-                            temp[d][animal]['mat_ibi_dist'] = burst_data['IBIs']
-                        summary_mat[group][2] = max(metrics[0], summary_mat[group][2])
-                        summary_mat[group][3] = max(metrics[1], summary_mat[group][3])
-                        summary_mat[group][4] = max(burst_data['IBIs'].shape[-1], summary_mat[group][4])
-                    else:
-                        temp = {'mat_ibi': metrics}
-                        if IBI_dist:
-                            temp['mat_ibi_dist'] = burst_data['IBIs']
-                        for opt in mats[group]:
-                            if opt == 'meta':
-                                continue
-                            animal_ind = animal_map[animal]
-                            tN, ts, tm = temp[opt].shape
-                            mats[group][opt][animal_ind, d - 1, :tN, :ts, :tm] = temp[opt]
-                            mats[group]['meta'][animal_ind] = animal
-                except Exception as e:
-                    skipped.append(e.args)
-        try:
-            summary_mat[group] = tuple(summary_mat[group])
-            if calculate:
-                mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
-                if IBI_dist:
-                    mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
-                for opt in mats[group]:
-                    if opt == 'meta':
-                        continue
-                    for d in temp:
-                        for animal in temp[d]:
-                            animal_ind = animal_map[animal]
-                            tN, ts, tm = temp[d][animal][opt].shape
-                            mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[opt]
-                            mats[group]['meta'][animal_ind] = animal
-        except Exception as e:
-            skipped.append(e.args)
+                #try:
+                burst_data = h5py.File(burst_file, 'r')
+                metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
+                if calculate:
+                    temp[d][animal] = {'mat_ibi': metrics}
+                    if IBI_dist:
+                        temp[d][animal]['mat_ibi_dist'] = burst_data['IBIs']
+                    summary_mat[group][2] = max(metrics.shape[0], summary_mat[group][2])
+                    summary_mat[group][3] = max(metrics.shape[1], summary_mat[group][3])
+                    summary_mat[group][4] = max(burst_data['IBIs'].shape[-1], summary_mat[group][4])
+                else:
+                    temp = {'mat_ibi': metrics}
+                    if IBI_dist:
+                        temp['mat_ibi_dist'] = burst_data['IBIs']
+                    for opt in mats[group]:
+                        if opt == 'meta':
+                            continue
+                        animal_ind = animal_map[animal]
+                        tN, ts, tm = temp[opt].shape
+                        mats[group][opt][animal_ind, d - 1, :tN, :ts, :tm] = temp[opt]
+                        mats[group]['meta'][animal_ind] = animal
+                # except Exception as e:
+                #     skipped.append(e.args)
+                #     print(e.args)
+        #try:
+        summary_mat[group] = tuple(summary_mat[group])
+        if calculate:
+            mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+            if IBI_dist:
+                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+            for opt in mats[group]:
+                if opt == 'meta':
+                    continue
+                for d in temp:
+                    for animal in temp[d]:
+                        animal_ind = animal_map[animal]
+                        tN, ts, tm = temp[d][animal][opt].shape
+                        mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[opt]
+                        mats[group]['meta'][animal_ind] = animal
+        """except Exception as e:
+            skipped.append(str(e.args))
+            print(e.args)"""
     if calculate:
         with open(summary_file, 'w') as jf:
             json.dump(summary_mat, jf)
-    f = open(os.path.join(folder, 'errLOG.txt'), 'w')
-    f.write("\n".join(skipped))
-    f.close()
+    """f = open(os.path.join(folder, 'errLOG.txt'), 'w')
+    f.write("\n".join([str(s) for s in skipped]))
+    f.close()"""
     return mats
 
 
