@@ -130,10 +130,10 @@ def plot_calcium_dist_spikefinder(outpath=None, W=None, T=100, eps=True):
     idsort = np.argsort(all_spikes)
     sorted_spikes, sorted_cm, sorted_cs = all_spikes[idsort], calcium_m[idsort], calcium_s[idsort]
     sorted_varratio = sorted_cs ** 2 / sorted_cm ** 2 + 1
-    corrm = np.corrcoef(sorted_spikes, sorted_cm)
-    corrs = np.corrcoef(sorted_spikes, sorted_cs)
-    corrv = np.corrcoef(sorted_spikes, sorted_varratio)
-    fig, axes = plt.figure(nrows=2, ncols=1, figsize=(20,10))
+    corrm = np.corrcoef(sorted_spikes, sorted_cm)[0, 1]
+    corrs = np.corrcoef(sorted_spikes, sorted_cs)[0, 1]
+    corrv = np.corrcoef(sorted_spikes, sorted_varratio)[0, 1]
+    fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(20,10))
     axes[0].plot(sorted_spikes, sorted_cm)
     axes[0].fill_between(sorted_spikes, sorted_cm+sorted_cs, sorted_cm-sorted_cs, color='#089FFF', alpha=0.2)
     axes[1].plot(sorted_spikes, sorted_varratio)
@@ -208,5 +208,5 @@ def test_calcium_dist():
 
 if __name__ == '__main__':
     #test_fano()
-    for T in [10, 1, 20, 50]:
+    for T in [10, 1, 20, 50, 100]:
         plot_calcium_dist_spikefinder("/home/user/bursting/plots", T=T)
