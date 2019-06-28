@@ -1,5 +1,6 @@
 import os
-from scipy import io
+import numpy as np
+import json
 import h5py
 
 
@@ -18,7 +19,8 @@ def get_PTIT_over_days(root):
         animal_path = os.path.join(root, animal)
         group = animal[:2]
         results[group]['maps'].append(animal)
-        for i, day in enumerate(os.listdir(animal_path)):
+        sdays = sorted(os.listdir(animal_path))
+        for i, day in enumerate(sdays):
             if not day.isnumeric():
                 continue
             j = i+1
@@ -35,14 +37,19 @@ def get_PTIT_over_days(root):
         sorted_animals = sorted(results[group]['maps'])
         maps = {}
         for i, animal in enumerate(sorted_animals):
-            maps[i] = animal
+            maps[animal] = i
         results[group]['maps'] = maps
-    io.savemat(os.path.join(root, 'navigation.mat'))
+    with open(os.path.join(root, 'navigation.json'), 'w') as jf:
+        json.dump(results, jf)
+    with open(os.path.join(root, 'navigation.json'), 'r') as jf:
+        print(json.load(jf))
     return results
 
 
 def get_redlabel(folder, animal, day):
-    with
+    with h5py.File(os.path.join(folder, animal, day), 'r') as f:
+        labels = np.copy(f['redlabel'])
+    return labels
 
 
 def path_prefix_free(path, symbol='/'):

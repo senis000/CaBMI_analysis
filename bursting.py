@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import find_peaks
-from scipy import io
+import json
 import seaborn as sns
 import os, h5py
 from shuffling_functions import signal_partition
@@ -160,7 +160,7 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
             raise RuntimeError("Input Format Unknown!")
         C = np.array(f['C'])
         if window is None:
-            window = f['blen']
+            window = f.attrs['blen']
         f.close()
     nsessions = int(np.ceil(C.shape[1] / window))
     rawibis = {}
@@ -191,8 +191,9 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
     outfile = h5py.File(savepath, 'w-')
     outfile['mean'], outfile['stds'], outfile['CVs'] = means, stds, cvs
     outfile['IBIs'] = all_ibis
+    outname = outfile.filename
     outfile.close()
-    return outfile.filename, C.shape[0], nsessions
+    return outname, C.shape[0], nsessions
     #return np.concatenate([means, stds, cvs], axis=2), {2: ['mean', 'stds', 'CVs']}
 
 
@@ -242,15 +243,17 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
         """
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     out = os.path.join(folder, 'bursting/IBI')
-    if 'navigation.mat' in os.listdir(processed):
-        all_files = io.loadmat(os.path.join(processed, 'navigation.mat'))
+    if 'navigation.json' in os.listdir(processed):
+        with open(os.path.join(processed, 'navigation.json'), 'r') as jf:
+            all_files = json.load(jf)
     else:
         all_files = get_PTIT_over_days(processed)
     calculate = True
     summary_file = os.path.join(out, 'summary.mat')
     summary_mat = {}
     if os.path.exists(summary_file):
-        summary_mat = io.loadmat(summary_file)
+        with open(summary_file, 'r') as jf:
+            summary_mat = json.load(jf)
         calculate = False
     mats = {}
     skipped = []
@@ -267,10 +270,13 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
         mats[group]['redlabels'] = np.empty(summary_mat[group][:2], dtype=bool)
         for d in all_files[group]:
+            if d == 'maps':
+                continue
             animal_files = all_files[group][d]
             if calculate:
                 temp[d] = {}
             for filename in animal_files:
+                print(filename)
                 animal, day = decode_from_filename(filename)
                 if calculate:
                     burst_file = calcium_IBI_single_session((processed, animal, day),
@@ -295,7 +301,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                         if IBI_dist:
                             temp['mat_ibi_dist'] = burst_data['IBIs']
                         for opt in mats[group]:
-                            if opt == 'meta':
+                            if opt in ('meta', 'redlabels'):
                                 continue
                             animal_ind = animal_map[animal]
                             tN, ts, tm = temp[opt].shape
@@ -310,7 +316,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 if IBI_dist:
                     mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
                 for opt in mats[group]:
-                    if opt == 'meta':
+                    if opt in ('meta', 'redlabels'):
                         continue
                     for d in temp:
                         for animal in temp[d]:
@@ -321,7 +327,8 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
         except Exception as e:
             skipped.append(e.args)
     if calculate:
-        io.savemat(summary_file, summary_mat)
+        with open(summary_file, 'w') as jf:
+            json.dump(summary_mat, jf)
     f = open(os.path.join(folder, 'errLOG.txt'), 'w')
     f.write("\n".join(skipped))
     f.close()
