@@ -36,7 +36,7 @@ def get_PTIT_over_days(root):
         for i, animal in enumerate(sorted_animals):
             maps[i] = animal
         results[group]['maps'] = maps
-    io.savemat(os.path.join(root, 'navigation.mat'))
+    io.savemat(os.path.join(root, 'navigation.mat'), results)
     return results
 
 
