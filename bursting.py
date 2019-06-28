@@ -5,7 +5,7 @@ import seaborn as sns
 import os, h5py
 from shuffling_functions import signal_partition
 from plotting_functions import best_nbins
-from utils_loading import get_PTIT_over_days, path_prefix_free
+from utils_loading import get_PTIT_over_days, path_prefix_free, decode_from_filename, encode_to_filename
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
@@ -153,7 +153,7 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
             f = inputs
         elif isinstance(inputs, tuple):
             path, animal, day = inputs
-            hfile = os.path.join(path, animal, "full_{}_{}__data.hdf5".format(animal, day))
+            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
             f = h5py.File(hfile, 'r')
         else:
             raise RuntimeError("Input Format Unknown!")
@@ -182,21 +182,146 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
     if animal is None:
         savepath = os.path.join(out, 'sample_IBI.hdf5')
     else:
-        savepath = os.path.join(out, 'IBI', animal)
+        hyperparams = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+        savepath = os.path.join(out, animal, day)
         if not os.path.exists(savepath):
             os.makedirs(savepath)
-        savepath = os.path.join(savepath, "IBI_{}_{}_perc{}{}_window{}.hdf5"
-                                .format(animal, day, perc, '_ptp' if ptp else "", window))
+        savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
     outfile = h5py.File(savepath, 'w-')
     outfile['mean'], outfile['stds'], outfile['CVs'] = means, stds, cvs
     outfile['IBIs'] = all_ibis
     outfile.close()
-    return outfile.filename
+    return outfile.filename, C.shape[0], nsessions
     #return np.concatenate([means, stds, cvs], axis=2), {2: ['mean', 'stds', 'CVs']}
 
 
-def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True):
-    all_files = get_PTIT_over_days(folder)
+def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=False):
+    """Returns a metric matrix across all sessions and meta data of IBI metric
+        Params:
+            folder: str
+                root folder path where all the processed hdf5 will be stored
+            out: str
+                Output path for saving the metrics in a hdf5 file
+                outfile: h5py.File
+                    N: number of neurons
+                    s: number of sliding sessions
+                    K: maximum number of IBIs extracted
+                    'mean': N * s matrix, means of IBIs
+                    'stds': N * s matrix, stds of IBIs
+                    'CVs': N * s matrix, CVs of IBIs
+                    'IBIs': N * s * K, IBIs
+                All stored by animal/day/IBI_animal_day_hyperparams.hdf5
+            window: None or int
+                sliding window for calculating IBIs.
+                if None, use 'blen' in hdf5 file instead, but inputs have to be str/h5py.File
+            perc: float
+                hyperparameter for partitioning algorithm, correlated with tail length of splitted calcium trace
+            ptp: boolean
+                True if IBI is based on peak to peak measurement, otherwise tail to tail
+            IBI_dist: boolean
+                generate the IBI_distribution matrix if True
+
+        Returns:
+            mats: {group: {mat_ibi, (mat_ibi_dist,) meta}}
+            mat_ibi: np.ndarray (first 4 ~ 8.93MB)
+                A * D * N * s * m matrix,
+                A: number of animals
+                D: number of days
+                N: number of neurons
+                s: number of sliding sessions,
+                m is the number of metrics
+
+            meta: dictionary
+                meta data of form {group: {axis: labels}}
+
+        IO:
+            summary.mat: dict
+                {group: (A, D, N, s, nibis)}, first four the dimension of the ibi metric matrix,
+                nibis is the maximum number of ibis
+        """
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+    out = os.path.join(folder, 'bursting/IBI')
+    if 'navigation.mat' in os.listdir(processed):
+        all_files = io.loadmat(os.path.join(processed, 'navigation.mat'))
+    else:
+        all_files = get_PTIT_over_days(processed)
+    calculate = True
+    summary_file = os.path.join(out, 'summary.mat')
+    summary_mat = {}
+    if os.path.exists(summary_file):
+        summary_mat = io.loadmat(summary_file)
+        calculate = False
+    mats = {}
+    skipped = []
+    hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+    for group in 'IT', 'PT':
+        animal_map = all_files[group]['maps']
+        mats[group] = {'meta': [''] * len(animal_map)}
+        if calculate:
+            summary_mat[group] = [len(animal_map), len(all_files[group]) - 1] + [0] * 3
+            temp = {}
+        else:
+            mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+            if IBI_dist:
+                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+        for d in all_files[group]:
+            animal_files = all_files[group][d]
+            if calculate:
+                temp[d] = {}
+            for filename in animal_files:
+                animal, day = decode_from_filename(filename)
+                if calculate:
+                    burst_file = calcium_IBI_single_session((processed, animal, day),
+                                            out, window=window, perc=perc, ptp=ptp)
+                else:
+                    burst_file = os.path.join(out, animal, day,
+                                              encode_to_filename(out, animal, day, hyperparam))
+                try:
+                    burst_data = h5py.File(burst_file, 'r')
+                    metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
+                    if calculate:
+                        temp[d][animal] = {'mat_ibi': metrics}
+                        if IBI_dist:
+                            temp[d][animal]['mat_ibi_dist'] = burst_data['IBIs']
+                        summary_mat[group][2] = max(metrics[0], summary_mat[group][2])
+                        summary_mat[group][3] = max(metrics[1], summary_mat[group][3])
+                        summary_mat[group][4] = max(burst_data['IBIs'].shape[-1], summary_mat[group][4])
+                    else:
+                        temp = {'mat_ibi': metrics}
+                        if IBI_dist:
+                            temp['mat_ibi_dist'] = burst_data['IBIs']
+                        for opt in mats[group]:
+                            if opt == 'meta':
+                                continue
+                            animal_ind = animal_map[animal]
+                            tN, ts, tm = temp[opt].shape
+                            mats[group][opt][animal_ind, d - 1, :tN, :ts, :tm] = temp[opt]
+                            mats[group]['meta'][animal_ind] = animal
+                except Exception as e:
+                    skipped.append(e.args)
+        try:
+            summary_mat[group] = tuple(summary_mat[group])
+            if calculate:
+                mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+                if IBI_dist:
+                    mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+                for opt in mats[group]:
+                    if opt == 'meta':
+                        continue
+                    for d in temp:
+                        for animal in temp[d]:
+                            animal_ind = animal_map[animal]
+                            tN, ts, tm = temp[d][animal][opt].shape
+                            mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[opt]
+                            mats[group]['meta'][animal_ind] = animal
+        except Exception as e:
+            skipped.append(e.args)
+    if calculate:
+        io.savemat(summary_file, summary_mat)
+    f = open(os.path.join(folder, 'errLOG.txt'), 'w')
+    f.write("\n".join(skipped))
+    f.close()
+    return mats
 
 
 def deconv_fano_contrast_single_pair(hIT, hPT, fano_opt='raw', density=True):
@@ -390,13 +515,14 @@ def deconv_fano_contrast_avg_days(root, fano_opt='raw', W=None, step=100, eps=Tr
 
     vars = ['IT_expr_IT', 'IT_expr_PT', 'PT_expr_IT', 'PT_expr_PT']
     labels = ['nfanos', 'base_fanos', 'online_fanos']
-    day_range = range(1, max(len(all_files['IT']), len(all_files['PT']))+1)
+    day_range = range(1, max(len(all_files['IT']), len(all_files['PT'])))
     plot_datas = {label: {i: {d: None for d in vars} for i in day_range} for label in labels}
 
     for group in 'IT', 'PT':
         for day in all_files[group]:
             for expr in all_files[group][day]:
-                hfile = h5py.File(expr, 'r')
+                animal, day = decode_from_filename(expr)
+                hfile = h5py.File(os.path.join(root, animal, day, expr), 'r')
                 for celltype in 'IT', 'PT':
                     print(group, day, celltype)
                     data_expr = get_datas(hfile, 'neuron_act', group)
@@ -489,8 +615,13 @@ def burstITPT_contrast_plot(file, fano_opt, W, step, eps=True):
                                                                                             W, step)))
 
 
-if __name__ == '__main__':
+def deconv_fano_run():
     root = "/home/user/CaBMI_analysis/processed"
     W, T = None, 100
     for opt in 'norm_pre', 'raw', 'norm_post':
         deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
+
+
+if __name__ == '__main__':
+    root = "/home/user/"
+    mat = calcium_IBI_all_sessions(root)
