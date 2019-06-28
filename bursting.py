@@ -5,7 +5,8 @@ import seaborn as sns
 import os, h5py
 from shuffling_functions import signal_partition
 from plotting_functions import best_nbins
-from utils_loading import get_PTIT_over_days, path_prefix_free, decode_from_filename, encode_to_filename
+from utils_loading import get_PTIT_over_days, path_prefix_free, \
+    decode_from_filename, encode_to_filename, get_redlabel
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
@@ -264,6 +265,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
             mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
             if IBI_dist:
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+        mats[group]['redlabels'] = np.empty(summary_mat[group][:2], dtype=bool)
         for d in all_files[group]:
             animal_files = all_files[group][d]
             if calculate:
@@ -279,6 +281,8 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 try:
                     burst_data = h5py.File(burst_file, 'r')
                     metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
+                    animal_ind = animal_map[animal]
+                    mats[group]['redlabels'][animal_ind, d-1] = get_redlabel(processed, animal, day)
                     if calculate:
                         temp[d][animal] = {'mat_ibi': metrics}
                         if IBI_dist:

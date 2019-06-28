@@ -1,5 +1,6 @@
 import os
 from scipy import io
+import h5py
 
 
 def get_PTIT_over_days(root):
@@ -40,6 +41,10 @@ def get_PTIT_over_days(root):
     return results
 
 
+def get_redlabel(folder, animal, day):
+    with
+
+
 def path_prefix_free(path, symbol='/'):
     if path[-len(symbol):] == symbol:
         return path[path.rfind(symbol,0, -len(symbol))+len(symbol):-len(symbol)]
@@ -71,3 +76,4 @@ def decode_from_filename(filename):
     fname = path_prefix_free(filename)
     opts = fname.split('_')
     return opts[1], opts[2]
+
