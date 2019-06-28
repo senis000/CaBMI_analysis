@@ -319,7 +319,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                     for animal in temp[d]:
                         animal_ind = animal_map[animal]
                         tN, ts, tm = temp[d][animal][opt].shape
-                        mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[opt]
+                        mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[d][animal][opt]
                         mats[group]['meta'][animal_ind] = animal
         """except Exception as e:
             skipped.append(str(e.args))
