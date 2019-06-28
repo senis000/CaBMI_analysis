@@ -387,12 +387,12 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
         animal_maps = {}
         metric_mats = {k: np.full((maxA, maxD, maxN, maxS), np.nan) for k in ('CVs', 'mean', 'stds')}
         IBI_mat = np.full((maxA, maxD, maxN, maxS, maxIBI), np.nan)
-        redlabels = np.empty((maxA, maxD, ), dtype=bool)
+        redlabels = np.full((maxA, maxD, maxN), False)
         for i, animal in enumerate(temp):
             animal_maps[i] = animal
             for j, d in enumerate(sorted([k for k in temp[animal].keys() if k != 'redlabel'])):
                 # TODO: Add day Map, which could be better perfected using navigation.mat
-                redlabels[i, j, :] = temp[animal][d]['redlabel']
+                redlabels[i, j, :len(temp[animal][d]['redlabel'])] = temp[animal][d]['redlabel']
                 del temp[animal][d]['redlabel']
                 for k in metric_mats:
                     target = temp[animal][d][k]
