@@ -47,7 +47,7 @@ def get_PTIT_over_days(root):
 
 
 def get_redlabel(folder, animal, day):
-    with h5py.File(os.path.join(folder, animal, day), 'r') as f:
+    with h5py.File(encode_to_filename(folder, animal, day), 'r') as f:
         labels = np.copy(f['redlabel'])
     return labels
 
