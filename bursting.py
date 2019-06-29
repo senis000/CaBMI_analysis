@@ -406,6 +406,15 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     savepath = os.path.join(out, 'IBI')
     if not os.path.exists(savepath):
         os.makedirs(savepath)
+    lims = {}
+    for k in IT_metric:
+        if k != 'IBIs':
+            tmax = max(np.nanmax(IT_metric[k][IT_redlabels]), np.nanmax(PT_metric[k][PT_redlabels]))
+            tmin = min(np.nanmin(IT_metric[k][IT_redlabels]), np.nanmin(PT_metric[k][PT_redlabels]))
+            lims[k] = (tmin*0.9, tmax*1.1)
+    tmax = max(np.nanmax(IT_IBI[IT_redlabels]), np.nanmax(PT_IBI[PT_redlabels]))
+    tmin = min(np.nanmin(IT_IBI[IT_redlabels]), np.nanmin(PT_IBI[PT_redlabels]))
+    lims['IBIs'] = (tmin*0.9, tmax*1.1)
     for s in range(IT_IBI.shape[-2]):
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
         for i, k in enumerate(IT_metric):
@@ -419,6 +428,7 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
                 dataPT = dataPT[~np.isnan(dataPT)]
                 sns.distplot(dataPT, bins=10, kde=True, norm_hist=True,ax=axes[r][c])
             axes[r, c].legend(['IT', 'PT'])
+            axes[r, c].set_xlim(lims[k])
             axes[r, c].set_title(k)
         dataIT = IT_IBI[IT_redlabels][:, s, :].reshape(-1)
         dataIT = dataIT[~np.isnan(dataIT)]
@@ -429,6 +439,7 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
             sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True, ax=axes[1][1])
         axes[1, 1].legend(['IT', 'PT'])
         axes[1, 1].set_title('IBI distribution')
+        axes[1, 1].set_xlim(lims['IBIs'])
         imgname = "IT_PT_contrast_session_{}".format(s)
         fig.savefig(os.path.join(savepath, imgname+'.png'))
         if eps:
