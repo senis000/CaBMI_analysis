@@ -409,22 +409,26 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     for s in range(IT_IBI.shape[-2]):
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
         for i, k in enumerate(IT_metric):
-            dataIT = IT_metric[IT_redlabels][:, :, :, s].reshape(-1)
+            tp = IT_metric[k]
+            dataIT = tp[IT_redlabels][:, s].reshape(-1)
             dataIT = dataIT[~np.isnan(dataIT)]
             r, c = i // 2, i % 2
-            sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[r][c])
+            sns.distplot(dataIT, bins=10, kde=True, norm_hist=True, ax=axes[r][c])
             if s < PT_IBI.shape[-2]:
-                dataPT = PT_metric[PT_redlabels][:, :, :, s].reshape(-1)
+                dataPT = PT_metric[k][PT_redlabels][:, s].reshape(-1)
                 dataPT = dataPT[~np.isnan(dataPT)]
-                sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True,ax=axes[r][c])
-        dataIT = IT_IBI[IT_redlabels][:, :, :, s, :].reshape(-1)
+                sns.distplot(dataPT, bins=10, kde=True, norm_hist=True,ax=axes[r][c])
+            axes[r, c].legend(['IT', 'PT'])
+            axes[r, c].set_title(k)
+        dataIT = IT_IBI[IT_redlabels][:, s, :].reshape(-1)
         dataIT = dataIT[~np.isnan(dataIT)]
         sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[1][1])
         if s < PT_IBI.shape[-2]:
-            dataPT = PT_IBI[PT_redlabels][:, :, :, s, :].reshape(-1)
+            dataPT = PT_IBI[PT_redlabels][:, s, :].reshape(-1)
             dataPT = dataPT[~np.isnan(dataPT)]
             sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True, ax=axes[1][1])
-
+        axes[1, 1].legend(['IT', 'PT'])
+        axes[1, 1].set_title('IBI distribution')
         imgname = "IT_PT_contrast_session_{}".format(s)
         fig.savefig(os.path.join(savepath, imgname+'.png'))
         if eps:
