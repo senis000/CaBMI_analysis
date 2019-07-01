@@ -365,8 +365,9 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     IBIs = os.path.join(folder, 'bursting/IBI')
     out = os.path.join(folder, 'bursting/plots')
-    ITs = parse_group_dict(processed, 'ITs')
-    PTs = parse_group_dict(processed, 'PTs')
+    ITs = parse_group_dict(processed, ITs, 'IT')
+    print(ITs)
+    PTs = parse_group_dict(processed, PTs, 'PT')
     def get_matrix(group_dict):
         maxA, maxD, maxN, maxS, maxIBI = \
             len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0, 0, 0
@@ -434,11 +435,11 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
             axes[r, c].set_title(k)
         dataIT = IT_IBI[IT_redlabels][:, s, :].reshape(-1)
         dataIT = dataIT[~np.isnan(dataIT)]
-        sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[1][1])
+        sns.distplot(dataIT, bins=best_nbins(dataIT), kde=True, norm_hist=True, ax=axes[1][1])
         if s < PT_IBI.shape[-2]:
             dataPT = PT_IBI[PT_redlabels][:, s, :].reshape(-1)
             dataPT = dataPT[~np.isnan(dataPT)]
-            sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True, ax=axes[1][1])
+            sns.distplot(dataPT, bins=best_nbins(dataPT), kde=True, norm_hist=True, ax=axes[1][1])
         axes[1, 1].legend(['IT', 'PT'])
         axes[1, 1].set_title('IBI distribution')
         axes[1, 1].set_xlim(lims['IBIs'])
@@ -748,4 +749,5 @@ def deconv_fano_run():
 
 if __name__ == '__main__':
     root = "/home/user/"
-    mat = calcium_IBI_all_sessions(root)
+    #mat = calcium_IBI_all_sessions(root)
+    plot_IBI_contrast_CVs_ITPTsubset(root, '*', '*')

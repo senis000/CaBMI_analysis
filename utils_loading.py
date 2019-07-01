@@ -61,11 +61,11 @@ def path_prefix_free(path, symbol='/'):
 
 def parse_group_dict(folder, group_dict, opt):
     if "*" in group_dict:
-        group_dict = {k: v for k in os.listdir(folder) for v in os.listdir(os.path.join(folder, k))
-               if k.find(opt) != -1 and v.isnumeric()}
+        group_dict = {k: '*' for k in os.listdir(folder) if k.find(opt) != -1}
     for animal in group_dict:
         if group_dict[animal] == '*':
-            group_dict[animal] = [v for v in os.listdir(os.path.join(folder, animal))]
+            group_dict[animal] = [v for v in os.listdir(os.path.join(folder, animal)) if v.isnumeric()]
+    return group_dict
 
 
 def encode_to_filename(path, animal, day, hyperparams=None):
@@ -92,4 +92,14 @@ def decode_from_filename(filename):
     fname = path_prefix_free(filename)
     opts = fname.split('_')
     return opts[1], opts[2]
+
+
+def change_window_IBI(ibi):
+    for k in os.listdir(ibi):
+        for d in os.listdir(os.path.join(ibi, k)):
+            fname = os.path.join(ibi, k, d, os.listdir(os.path.join(ibi, k, d))[0])
+            w = fname.find('window') + 6
+            d = fname.find('.h')
+            os.rename(fname, fname[:w]+'None'+fname[d:])
+
 
