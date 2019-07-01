@@ -59,6 +59,15 @@ def path_prefix_free(path, symbol='/'):
         return path[path.rfind(symbol)+len(symbol):]
 
 
+def parse_group_dict(folder, group_dict, opt):
+    if "*" in group_dict:
+        group_dict = {k: v for k in os.listdir(folder) for v in os.listdir(os.path.join(folder, k))
+               if k.find(opt) != -1 and v.isnumeric()}
+    for animal in group_dict:
+        if group_dict[animal] == '*':
+            group_dict[animal] = [v for v in os.listdir(os.path.join(folder, animal))]
+
+
 def encode_to_filename(path, animal, day, hyperparams=None):
     dirs = path.split('/')
     k = -1

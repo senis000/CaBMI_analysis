@@ -6,7 +6,7 @@ import os, h5py
 from shuffling_functions import signal_partition
 from plotting_functions import best_nbins
 from utils_loading import get_PTIT_over_days, path_prefix_free, \
-    decode_from_filename, encode_to_filename, get_redlabel
+    decode_from_filename, encode_to_filename, get_redlabel, parse_group_dict
 import matplotlib.pyplot as plt
 from scipy import io
 from matplotlib.widgets import Slider
@@ -161,12 +161,13 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
             raise RuntimeError("Input Format Unknown!")
         C = np.array(f['C'])
         if window is None:
+            window0 = window
             window = f.attrs['blen']
         f.close()
     if animal is None:
         savepath = os.path.join(out, 'sample_IBI.hdf5')
     else:
-        hyperparams = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+        hyperparams = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window0)
         savepath = os.path.join(out, animal, day)
         if not os.path.exists(savepath):
             os.makedirs(savepath)
@@ -261,7 +262,6 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
             summary_mat = json.load(jf)
         calculate = False
     mats = {}
-    skipped = []
     hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
     for group in 'IT', 'PT':
         animal_map = all_files[group]['maps']
@@ -365,6 +365,8 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     IBIs = os.path.join(folder, 'bursting/IBI')
     out = os.path.join(folder, 'bursting/plots')
+    ITs = parse_group_dict(processed, 'ITs')
+    PTs = parse_group_dict(processed, 'PTs')
     def get_matrix(group_dict):
         maxA, maxD, maxN, maxS, maxIBI = \
             len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0, 0, 0
