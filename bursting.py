@@ -273,7 +273,6 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
             mats[group]['mat_ibi'] = np.full(tuple(summary_mat[group][:4]) + (3,), np.nan)
             if IBI_dist:
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
-        mats[group]['redlabels'] = np.empty(summary_mat[group][:2], dtype=bool)
         for d in all_files[group]:
             if d == 'maps':
                 continue
@@ -293,7 +292,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 burst_data = h5py.File(burst_file, 'r')
                 metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
                 animal_ind = animal_map[animal]
-                mats[group]['redlabels'][animal_ind, d-1] = get_redlabel(processed, animal, day)
+                mats[group]['redlabels'][animal_ind, int(d)-1] = get_redlabel(processed, animal, day)
                 if calculate:
                     temp[d][animal] = {'mat_ibi': metrics}
                     if IBI_dist:
@@ -310,7 +309,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                             continue
                         animal_ind = animal_map[animal]
                         tN, ts, tm = temp[opt].shape
-                        mats[group][opt][animal_ind, d - 1, :tN, :ts, :tm] = temp[opt]
+                        mats[group][opt][animal_ind, int(d) - 1, :tN, :ts, :tm] = temp[opt]
                         mats[group]['meta'][animal_ind] = animal
                 # except Exception as e:
                 #     skipped.append(e.args)
@@ -319,6 +318,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
         summary_mat[group] = tuple(summary_mat[group])
         if calculate:
             mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+            mats[group]['redlabels'] = np.full(summary_mat[group][:3], False)
             if IBI_dist:
                 mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
             for opt in mats[group]:
@@ -328,7 +328,7 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                     for animal in temp[d]:
                         animal_ind = animal_map[animal]
                         tN, ts, tm = temp[d][animal][opt].shape
-                        mats[group][opt][animal_ind, d-1, :tN, :ts, :tm] = temp[d][animal][opt]
+                        mats[group][opt][animal_ind, int(d)-1, :tN, :ts, :tm] = temp[d][animal][opt]
                         mats[group]['meta'][animal_ind] = animal
         """except Exception as e:
             skipped.append(str(e.args))
@@ -408,25 +408,40 @@ def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp
     savepath = os.path.join(out, 'IBI')
     if not os.path.exists(savepath):
         os.makedirs(savepath)
+    lims = {}
+    for k in IT_metric:
+        if k != 'IBIs':
+            tmax = max(np.nanmax(IT_metric[k][IT_redlabels]), np.nanmax(PT_metric[k][PT_redlabels]))
+            tmin = min(np.nanmin(IT_metric[k][IT_redlabels]), np.nanmin(PT_metric[k][PT_redlabels]))
+            lims[k] = (tmin*0.9, tmax*1.1)
+    tmax = max(np.nanmax(IT_IBI[IT_redlabels]), np.nanmax(PT_IBI[PT_redlabels]))
+    tmin = min(np.nanmin(IT_IBI[IT_redlabels]), np.nanmin(PT_IBI[PT_redlabels]))
+    lims['IBIs'] = (tmin*0.9, tmax*1.1)
     for s in range(IT_IBI.shape[-2]):
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
         for i, k in enumerate(IT_metric):
-            dataIT = IT_metric[IT_redlabels][:, :, :, s].reshape(-1)
+            tp = IT_metric[k]
+            dataIT = tp[IT_redlabels][:, s].reshape(-1)
             dataIT = dataIT[~np.isnan(dataIT)]
             r, c = i // 2, i % 2
-            sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[r][c])
+            sns.distplot(dataIT, bins=10, kde=True, norm_hist=True, ax=axes[r][c])
             if s < PT_IBI.shape[-2]:
-                dataPT = PT_metric[PT_redlabels][:, :, :, s].reshape(-1)
+                dataPT = PT_metric[k][PT_redlabels][:, s].reshape(-1)
                 dataPT = dataPT[~np.isnan(dataPT)]
-                sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True,ax=axes[r][c])
-        dataIT = IT_IBI[IT_redlabels][:, :, :, s, :].reshape(-1)
+                sns.distplot(dataPT, bins=10, kde=True, norm_hist=True,ax=axes[r][c])
+            axes[r, c].legend(['IT', 'PT'])
+            axes[r, c].set_xlim(lims[k])
+            axes[r, c].set_title(k)
+        dataIT = IT_IBI[IT_redlabels][:, s, :].reshape(-1)
         dataIT = dataIT[~np.isnan(dataIT)]
         sns.distplot(dataIT, bins=min(best_nbins(dataIT), 100), kde=True, norm_hist=True, ax=axes[1][1])
         if s < PT_IBI.shape[-2]:
-            dataPT = PT_IBI[PT_redlabels][:, :, :, s, :].reshape(-1)
+            dataPT = PT_IBI[PT_redlabels][:, s, :].reshape(-1)
             dataPT = dataPT[~np.isnan(dataPT)]
             sns.distplot(dataPT, bins=min(best_nbins(dataPT), 100), kde=True, norm_hist=True, ax=axes[1][1])
-
+        axes[1, 1].legend(['IT', 'PT'])
+        axes[1, 1].set_title('IBI distribution')
+        axes[1, 1].set_xlim(lims['IBIs'])
         imgname = "IT_PT_contrast_session_{}".format(s)
         fig.savefig(os.path.join(savepath, imgname+'.png'))
         if eps:
