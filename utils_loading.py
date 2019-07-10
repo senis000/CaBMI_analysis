@@ -2,6 +2,7 @@ import os
 import numpy as np
 import json
 import h5py
+from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
 def get_PTIT_over_days(root):
@@ -92,6 +93,42 @@ def decode_from_filename(filename):
     fname = path_prefix_free(filename)
     opts = fname.split('_')
     return opts[1], opts[2]
+
+
+def decode_method_ibi(method):
+    """ Decode Method To IBI HOF
+    method: int/float
+    if negative:
+        Use signal_partition algorithm in shuffling_functions.py, the absolute value is the perc
+        parameter
+        perc: float
+            hyperparameter for partitioning algorithm, correlated with tail length of splitted calcium trace
+        if method < -100:
+            ptp = False
+            ptp: boolean
+                True if IBI is based on peak to peak measurement, otherwise tail to tail
+    Else:
+        0 for generating all 4 threshold: 1std, 2std, 1mad, 2mad
+        opt, thres = method // 10, method % 10
+        opt: 0: std
+             1: mad
+        thres: number of std/mad
+    Returns:
+        method: HOF that takes signal and return ibi
+        hyperparams: string that encodes the hyperparams
+    """
+    if method < 0:
+        ptp = (method >= -100)
+        perc = np.around((-method) % 100, 2)
+        hp = 'gp_perc{}{}'.format(perc, '_ptp' if ptp else "")
+        return lambda sig: neuron_calcium_ipri(sig, perc, ptp), hp
+    elif method == 0:
+        hp = "cwt_m0"
+        return lambda sig: np.vstack([neuron_calcium_ibi_cwt(sig, m) for m in (1, 2, 11, 12)]), hp
+    else:
+        opt, thres = "mad" if method // 10 else "std", method % 10
+        hp = "cwt_{}_t{}".format(opt, thres)
+        return lambda sig: neuron_calcium_ibi_cwt(sig, method), hp
 
 
 def change_window_IBI(ibi):

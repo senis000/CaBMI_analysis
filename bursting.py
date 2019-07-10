@@ -1,114 +1,18 @@
 import numpy as np
-from scipy.signal import find_peaks
 import json
 import seaborn as sns
 import os, h5py
-from shuffling_functions import signal_partition
+from utils_bursting import *
 from plotting_functions import best_nbins
 from utils_loading import get_PTIT_over_days, path_prefix_free, \
-    decode_from_filename, encode_to_filename, get_redlabel, parse_group_dict
+    decode_from_filename, encode_to_filename, get_redlabel, parse_group_dict, decode_method_ibi
+from utils_cabmi import time_lock_activity
 import matplotlib.pyplot as plt
 from scipy import io
 from matplotlib.widgets import Slider
 
 
-def fake_neuron(burst, dur, p0=0.3):
-    """Burst: bursty ratio signifying after the peak how more likely the neuron would keep firing"""
-    p1 = min(burst * p0, 0.99)
-    fake = np.zeros(dur)
-    i = np.random.geometric(p0)
-    while i < dur:
-        fake[i] = np.random.geometric(1 - p1)
-        b = np.random.random()
-        if b < p1:
-            i += 2
-        else:
-            i += np.random.geometric(p0) + 2
-    return fake
-
-
-def neuron_ipi(t_series):
-    """Calculates the Inter Peak Interval"""
-    return np.diff(t_series)
-
-
-def neuron_fano(sig, W=None, T=100):
-    """Calculates the Fano Factor for signal using W random unreplaced samples of length T"""
-    nrow, ncol = len(sig) // T, T
-    sigs = np.reshape(sig[:nrow * ncol], (nrow, ncol))
-    if W is not None:
-        if W < 1:
-            W = int(len(sig) * W)
-        inds = np.arange(nrow)
-        np.random.shuffle(inds)
-        sigs = sigs[inds[:W]]
-    binned = np.sum(sigs, axis=1)
-    m = np.mean(binned)
-    if m == 0:
-        return np.nan
-    v = np.var(binned)
-    return v / m
-
-
-def neuron_ispi(sig):
-    disc_deconv, _ = find_peaks(sig)
-    peaks = np.where(disc_deconv > 0)[0]
-    return neuron_ipi(peaks)
-
-
-def neuron_calcium_ipri(sig, perc=30, ptp=True):
-    """ Returns the IPRI in calcium neural signals, if ptp, calculate it based on peak-to-peak,
-    else, calculate it based on tail-to-tail
-    """
-    peak_regions, IPIs = signal_partition(sig, perc)
-    if ptp:
-        peaks = [p[0] + np.argmax(sig[p[0]:p[1]]) for p in peak_regions]
-        return neuron_ipi(peaks)
-    else:
-        return [len(ipi) for ipi in IPIs]
-
-
-def neuron_dc_pk_fano(sig, W=None, T=100):
-    """Taking in deconvolved signal and calculates the fano"""
-    peaks, _ = find_peaks(sig)
-    dis_deconv = np.zeros_like(sig)
-    dis_deconv[peaks] = sig[peaks]
-    return neuron_fano(dis_deconv, W, T)
-
-
-def neuron_pr_fano(sig, perc=30, W=None, T=100, debug=False):
-    """ Returns the IPRI in calcium neural signals, if ptp, calculate it based on peak-to-peak,
-    else, calculate it based on tail-to-tail
-    """
-    peak_regions, IPIs = signal_partition(sig, perc)
-    peaks = [p[0] + np.argmax(sig[p[0]:p[1]]) for p in peak_regions]
-    sig_prime = np.zeros_like(sig)
-    for p in peaks:
-        sig_prime[p] = sig[p]
-    if debug:
-        return neuron_fano(sig_prime, W, T), sig_prime
-    else:
-        return neuron_fano(sig_prime, W, T)
-
-
-def neuron_fano_norm(sig, W=None, T=100, lingress=False, pre=True):
-    peaks, _ = find_peaks(sig, threshold=1e-08) # use 1E-08 as a threshold to distinguish from 0
-    if len(peaks) == 0:
-        peaks = [np.argmax(sig)]
-        if np.isclose(sig[peaks[0]], 0):
-            return 0
-    lmaxes = sig[peaks]
-    positves = lmaxes[~np.isclose(lmaxes, 0)]
-    if lingress:
-        A = np.vstack((positves), np.ones_like(positves)).T
-    n = np.min(positves)
-    if pre:
-        return neuron_fano(sig / (n), W, T)
-    else:
-        return neuron_fano(sig, W, T) / (n)
-
-
-def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
+def calcium_IBI_single_session_windows(inputs, out, window=None, perc=30, ptp=True):
     """Returns a metric matrix and meta data of IBI metric
     Params:
         inputs: str, h5py.File, tuple, or np.ndarray
@@ -203,7 +107,7 @@ def calcium_IBI_single_session(inputs, out, window=None, perc=30, ptp=True):
     #return np.concatenate([means, stds, cvs], axis=2), {2: ['mean', 'stds', 'CVs']}
 
 
-def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=False):
+def calcium_IBI_all_sessions_windows(folder, window=None, perc=30, ptp=True, IBI_dist=False):
     """Returns a metric matrix across all sessions and meta data of IBI metric
         Params:
             folder: str
@@ -340,6 +244,273 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
     f.write("\n".join([str(s) for s in skipped]))
     f.close()"""
     return mats
+
+
+def calcium_IBI_single_session(inputs, out, window=None, method=0):
+    """Returns a metric matrix and meta data of IBI metric
+    Params:
+        inputs: str, h5py.File, tuple, or np.ndarray
+            if str/h5py.File: string that represents the filename of hdf5 file
+            if tuple: (path, animal, day), that describes the file location
+            if np.ndarray: array C of calcium traces
+        out: str
+            Output path for saving the metrics in a hdf5 file
+            outfile: h5py.File
+                N: number of neurons
+                s: number of sliding sessions
+                t: number of trials
+                K: maximum number of IBIs extracted
+                K': maximum number of IBIs within each trial
+                'IBIs_window': N * s * K, IBIs across window
+                'IBIs_trial': N * t * K', IBIs across trial
+        window: None or int
+            sliding window for calculating IBIs.
+            if None, use 'blen' in hdf5 file instead, but inputs have to be str/h5py.File
+        method: int/float
+            if negative:
+                Use signal_partition algorithm in shuffling_functions.py, the absolute value is the perc
+                parameter
+                perc: float
+                    hyperparameter for partitioning algorithm, correlated with tail length of splitted calcium trace
+                if method < -100:
+                    ptp = False
+                    ptp: boolean
+                        True if IBI is based on peak to peak measurement, otherwise tail to tail
+            Else:
+                0 for generating all 4 threshold: 2std, 1std, 1mad, 2mad
+                opt, thres = method // 10, method % 10
+                opt: 0: std
+                     1: mad
+                thres: number of std/mad
+    Alternatively, could store data in:
+        mat_ibi: np.ndarray
+            N * s * m matrix, , where N is the number of neurons, s is number of sliding sessions,
+            m is the number of metrics
+        meta: dictionary
+            meta data of form {axis: labels}
+    """
+    if isinstance(inputs, np.ndarray):
+        C = inputs
+        t_locks = None
+        window = C.shape[1]
+        animal, day = None, None
+    else:
+        if isinstance(inputs, str):
+            opts = path_prefix_free(inputs, '/').split('_')
+            animal, day = opts[1], opts[2]
+            f = h5py.File(inputs, 'r')
+        elif isinstance(inputs, h5py.File):
+            opts = path_prefix_free(inputs.filename, '/').split('_')
+            animal, day = opts[1], opts[2]
+            f = inputs
+        elif isinstance(inputs, tuple):
+            path, animal, day = inputs
+            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+            f = h5py.File(hfile, 'r')
+        else:
+            raise RuntimeError("Input Format Unknown!")
+        C = np.array(f['C'])
+        t_locks = time_lock_activity(f, order='N')
+        if window is None:
+            window0 = window
+            window = f.attrs['blen']
+        f.close()
+    ibi_func, hp = decode_method_ibi(method)
+    if animal is None:
+        savepath = os.path.join(out, 'sample_IBI.hdf5')
+    else:
+        hyperparams = 'theta_{}_window{}'.format(hp, window0)
+        savepath = os.path.join(out, animal, day)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+        savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
+    if os.path.exists(savepath):
+        with h5py.File(savepath, 'r') as f:
+            N, nsessions = f['mean'].shape[:2]
+        return savepath, N, nsessions
+    nsessions = int(np.ceil(C.shape[1] / window))
+    rawibis_windows = {}
+    maxLenW = -1
+    if t_locks is not None:
+        rawibis_trials = {}
+        maxLenT = -1
+    for i in range(C.shape[0]):
+        rawibis_windows[i] = {}
+        for s in range(nsessions):
+            slide = C[i, s*window:min(C.shape[1], (s+1) * window)]
+            ibis = ibi_func(slide)
+            rawibis_windows[i][s] = ibis
+            maxLenW = max(len(ibis), maxLenW)
+        if t_locks is not None:
+            rawibis_trials[i] = {}  # TODO: Modify IBIs to handle empty trials
+            for s in range(t_locks.shape[1]):
+                slide = t_locks[i, s]
+                ibis = ibi_func(slide)
+                rawibis_trials[i][s] = ibis
+                maxLenT = max(len(ibis), maxLenT)
+
+    all_ibis_windows = np.full((C.shape[0], nsessions, maxLenW), np.nan)
+    if t_locks is not None:
+        all_ibis_trials = np.full((C.shape[0], nsessions, maxLenT), np.nan)
+    for i in range(C.shape[0]):
+        for s in range(nsessions):
+            all_ibis_windows[i][s][:len(rawibis_windows[i][s])] = rawibis_windows[i][s]
+        if t_locks is not None:
+            for s in range(t_locks.shape[1]):
+                all_ibis_trials[i][s][:len(rawibis_trials[i][s])] = rawibis_trials[i][s]
+    outfile = h5py.File(savepath, 'w-')
+    outfile['IBIs_window'] = all_ibis_windows
+    outfile['IBIs_trial'] = all_ibis_trials
+    outname = outfile.filename
+    outfile.close()
+    return outname, C.shape[0], nsessions
+
+
+def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=False):
+    """Returns a metric matrix across all sessions and meta data of IBI metric
+        Params:
+            folder: str
+                root folder path where all the processed hdf5 will be stored
+            out: str
+                Output path for saving the metrics in a hdf5 file
+                outfile: h5py.File
+                    N: number of neurons
+                    s: number of sliding sessions
+                    K: maximum number of IBIs extracted
+                    'mean': N * s matrix, means of IBIs
+                    'stds': N * s matrix, stds of IBIs
+                    'CVs': N * s matrix, CVs of IBIs
+                    'IBIs': N * s * K, IBIs
+                All stored by animal/day/IBI_animal_day_hyperparams.hdf5
+            window: None or int
+                sliding window for calculating IBIs.
+                if None, use 'blen' in hdf5 file instead, but inputs have to be str/h5py.File
+            perc: float
+                hyperparameter for partitioning algorithm, correlated with tail length of splitted calcium trace
+            ptp: boolean
+                True if IBI is based on peak to peak measurement, otherwise tail to tail
+            IBI_dist: boolean
+                generate the IBI_distribution matrix if True
+
+        Returns:
+            mats: {group: {mat_ibi, (mat_ibi_dist,) meta}}
+            mat_ibi_window: np.ndarray (first 4 ~ 8.93MB)
+                A * D * N * s * m matrix,
+                A: number of animals
+                D: number of days
+                N: number of neurons
+                s: number of windows,
+                m: the number of metrics
+            mat_ibi_trial: np.ndarray (first 4 ~ 8.93MB)
+                A * D * N * s * m matrix,
+                A: number of animals
+                D: number of days
+                N: number of neurons
+                t: number of trials,
+                m: the number of metrics
+
+            meta: dictionary
+                meta data of form {group: {axis: labels}}
+
+        IO:
+            summary.mat: dict
+                {group: (A, D, N, s, nibis)}, first four the dimension of the ibi metric matrix,
+                nibis is the maximum number of ibis
+        """
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+    out = os.path.join(folder, 'bursting/IBI')
+    if 'navigation.json' in os.listdir(processed):
+        with open(os.path.join(processed, 'navigation.json'), 'r') as jf:
+            all_files = json.load(jf)
+    else:
+        all_files = get_PTIT_over_days(processed)
+    calculate = True
+    summary_file = os.path.join(out, 'summary.json')
+    summary_mat = {}
+    if os.path.exists(summary_file):
+        with open(summary_file, 'r') as jf:
+            summary_mat = json.load(jf)
+        calculate = False
+    mats = {}
+    hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
+    for group in 'IT', 'PT':
+        animal_map = all_files[group]['maps']
+        mats[group] = {'meta': [''] * len(animal_map)}
+        if calculate:
+            summary_mat[group] = [len(animal_map), len(all_files[group]) - 1] + [0] * 3
+            temp = {}
+        else:
+            mats[group]['mat_ibi'] = np.full(tuple(summary_mat[group][:4]) + (3,), np.nan)
+            if IBI_dist:
+                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+        for d in all_files[group]:
+            if d == 'maps':
+                continue
+            animal_files = all_files[group][d]
+            if calculate:
+                temp[d] = {}
+            for filename in animal_files:
+                print(filename)
+                animal, day = decode_from_filename(filename)
+                if calculate:
+                    burst_file = calcium_IBI_single_session((processed, animal, day),
+                                            out, window=window, perc=perc, ptp=ptp)[0]
+                else:
+                    burst_file = os.path.join(out, animal, day,
+                                              encode_to_filename(out, animal, day, hyperparam))
+                #try:
+                burst_data = h5py.File(burst_file, 'r')
+                metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
+                animal_ind = animal_map[animal]
+                mats[group]['redlabels'][animal_ind, int(d)-1] = get_redlabel(processed, animal, day)
+                if calculate:
+                    temp[d][animal] = {'mat_ibi': metrics}
+                    if IBI_dist:
+                        temp[d][animal]['mat_ibi_dist'] = burst_data['IBIs']
+                    summary_mat[group][2] = max(metrics.shape[0], summary_mat[group][2])
+                    summary_mat[group][3] = max(metrics.shape[1], summary_mat[group][3])
+                    summary_mat[group][4] = max(burst_data['IBIs'].shape[-1], summary_mat[group][4])
+                else:
+                    temp = {'mat_ibi': metrics}
+                    if IBI_dist:
+                        temp['mat_ibi_dist'] = burst_data['IBIs']
+                    for opt in mats[group]:
+                        if opt == 'meta':
+                            continue
+                        animal_ind = animal_map[animal]
+                        tN, ts, tm = temp[opt].shape
+                        mats[group][opt][animal_ind, int(d) - 1, :tN, :ts, :tm] = temp[opt]
+                        mats[group]['meta'][animal_ind] = animal
+                # except Exception as e:
+                #     skipped.append(e.args)
+                #     print(e.args)
+        #try:
+        summary_mat[group] = tuple(summary_mat[group])
+        if calculate:
+            mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
+            mats[group]['redlabels'] = np.full(summary_mat[group][:3], False)
+            if IBI_dist:
+                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
+            for opt in mats[group]:
+                if opt == 'meta':
+                    continue
+                for d in temp:
+                    for animal in temp[d]:
+                        animal_ind = animal_map[animal]
+                        tN, ts, tm = temp[d][animal][opt].shape
+                        mats[group][opt][animal_ind, int(d)-1, :tN, :ts, :tm] = temp[d][animal][opt]
+                        mats[group]['meta'][animal_ind] = animal
+        """except Exception as e:
+            skipped.append(str(e.args))
+            print(e.args)"""
+    if calculate:
+        with open(summary_file, 'w') as jf:
+            json.dump(summary_mat, jf)
+    """f = open(os.path.join(folder, 'errLOG.txt'), 'w')
+    f.write("\n".join([str(s) for s in skipped]))
+    f.close()"""
+    return mats
+
 
 
 def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp=True, IBI_dist=False,

@@ -38,31 +38,46 @@ def sliding_mean(data_array, window=5):
     return np.array(new_list)
 
 
-def time_lock_activity(f, t_size=[300,30]):
-    '''
+def median_absolute_deviation(a, axis=None):
+    med = np.median(a, axis=axis, keepdims=True)
+    return np.median(np.abs(a - med), axis=axis)
+
+
+def time_lock_activity(f, t_size=(300,30), order='T'):
+    """
     Creates a 3d matrix time-locking activity to trial end.
     Input:
         F: a File object; the experiment HDF5 file
         T_SIZE: an array; the first value is the number of
             frames before the hit we want to keep. The second value
             is the number of frames after the trial end to keep.
+        order: char
+            order of returned matrix
     Output:
-        NEURON_ACTIVITY: a numpy matrix; (trials x neurons x frames)
-            in size.
-    '''
+        NEURON_ACTIVITY: a numpy matrix; (neurons x trials x frames)
+        in size if order == 'N' else (trials x neurons x frames) .
+    """
     trial_start = np.asarray(f['trial_start']).astype('int')
     trial_end = np.asarray(f['trial_end']).astype('int')
-
-    C = np.asarray(f['C'])
+    C = f['C']
     assert(np.sum(np.isnan(C)) == 0)
-    neuron_activity = np.ones(
-        (trial_end.shape[0], C.shape[0], np.sum(t_size) + 1)
-        )*np.nan # (num_trials x num_neurons x num_frames)
+    if order == 'T':
+        neuron_activity = np.full(
+            (trial_end.shape[0], C.shape[0], np.sum(t_size) + 1),
+            np.nan)
+    else:
+        neuron_activity = np.full(
+            (C.shape[0], trial_end.shape[0], np.sum(t_size) + 1),
+            np.nan)
     for ind, trial in enumerate(trial_end):
         start_idx = max(trial - t_size[0], trial_start[ind])
         aux_act = C[:, start_idx:trial + 1 + t_size[1]]
-        neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+        if order == 'T':
+            neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+        else:
+            neuron_activity[:, ind, -aux_act.shape[1]:] = aux_act
     return neuron_activity
+
 
 class OnlineNormalEstimator(object):
     """
