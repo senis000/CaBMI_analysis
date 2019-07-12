@@ -43,6 +43,34 @@ def median_absolute_deviation(a, axis=None):
     return np.median(np.abs(a - med), axis=axis)
 
 
+def time_lock_activity_old(f, t_size=(300,30)):
+    '''
+    Creates a 3d matrix time-locking activity to trial end.
+    Input:
+        F: a File object; the experiment HDF5 file
+        T_SIZE: an array; the first value is the number of
+            frames before the hit we want to keep. The second value
+            is the number of frames after the trial end to keep.
+    Output:
+        NEURON_ACTIVITY: a numpy matrix; (trials x neurons x frames)
+            in size.
+    '''
+    trial_start = np.asarray(f['trial_start']).astype('int')
+    trial_end = np.asarray(f['trial_end']).astype('int')
+
+    C = np.asarray(f['C'])
+    assert(np.sum(np.isnan(C)) == 0)
+    neuron_activity = np.ones(
+        (trial_end.shape[0], C.shape[0], np.sum(t_size) + 1)
+        )*np.nan # (num_trials x num_neurons x num_frames)
+    for ind, trial in enumerate(trial_end):
+        start_idx = max(trial - t_size[0], trial_start[ind])
+        print(trial, t_size[1], start_idx, trial + 1 + t_size[1])
+        aux_act = C[:, start_idx:trial + 1 + t_size[1]]
+        neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+    return neuron_activity
+
+
 def time_lock_activity(f, t_size=(300,30), order='T'):
     """
     Creates a 3d matrix time-locking activity to trial end.

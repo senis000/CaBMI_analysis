@@ -5,7 +5,7 @@ import h5py
 from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
-def get_PTIT_over_days(root):
+def get_PTIT_over_days(root, order='A'):
     """
     Params:
         root: dataroot/processed/, where all the processed hdf5 will be stored.
@@ -13,37 +13,44 @@ def get_PTIT_over_days(root):
     Returns:
         group * [days | maps] * [animals]
     """
-    results = {'IT': {'maps': []}, 'PT': {'maps': []}}
-    for animal in os.listdir(root):
-        if animal.find('IT') == -1 and animal.find('PT') == -1:
-            continue
-        animal_path = os.path.join(root, animal)
-        group = animal[:2]
-        results[group]['maps'].append(animal)
-        sdays = sorted(os.listdir(animal_path))
-        for i, day in enumerate(sdays):
-            if not day.isnumeric():
+    if order == 'D':
+        results = {'IT': {'maps': []}, 'PT': {'maps': []}}
+        for animal in os.listdir(root):
+            if animal.find('IT') == -1 and animal.find('PT') == -1:
                 continue
-            j = i+1
-            daypath = os.path.join(animal_path, day)
-            file = None
-            for p in os.listdir(daypath):
-                if p.find('full') != -1:
-                    file = p
-            if j in results[group]:
-                results[group][j].append(file)
-            else:
-                results[group][j] = [file]
-    for group in results:
-        sorted_animals = sorted(results[group]['maps'])
-        maps = {}
-        for i, animal in enumerate(sorted_animals):
-            maps[animal] = i
-        results[group]['maps'] = maps
-    with open(os.path.join(root, 'navigation.json'), 'w') as jf:
-        json.dump(results, jf)
-    with open(os.path.join(root, 'navigation.json'), 'r') as jf:
-        print(json.load(jf))
+            animal_path = os.path.join(root, animal)
+            group = animal[:2]
+            results[group]['maps'].append(animal)
+            sdays = sorted(os.listdir(animal_path))
+            for i, day in enumerate(sdays):
+                if not day.isnumeric():
+                    continue
+                j = i+1
+                daypath = os.path.join(animal_path, day)
+                file = None
+                for p in os.listdir(daypath):
+                    if p.find('full') != -1:
+                        file = p
+                if j in results[group]:
+                    results[group][j].append(file)
+                else:
+                    results[group][j] = [file]
+        for group in results:
+            sorted_animals = sorted(results[group]['maps'])
+            maps = {}
+            for i, animal in enumerate(sorted_animals):
+                maps[animal] = i
+            results[group]['maps'] = maps
+        with open(os.path.join(root, 'navigation.json'), 'w') as jf:
+            json.dump(results, jf)
+        with open(os.path.join(root, 'navigation.json'), 'r') as jf:
+            print(json.load(jf))
+
+    elif order == 'A':
+        results = {'IT': parse_group_dict(root, "*", 'IT'),
+                'PT': parse_group_dict(root, "*", 'PT')}
+    else:
+        raise ValueError('Invalid Order Value {}'.format(order))
     return results
 
 
@@ -123,8 +130,7 @@ def decode_method_ibi(method):
         hp = 'gp_perc{}{}'.format(perc, '_ptp' if ptp else "")
         return lambda sig: neuron_calcium_ipri(sig, perc, ptp), hp
     elif method == 0:
-        hp = "cwt_m0"
-        return lambda sig: np.vstack([neuron_calcium_ibi_cwt(sig, m) for m in (1, 2, 11, 12)]), hp
+        raise ValueError("Invalid Method Option")
     else:
         opt, thres = "mad" if method // 10 else "std", method % 10
         hp = "cwt_{}_t{}".format(opt, thres)

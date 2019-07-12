@@ -277,7 +277,6 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
                     ptp: boolean
                         True if IBI is based on peak to peak measurement, otherwise tail to tail
             Else:
-                0 for generating all 4 threshold: 2std, 1std, 1mad, 2mad
                 opt, thres = method // 10, method % 10
                 opt: 0: std
                      1: mad
@@ -289,6 +288,8 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         meta: dictionary
             meta data of form {axis: labels}
     """
+    if method == 0:
+        return [calcium_IBI_single_session(inputs, out, window, m) for m in (1, 2, 11, 12)]
     if isinstance(inputs, np.ndarray):
         C = inputs
         t_locks = None
@@ -366,7 +367,8 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     return outname, C.shape[0], nsessions
 
 
-def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=False):
+def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', 'trial')):
+    # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
     """Returns a metric matrix across all sessions and meta data of IBI metric
         Params:
             folder: str
@@ -393,6 +395,13 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
                 generate the IBI_distribution matrix if True
 
         Returns:
+            res_mat: dict
+                IBIs_window
+                IBIs_trial
+                redlabel
+                array_t1
+                array_miss
+
             mats: {group: {mat_ibi, (mat_ibi_dist,) meta}}
             mat_ibi_window: np.ndarray (first 4 ~ 8.93MB)
                 A * D * N * s * m matrix,
@@ -411,105 +420,187 @@ def calcium_IBI_all_sessions(folder, window=None, perc=30, ptp=True, IBI_dist=Fa
 
             meta: dictionary
                 meta data of form {group: {axis: labels}}
-
-        IO:
-            summary.mat: dict
-                {group: (A, D, N, s, nibis)}, first four the dimension of the ibi metric matrix,
-                nibis is the maximum number of ibis
         """
+    if method == 0:
+        return {m: calcium_IBI_single_session(folder, window, m) for m in (1, 2, 11, 12)}
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     out = os.path.join(folder, 'bursting/IBI')
-    if 'navigation.json' in os.listdir(processed):
-        with open(os.path.join(processed, 'navigation.json'), 'r') as jf:
-            all_files = json.load(jf)
-    else:
-        all_files = get_PTIT_over_days(processed)
-    calculate = True
-    summary_file = os.path.join(out, 'summary.json')
-    summary_mat = {}
-    if os.path.exists(summary_file):
-        with open(summary_file, 'r') as jf:
-            summary_mat = json.load(jf)
-        calculate = False
-    mats = {}
-    hyperparam = 'theta_perc{}{}_window{}'.format(perc, '_ptp' if ptp else "", window)
-    for group in 'IT', 'PT':
-        animal_map = all_files[group]['maps']
-        mats[group] = {'meta': [''] * len(animal_map)}
-        if calculate:
-            summary_mat[group] = [len(animal_map), len(all_files[group]) - 1] + [0] * 3
-            temp = {}
-        else:
-            mats[group]['mat_ibi'] = np.full(tuple(summary_mat[group][:4]) + (3,), np.nan)
-            if IBI_dist:
-                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
-        for d in all_files[group]:
-            if d == 'maps':
-                continue
-            animal_files = all_files[group][d]
-            if calculate:
-                temp[d] = {}
-            for filename in animal_files:
-                print(filename)
-                animal, day = decode_from_filename(filename)
-                if calculate:
-                    burst_file = calcium_IBI_single_session((processed, animal, day),
-                                            out, window=window, perc=perc, ptp=ptp)[0]
-                else:
-                    burst_file = os.path.join(out, animal, day,
-                                              encode_to_filename(out, animal, day, hyperparam))
-                #try:
-                burst_data = h5py.File(burst_file, 'r')
-                metrics = np.stack((burst_data['mean'], burst_data['stds'], burst_data['CVs']), axis=-1)
-                animal_ind = animal_map[animal]
-                mats[group]['redlabels'][animal_ind, int(d)-1] = get_redlabel(processed, animal, day)
-                if calculate:
-                    temp[d][animal] = {'mat_ibi': metrics}
-                    if IBI_dist:
-                        temp[d][animal]['mat_ibi_dist'] = burst_data['IBIs']
-                    summary_mat[group][2] = max(metrics.shape[0], summary_mat[group][2])
-                    summary_mat[group][3] = max(metrics.shape[1], summary_mat[group][3])
-                    summary_mat[group][4] = max(burst_data['IBIs'].shape[-1], summary_mat[group][4])
-                else:
-                    temp = {'mat_ibi': metrics}
-                    if IBI_dist:
-                        temp['mat_ibi_dist'] = burst_data['IBIs']
-                    for opt in mats[group]:
-                        if opt == 'meta':
-                            continue
-                        animal_ind = animal_map[animal]
-                        tN, ts, tm = temp[opt].shape
-                        mats[group][opt][animal_ind, int(d) - 1, :tN, :ts, :tm] = temp[opt]
-                        mats[group]['meta'][animal_ind] = animal
-                # except Exception as e:
-                #     skipped.append(e.args)
-                #     print(e.args)
-        #try:
-        summary_mat[group] = tuple(summary_mat[group])
-        if calculate:
-            mats[group]['mat_ibi'] = np.full(summary_mat[group][:4] + (3,), np.nan)
-            mats[group]['redlabels'] = np.full(summary_mat[group][:3], False)
-            if IBI_dist:
-                mats[group]['mat_ibi_dist'] = np.full(summary_mat[group], np.nan)
-            for opt in mats[group]:
-                if opt == 'meta':
-                    continue
-                for d in temp:
-                    for animal in temp[d]:
-                        animal_ind = animal_map[animal]
-                        tN, ts, tm = temp[d][animal][opt].shape
-                        mats[group][opt][animal_ind, int(d)-1, :tN, :ts, :tm] = temp[d][animal][opt]
-                        mats[group]['meta'][animal_ind] = animal
-        """except Exception as e:
-            skipped.append(str(e.args))
-            print(e.args)"""
-    if calculate:
-        with open(summary_file, 'w') as jf:
-            json.dump(summary_mat, jf)
-    """f = open(os.path.join(folder, 'errLOG.txt'), 'w')
-    f.write("\n".join([str(s) for s in skipped]))
-    f.close()"""
+    all_files = get_PTIT_over_days(processed)
+    hyperparam = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
+    mats = {'meta': hyperparam}
+    for group in all_files:
+        group_dict = all_files[group]
+        maxA, maxD, maxN = len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0
+        temp = {}
+        res_mat = {"IBIs_{}".format(o): [0, 0] for o in options} # maxW/T, maxK
+        skipped = {}
+        for animal in group_dict:
+            for day in group_dict[animal]:
+                hf = encode_to_filename(processed, animal, day)
+                errorFile = False
+                if not os.path.exists(hf):
+                    try:
+                        calcium_IBI_single_session(hf, window, method)
+                    except Exception as e:
+                        errorFile = True
+                        if animal in skipped:
+                            skipped[animal].append([day])
+                        else:
+                            skipped[animal] = [day]
+                with h5py.File(hf, 'r') as f:
+                    temp[animal][day]['redlabel'] = np.array(f['redlabel'])
+                    if 'trial' in options:
+                        array_t1, array_miss = np.array(f['array_t1']), np.array(f['array_miss'])
+                        a_t1, a_miss = np.full_like(array_t1, False), np.full_like(array_miss, False)
+                        a_t1[array_t1] = True
+                        a_miss[array_miss] = True
+                        temp[animal][day]['array_t1'] = a_t1
+                        temp[animal][day]['array_miss'] = a_miss
+                if not errorFile:
+                    with h5py.File(encode_to_filename(out, animal, day, hyperparams=hyperparam), 'r') as f:
+                        for i, o in enumerate(options):
+                            arg = 'IBIs_{}'.format(o)
+                            ibi = f[arg]
+                            if i == 0:
+                                maxN = max(ibi.shape[0], maxN)
+                            if animal in temp:
+                                temp[animal][day] = {o: np.array(ibi)}
+                            else:
+                                temp[animal] = {day: {o: np.array(ibi)}}
+                            res_mat[arg][0] = max(ibi.shape[1], res_mat[arg][0])
+                            res_mat[arg][1] = max(ibi.shape[-1], res_mat[arg][1])
+        maxA, maxD = len(temp), len(temp[max(temp.keys(), key=lambda k: len(temp[k]))])
+        animal_maps = {}
+        for k in res_mat:
+            maxS, maxK = res_mat[k][0], res_mat[k][1]
+            res_mat[k] = np.full((maxA, maxD, maxN, maxS, maxK), np.nan)
+        res_mat['redlabel'] = np.full((maxA, maxD, maxN), False)
+        if 'trial' in options:
+            res_mat['array_t1'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
+            res_mat['array_miss'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
+        for i, animal in enumerate(temp):
+            animal_maps[i] = animal
+            for j, d in enumerate(sorted([k for k in temp[animal].keys()])):
+                res_mat['redlabel'][i, j,:len(temp[animal][d]['redlabel'])] = temp[animal][d]['redlabel']
+                del temp[animal][d]['redlabel']
+                if 'trial' in options:
+                    at1 = temp[animal][d]['array_t1']
+                    am1 = temp[animal][d]['array_miss']
+                    res_mat['array_t1'][i, j, :, :len(at1)] = at1
+                    del temp[animal][d]['array_t1']
+                    del temp[animal][d]['array_miss']
+                    res_mat['array_miss'][i, j, :, :len(am1)] = am1
+                for o in options:
+                    tIBI = temp[animal][d][o]
+                    res_mat['IBIs_{}'.format(o)][i, j, :tIBI.shape[0], :tIBI.shape[1], :tIBI.shape[2]] = tIBI
+                    del temp[animal][d][o]
+        res_mat['animal_map'] = animal_maps
+        mats[group] = res_mat
     return mats
+
+
+def IBI_to_metric_window(ibi_mat, metric='cv', red=True):
+    res = {}
+    for group in ibi_mat:
+        if group != 'meta':
+            res[group] = {}
+            for k in ibi_mat[group].keys():
+                if k.find('IBI') != -1:
+                    if red:
+                        ibis = ibi_mat[group][k][ibi_mat[group]['redlabel']]
+                    else:
+                        ibis = ibi_mat[group][k]
+                        res[group]['redlabel'] = ibi_mat[group]['redlabel']
+                    ax = len(ibi_mat.shape)-1
+                    m = np.nanmean(ibis, axis=ax)
+                    if metric == 'cv':
+                        s = np.nanstd(ibis, axis=ax)
+                    elif metric == 'cv_ub':
+                        nn = np.sum(~np.isnan(ibis), axis=ax)
+                        s = (1 + 1 / (4 * nn)) * np.nanstd(ibis, axis=ax)
+                    elif metric == 'serr_pc':
+                        nn = np.sum(~np.isnan(ibis), axis=ax)
+                        s = np.nanstd(ibis, axis=ax)/np.sqrt(nn)
+                    else:
+                        raise ValueError("wrong metric")
+                    m[m==0] = 1e-16
+                    res[group][k] = s / m
+    res['meta'] = ibi_mat['meta'] + '_m_{}'.format(metric)
+    return res
+
+
+def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, bins=None, same_rank=True, eps=True):
+    if not os.path.exists(out):
+        os.makedirs(out)
+    IT_metric = metric_mats['IT']['IBIs_window'].ravel()
+    IT_metric = IT_metric[~np.isnan(IT_metric)]
+    PT_metric = metric_mats['PT']['IBIs_window'].ravel()
+    PT_metric = PT_metric[~np.isnan(PT_metric)]
+
+    if same_rank:
+        minSize = min(len(IT_metric), len(PT_metric))
+        inds = np.arange(minSize)
+        IT_metric = IT_metric[inds]
+        PT_metric = PT_metric[inds]
+
+    fig, axes = plt.subplots(nrows=1, ncols=2)
+    if bins is not None:
+        axes[0].hist([IT_metric, PT_metric], bins=bins, density=True)
+    else:
+        axes[0].hist([IT_metric, PT_metric], bins=best_nbins(IT_metric), density=True)
+    axes[0].legend(['IT', 'PT'])
+    axes[0].set_title('IBI Contrast IT & PT All Sessions Histogram')
+    axes[0].set_xlabel('AU')
+    sns.distplot(IT_metric, bins=bins, hist=False, color="dodgerblue", label="IT", ax=axes[1])
+    sns.distplot(PT_metric, bins=bins, hist=False, color="deeppink", label="PT", ax=axes[1])
+    axes[1].set_title("IBI Contrast IT & PT All Sessions Histogram ")
+    axes[1].set_xlabel('AU')
+    fname = os.path.join(out, "ITPT_all_IBI_{}".format(metric_mats['meta']))
+    fig.savefig(fname+'.png')
+    if eps:
+        fig.savefig(fname+".eps")
+
+
+def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
+    # TODO: handle redlabel more elegantly
+    if not os.path.exists(out):
+        os.makedirs(out)
+
+    def get_sequence_over_days(metric_mats, group):
+        metric = metric_mats[group]['IBIs_window']
+        all_mean = np.empty(metric.shape[1])
+        all_serr = np.empty(metric.shape[1])
+        for d in range(metric.shape[1]):
+            data = metric[:, d, :, :][metric_mats[group]['redlabel'][:, d, :]].ravel()
+            all_mean[d] = np.nanmean(data)
+            all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
+        return all_mean, all_serr
+
+    def get_sequence_over_windows(metric_mats, group):
+        metric = metric_mats[group]['IBIs_window'][metric_mats[group]['redlabel']]
+
+        all_mean = np.nanmean(metric, axis=0)
+        all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
+        return all_mean, all_serr
+
+    data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
+                   'window': get_sequence_over_windows(metric_mats, 'IT')},
+            'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
+                   'window': get_sequence_over_windows(metric_mats, 'PT')}}
+    fig, axes = plt.subplots(nrows=1, ncols=2)
+    for i, t in enumerate(data['IT']):
+        IT_mean, IT_serr = data['IT'][t]
+        PT_mean, PT_serr = data['PT'][t]
+        axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
+        axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+        axes[i].set_title('IT PT IBI over {}s'.format(t))
+        axes[i].set_xlabel(t)
+        axes[i].set_ylabel('AU')
+    fname = os.path.join(out, "ITPT_IBI_evolution_{}".format(metric_mats['meta']))
+    fig.savefig(fname + '.png')
+    if eps:
+        fig.savefig(fname + ".eps")
+
 
 
 
