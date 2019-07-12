@@ -72,10 +72,11 @@ def time_lock_activity(f, t_size=(300,30), order='T'):
     for ind, trial in enumerate(trial_end):
         start_idx = max(trial - t_size[0], trial_start[ind])
         aux_act = C[:, start_idx:trial + 1 + t_size[1]]
+        print(aux_act.shape)
         if order == 'T':
-            neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
+            neuron_activity[ind, :, np.sum(t_size) + 1-aux_act.shape[1]:] = aux_act
         else:
-            neuron_activity[:, ind, -aux_act.shape[1]:] = aux_act
+            neuron_activity[:, ind, np.sum(t_size) + 1-aux_act.shape[1]:] = aux_act
     return neuron_activity
 
 
