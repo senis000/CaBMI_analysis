@@ -325,6 +325,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         if not os.path.exists(savepath):
             os.makedirs(savepath)
         savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
+    print('pass')
     if os.path.exists(savepath):
         with h5py.File(savepath, 'r') as f:
             N, nsessions = f['mean'].shape[:2]
@@ -336,6 +337,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         rawibis_trials = {}
         maxLenT = -1
     for i in range(C.shape[0]):
+        print(i)
         rawibis_windows[i] = {}
         for s in range(nsessions):
             slide = C[i, s*window:min(C.shape[1], (s+1) * window)]
