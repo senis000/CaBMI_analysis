@@ -39,8 +39,8 @@ def sliding_mean(data_array, window=5):
 
 
 def median_absolute_deviation(a, axis=None):
-    med = np.median(a, axis=axis, keepdims=True)
-    return np.median(np.abs(a - med), axis=axis)
+    med = np.nanmedian(a, axis=axis, keepdims=True)
+    return np.nanmedian(np.abs(a - med), axis=axis)
 
 
 def time_lock_activity_old(f, t_size=(300,30)):

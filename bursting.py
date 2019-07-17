@@ -290,6 +290,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     """
     if method == 0:
         return [calcium_IBI_single_session(inputs, out, window, m) for m in (1, 2, 11, 12)]
+    print("Starting IBI calculation")
     if isinstance(inputs, np.ndarray):
         C = inputs
         t_locks = None
@@ -315,8 +316,11 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         if window is None:
             window0 = window
             window = f.attrs['blen']
+        else:
+            window0 = window
         f.close()
     ibi_func, hp = decode_method_ibi(method)
+
     if animal is None:
         savepath = os.path.join(out, 'sample_IBI.hdf5')
     else:
@@ -325,7 +329,6 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         if not os.path.exists(savepath):
             os.makedirs(savepath)
         savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
-    print('pass')
     if os.path.exists(savepath):
         with h5py.File(savepath, 'r') as f:
             N, nsessions = f['mean'].shape[:2]
@@ -354,7 +357,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
 
     all_ibis_windows = np.full((C.shape[0], nsessions, maxLenW), np.nan)
     if t_locks is not None:
-        all_ibis_trials = np.full((C.shape[0], nsessions, maxLenT), np.nan)
+        all_ibis_trials = np.full((C.shape[0], t_locks.shape[1], maxLenT), np.nan)
     for i in range(C.shape[0]):
         for s in range(nsessions):
             all_ibis_windows[i][s][:len(rawibis_windows[i][s])] = rawibis_windows[i][s]
@@ -443,15 +446,15 @@ def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', '
                 hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
                 if not os.path.exists(hf_burst):
-                    try:
-                        calcium_IBI_single_session(hf, window, method)
-                        print('Finished', animal, day)
-                    except Exception as e:
-                        errorFile = True
-                        if animal in skipped:
-                            skipped[animal].append([day])
-                        else:
-                            skipped[animal] = [day]
+                    # try:
+                    calcium_IBI_single_session(hf, out, window, method)
+                    print('Finished', animal, day)
+                    # except Exception as e:
+                    #     errorFile = True
+                    #     if animal in skipped:
+                    #         skipped[animal].append([day])
+                    #     else:
+                    #         skipped[animal] = [day]
                 if not errorFile:
                     temp[animal][day] = {}
                     with h5py.File(hf, 'r') as f:
