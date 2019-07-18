@@ -257,7 +257,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
             Output path for saving the metrics in a hdf5 file
             outfile: h5py.File
                 N: number of neurons
-                s: number of sliding sessions
+                s: number of sliding sections
                 t: number of trials
                 K: maximum number of IBIs extracted
                 K': maximum number of IBIs within each trial
@@ -367,7 +367,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     return outname, C.shape[0], nsessions
 
 
-def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', 'trial')):
+def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('window', 'trial')):
     # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
     """Returns a metric matrix across all sessions and meta data of IBI metric
         Params:
@@ -376,13 +376,13 @@ def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', '
             out: str
                 Output path for saving the metrics in a hdf5 file
                 outfile: h5py.File
-                    N: number of neurons
-                    s: number of sliding sessions
-                    K: maximum number of IBIs extracted
-                    'mean': N * s matrix, means of IBIs
-                    'stds': N * s matrix, stds of IBIs
-                    'CVs': N * s matrix, CVs of IBIs
-                    'IBIs': N * s * K, IBIs
+                A: number of animals
+                D: number of days
+                N: number of neurons
+                s: number of sliding sections
+                t: number of trials
+                K: maximum number of IBIs extracted
+                K': maximum number of IBIs within each trial
                 All stored by animal/day/IBI_animal_day_hyperparams.hdf5
             window: None or int
                 sliding window for calculating IBIs.
@@ -409,7 +409,7 @@ def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', '
                 D: number of days
                 N: number of neurons
                 s: number of windows,
-                m: the number of metrics
+                K: the number of metrics
             mat_ibi_trial: np.ndarray (first 4 ~ 8.93MB)
                 A * D * N * s * m matrix,
                 A: number of animals
@@ -425,7 +425,10 @@ def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', '
         return {m: calcium_IBI_single_session(folder, window, m) for m in (1, 2, 11, 12)}
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     out = os.path.join(folder, 'bursting/IBI')
-    all_files = get_PTIT_over_days(processed)
+    if groups == '*':
+        all_files = get_PTIT_over_days(processed)
+    else:
+        all_files = {g: parse_group_dict(processed, groups[g], g) for g in ('IT', 'PT')}
     hyperparam = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     mats = {'meta': hyperparam}
     for group in all_files:
@@ -499,37 +502,56 @@ def calcium_IBI_all_sessions(folder, window=None, method=0, options=('window', '
     return mats
 
 
-def IBI_to_metric_window(ibi_mat, metric='cv', red=True):
+def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
+    """Returns metric mats for IBIs_window"""
     res = {}
     for group in ibi_mat:
         if group != 'meta':
             res[group] = {}
-            for k in ibi_mat[group].keys():
-                if k.find('IBI') != -1:
-                    if red:
-                        ibis = ibi_mat[group][k][ibi_mat[group]['redlabel']]
-                    else:
-                        ibis = ibi_mat[group][k]
-                        res[group]['redlabel'] = ibi_mat[group]['redlabel']
-                    ax = len(ibi_mat.shape)-1
-                    m = np.nanmean(ibis, axis=ax)
-                    if metric == 'cv':
-                        s = np.nanstd(ibis, axis=ax)
-                    elif metric == 'cv_ub':
-                        nn = np.sum(~np.isnan(ibis), axis=ax)
-                        s = (1 + 1 / (4 * nn)) * np.nanstd(ibis, axis=ax)
-                    elif metric == 'serr_pc':
-                        nn = np.sum(~np.isnan(ibis), axis=ax)
-                        s = np.nanstd(ibis, axis=ax)/np.sqrt(nn)
-                    else:
-                        raise ValueError("wrong metric")
-                    m[m==0] = 1e-16
-                    res[group][k] = s / m
+            k = 'IBIs_window'
+            if mask:
+                ibis = ibi_mat[group][k][ibi_mat[group]['redlabel']]
+            else:
+                ibis = ibi_mat[group][k]
+                res[group]['redlabel'] = ibi_mat[group]['redlabel']
+            res[group][k] = IBI_cv_matrix(ibis, metric)
+    res['meta'] = ibi_mat['meta'] + '_m_{}'.format(metric)
+    return res
+
+
+def IBI_to_metric_trial(ibi_mat, metric='cv', mask=True):
+    """ Returns metric mats for IBIs_trial
+    """
+    # TODO: 1. ADD procedure to effciently computer all trials as well, if "trial" is
+    #  needed for evolution analysis
+    #  2. ADD procedure to handle binning of multiple trials, sofar n_trials=1
+
+    res = {}
+    for group in ibi_mat:
+        if group != 'meta':
+            res[group] = {}
+            k = 'IBIs_trial'
+            hit_mask = ibi_mat['array_t1']
+            miss_mask = ibi_mat['array_miss']
+            redmask = ibi_mat[group]['redlabel'][:, :, :, np.newaxis]
+            if mask:
+                hit_mask = np.logical_and(redmask, hit_mask)
+                miss_mask = np.logical_and(redmask, miss_mask)
+                ibis_hits = ibi_mat[group][k][hit_mask]
+                ibis_misses = ibi_mat[group][k][miss_mask]
+                res[group]['IBIs_hit'] = IBI_cv_matrix(ibis_hits, metric)
+                res[group]['IBIs_miss'] = IBI_cv_matrix(ibis_misses, metric)
+            else:
+                res[group]['redlabel'] = redmask
+                res[group]['array_hit'] = hit_mask
+                res[group]['array_miss'] = miss_mask
+                res[group][k] = IBI_cv_matrix(ibi_mat[group][k], metric)
     res['meta'] = ibi_mat['meta'] + '_m_{}'.format(metric)
     return res
 
 
 def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, bins=None, same_rank=True, eps=True):
+    # FIG 1
     if not os.path.exists(out):
         os.makedirs(out)
     IT_metric = metric_mats['IT']['IBIs_window'].ravel()
@@ -563,6 +585,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, bins=None, same_rank=T
 
 def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
     # TODO: handle redlabel more elegantly
+    # FIG 2
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -593,6 +616,7 @@ def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
         PT_mean, PT_serr = data['PT'][t]
         axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
         axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+        axes[i].legend(['IT', 'PT'])
         axes[i].set_title('IT PT IBI over {}s'.format(t))
         axes[i].set_xlabel(t)
         axes[i].set_ylabel('AU')
@@ -602,6 +626,69 @@ def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
         fig.savefig(fname + ".eps")
 
 
+def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
+    # Compares IBI CV distribution in hit and miss trials for IT & PT respectively
+    # FIG 3
+    if not os.path.exists(out):
+        os.makedirs(out)
+
+    def get_sequence_over_days(metric_mats, group):
+        metric = metric_mats[group]['IBIs_trial']
+        res = {}
+        for t in 'hit', 'miss':
+            t_mask = metric_mats[group]['array_'+t]
+            all_mean = np.empty(metric.shape[1])
+            all_serr = np.empty(metric.shape[1])
+            for d in range(metric.shape[1]):
+                mask = np.logical_and(metric_mats[group]['redlabel'][:, d, :, :], t_mask)
+                data = metric[:, d, :, :][mask].ravel()
+                all_mean[d] = np.nanmean(data)
+                all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
+            res[t] = all_mean, all_serr
+        return res
+
+    def get_sequence_over_windows(metric_mats, group):
+        res = {}
+        for t in 'hit', 'miss':
+            mask = np.logical_and(metric_mats[group]['array_' + t], metric_mats[group]['redlabel'])
+            metric = metric_mats[group]['IBIs_trial'][mask]
+            all_mean = np.nanmean(metric, axis=0)
+            all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
+            res[t] = all_mean, all_serr
+        return res
+
+    data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
+                   'window': get_sequence_over_windows(metric_mats, 'IT')},
+            'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
+                   'window': get_sequence_over_windows(metric_mats, 'PT')}}
+    fig, axes = plt.subplots(nrows=2, ncols=2, sharey=True) # Each row is [IT, PT]
+    for i, s in enumerate(data['IT']):
+        if HM:
+            pIT = []
+            pPT = []
+            for t in 'hit', 'miss':
+                IT_mean, IT_serr = data['IT'][s][t]
+                PT_mean, PT_serr = data['PT'][s][t]
+                pIT.append(axes[i][0].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr))
+                pPT.append(axes[i][1].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr))
+            axes[i][0].set_title('IT IBI HIT/MISS trial over {}s'.format(s))
+            axes[i][0].set_xlabel(s)
+            axes[i][0].set_ylabel('AU')
+            axes[i][1].set_title('PT IBI HIT/MISS trial over {}s'.format(s))
+            axes[i][1].set_xlabel(s)
+        else:
+            for j, t in enumerate(('hit', 'miss')):
+                IT_mean, IT_serr = data['IT'][s][t]
+                PT_mean, PT_serr = data['PT'][s][t]
+                axes[i][j].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
+                axes[i][j].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+                axes[i][j].set_title('IT PT IBI over {}s'.format(s))
+                axes[i][j].set_xlabel(s)
+                axes[i][j].set_ylabel('AU')
+    fname = os.path.join(out, "ITPT_IBI_HMtrial_{}".format(metric_mats['meta']))
+    fig.savefig(fname + '.png')
+    if eps:
+        fig.savefig(fname + ".eps")
 
 
 def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp=True, IBI_dist=False,
@@ -1007,6 +1094,15 @@ def deconv_fano_run():
     W, T = None, 100
     for opt in 'norm_pre', 'raw', 'norm_post':
         deconv_fano_contrast_avg_days(root, fano_opt=opt, W=W, step=T, eps=True)
+
+
+
+def generate_IBI_plots(folder, out, method=0, metric='cv'):
+    ibi_mat = calcium_IBI_all_sessions(folder, method=method)
+    metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric='cv', mask=False),
+    metric_mat_window = IBI_to_metric_window(ibi_mat, metric='cv', mask=False)
+    plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out)
+    plot_IBI_ITPT_compare_HM(metric_mat_trial, out)
 
 
 if __name__ == '__main__':

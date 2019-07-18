@@ -119,3 +119,20 @@ def neuron_fano_norm(sig, W=None, T=100, lingress=False, pre=True):
         return neuron_fano(sig / (n), W, T)
     else:
         return neuron_fano(sig, W, T) / (n)
+
+
+def IBI_cv_matrix(ibis, metric='cv_ub'):
+    ax = len(ibis.shape) - 1
+    m = np.nanmean(ibis, axis=ax)
+    if metric == 'cv':
+        s = np.nanstd(ibis, axis=ax)
+    elif metric == 'cv_ub':
+        nn = np.sum(~np.isnan(ibis), axis=ax)
+        s = (1 + 1 / (4 * nn)) * np.nanstd(ibis, axis=ax)
+    elif metric == 'serr_pc':
+        nn = np.sum(~np.isnan(ibis), axis=ax)
+        s = np.nanstd(ibis, axis=ax) / np.sqrt(nn)
+    else:
+        raise ValueError("wrong metric")
+    m[m == 0] = 1e-16
+    return s / m
