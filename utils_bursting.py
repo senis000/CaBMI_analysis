@@ -75,8 +75,10 @@ def neuron_calcium_ibi_cwt(sig, method, band=(1, 20)):
     """
     lo, hi = band
     opt, th = method // 10, method % 10
-    delta = np.median(sig) + th * median_absolute_deviation(sig) if opt else np.mean(sig) + th * np.std(sig)
+    delta = np.nanmedian(sig) + th * median_absolute_deviation(sig) if opt else np.nanmean(sig) + th * np.nanstd(sig)
     peakind = find_peaks_cwt(sig, np.arange(lo, hi))
+    if peakind.shape[0] == 0:
+        return np.full(0, np.nan)
     peaks = peakind[sig[peakind] > delta]
     return np.diff(peaks)
 

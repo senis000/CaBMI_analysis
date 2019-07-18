@@ -290,6 +290,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     """
     if method == 0:
         return [calcium_IBI_single_session(inputs, out, window, m) for m in (1, 2, 11, 12)]
+    print("Starting IBI calculation")
     if isinstance(inputs, np.ndarray):
         C = inputs
         t_locks = None
@@ -315,8 +316,11 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         if window is None:
             window0 = window
             window = f.attrs['blen']
+        else:
+            window0 = window
         f.close()
     ibi_func, hp = decode_method_ibi(method)
+
     if animal is None:
         savepath = os.path.join(out, 'sample_IBI.hdf5')
     else:
@@ -336,6 +340,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         rawibis_trials = {}
         maxLenT = -1
     for i in range(C.shape[0]):
+        print(i)
         rawibis_windows[i] = {}
         for s in range(nsessions):
             slide = C[i, s*window:min(C.shape[1], (s+1) * window)]
@@ -352,7 +357,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
 
     all_ibis_windows = np.full((C.shape[0], nsessions, maxLenW), np.nan)
     if t_locks is not None:
-        all_ibis_trials = np.full((C.shape[0], nsessions, maxLenT), np.nan)
+        all_ibis_trials = np.full((C.shape[0], t_locks.shape[1], maxLenT), np.nan)
     for i in range(C.shape[0]):
         for s in range(nsessions):
             all_ibis_windows[i][s][:len(rawibis_windows[i][s])] = rawibis_windows[i][s]
@@ -422,7 +427,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                 meta data of form {group: {axis: labels}}
         """
     if method == 0:
-        return {m: calcium_IBI_single_session(folder, window, m) for m in (1, 2, 11, 12)}
+        return {m: calcium_IBI_all_sessions(folder, window, m) for m in (1, 2, 11, 12)}
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     out = os.path.join(folder, 'bursting/IBI')
     if groups == '*':
@@ -438,38 +443,41 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
         res_mat = {"IBIs_{}".format(o): [0, 0] for o in options} # maxW/T, maxK
         skipped = {}
         for animal in group_dict:
+            temp[animal] = {}
             for day in group_dict[animal]:
                 hf = encode_to_filename(processed, animal, day)
+                hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
-                if not os.path.exists(hf):
-                    try:
-                        calcium_IBI_single_session(hf, window, method)
-                    except Exception as e:
-                        errorFile = True
-                        if animal in skipped:
-                            skipped[animal].append([day])
-                        else:
-                            skipped[animal] = [day]
-                with h5py.File(hf, 'r') as f:
-                    temp[animal][day]['redlabel'] = np.array(f['redlabel'])
-                    if 'trial' in options:
-                        array_t1, array_miss = np.array(f['array_t1']), np.array(f['array_miss'])
-                        a_t1, a_miss = np.full_like(array_t1, False), np.full_like(array_miss, False)
-                        a_t1[array_t1] = True
-                        a_miss[array_miss] = True
-                        temp[animal][day]['array_t1'] = a_t1
-                        temp[animal][day]['array_miss'] = a_miss
+                if not os.path.exists(hf_burst):
+                    # try:
+                    calcium_IBI_single_session(hf, out, window, method)
+                    print('Finished', animal, day)
+                    # except Exception as e:
+                    #     errorFile = True
+                    #     if animal in skipped:
+                    #         skipped[animal].append([day])
+                    #     else:
+                    #         skipped[animal] = [day]
                 if not errorFile:
-                    with h5py.File(encode_to_filename(out, animal, day, hyperparams=hyperparam), 'r') as f:
+                    temp[animal][day] = {}
+                    with h5py.File(hf, 'r') as f:
+                        temp[animal][day]['redlabel'] = np.array(f['redlabel'])
+                        if 'trial' in options:
+                            array_t1, array_miss = np.array(f['array_t1']), np.array(f['array_miss'])
+                            a_t1, a_miss = np.full(len(f['trial_start']), False), np.full(len(f['trial_start']), False)
+                            a_t1[array_t1] = True
+                            a_miss[array_miss] = True
+                            temp[animal][day]['array_t1'] = a_t1
+                            temp[animal][day]['array_miss'] = a_miss
+                    
+                    with h5py.File(hf_burst, 'r') as f:
                         for i, o in enumerate(options):
                             arg = 'IBIs_{}'.format(o)
                             ibi = f[arg]
                             if i == 0:
                                 maxN = max(ibi.shape[0], maxN)
-                            if animal in temp:
-                                temp[animal][day] = {o: np.array(ibi)}
-                            else:
-                                temp[animal] = {day: {o: np.array(ibi)}}
+                            
+                            temp[animal][day][o] = np.array(ibi)
                             res_mat[arg][0] = max(ibi.shape[1], res_mat[arg][0])
                             res_mat[arg][1] = max(ibi.shape[-1], res_mat[arg][1])
         maxA, maxD = len(temp), len(temp[max(temp.keys(), key=lambda k: len(temp[k]))])
