@@ -291,7 +291,6 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     """
     if method == 0:
         return [calcium_IBI_single_session(inputs, out, window, m) for m in (1, 2, 11, 12)]
-    print("Starting IBI calculation")
     if isinstance(inputs, np.ndarray):
         C = inputs
         t_locks = None
@@ -333,7 +332,9 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     if os.path.exists(savepath):
         with h5py.File(savepath, 'r') as f:
             N, nsessions = f['mean'].shape[:2]
+        print("Existed, ", animal, day)
         return savepath, N, nsessions
+    print("Starting IBI calculation, ", animal, day)
     nsessions = int(np.ceil(C.shape[1] / window))
     rawibis_windows = {}
     maxLenW = -1
@@ -428,13 +429,14 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                 meta data of form {group: {axis: labels}}
         """
     if method == 0:
-        return {m: calcium_IBI_all_sessions(folder, window, m) for m in (1, 2, 11, 12)}
+        return {m: calcium_IBI_all_sessions(folder, groups, window, m) for m in (1, 2, 11, 12)}
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     out = os.path.join(folder, 'bursting/IBI')
     if groups == '*':
         all_files = get_PTIT_over_days(processed)
     else:
-        all_files = {g: parse_group_dict(processed, groups[g], g) for g in ('IT', 'PT')}
+        all_files = {g: parse_group_dict(processed, groups[g], g) for g in groups.keys()}
+    print(all_files)
     hyperparam = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     mats = {'meta': hyperparam}
     for group in all_files:
@@ -445,7 +447,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
         skipped = {}
         for animal in group_dict:
             temp[animal] = {}
-            for day in group_dict[animal]:
+            for day in sorted(group_dict[animal]):
                 hf = encode_to_filename(processed, animal, day)
                 hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
