@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import seaborn as sns
+import pandas as pd
 import os, h5py
 from utils_bursting import *
 from plotting_functions import best_nbins
@@ -508,6 +509,37 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
         res_mat['animal_map'] = animal_maps
         mats[group] = res_mat
     return mats
+
+
+def IBI_to_metric_save(folder, method=0):
+    # TODO: add asymtotic learning rate as well
+    """Returns pandas DataFrame object consisting all the experiments
+        df_window: pd.DataFrame
+            cols: [group|animal|day|slide]
+        df_trial: pd.DataFrame
+            cols: [group|animal|day|H/M|trial]
+        """
+    # TODO: first calculate cv then loop through
+    if method == 0:
+        return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
+    dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'HM', 'trial', 'CV',
+                                  'CV_unbiased', 'StdErr_percent')}
+    dict_window = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'window', 'CV',
+                                  'CV_unbiased', 'StdErr_percent')}
+    for animal in os.listdir(folder):
+        if animal.startswith('PT') or animal.startswith('IT'):
+            for day in os.listdir(os.path.join(folder, animal)):
+                if day.isnumeric():
+                    daypath = os.path.join(folder, animal, day)
+                    ibif = h5py.File(os.path.join(daypath,
+                                    encode_to_filename(folder, animal, day, decode_method_ibi(method))))
+                    f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
+
+
+
+
+
+
 
 
 def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
@@ -1105,15 +1137,20 @@ def deconv_fano_run():
 
 
 
-def generate_IBI_plots(folder, out, method=0, metric='cv'):
-    ibi_mat = calcium_IBI_all_sessions(folder, method=method)
-    metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric='cv', mask=False),
-    metric_mat_window = IBI_to_metric_window(ibi_mat, metric='cv', mask=False)
-    plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out)
-    plot_IBI_ITPT_compare_HM(metric_mat_trial, out)
+def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
+    ibi_mat = calcium_IBI_all_sessions(folder, {'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, method=method)
+    metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
+    metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+    plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out, eps=eps)
+    plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out, eps=eps)
+    plot_IBI_ITPT_compare_HM(metric_mat_trial, out, eps=eps)
 
 
 if __name__ == '__main__':
     root = "/home/user/"
     #mat = calcium_IBI_all_sessions(root)
-    plot_IBI_contrast_CVs_ITPTsubset(root, '*', '*')
+    #plot_IBI_contrast_CVs_ITPTsubset(root, '*', '*')
+    out = os.path.join(root, 'bursting/plots/IBI_contrast')
+    if not os.path.exists(out):
+        os.makedirs(out)
+    generate_IBI_plots(root, out, m)
