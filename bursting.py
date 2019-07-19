@@ -540,10 +540,6 @@ def IBI_to_metric_save(folder, method=0):
 
 
 
-
-
-
-
 def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
     """Returns metric mats for IBIs_window"""
     res = {}
@@ -1141,11 +1137,23 @@ def deconv_fano_run():
 
 def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
     ibi_mat = calcium_IBI_all_sessions(folder, {'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, method=method)
-    metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
-    metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
-    plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out, eps=eps)
-    plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out, eps=eps)
-    plot_IBI_ITPT_compare_HM(metric_mat_trial, out, eps=eps)
+    if method == 0:
+        for m in ibi_mat:
+            hp = decode_method_ibi(m)[1]
+            out1 = os.path.join(out, hp, metric)
+            metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
+            metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+            plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps)
+            plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps)
+            plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
+    else:
+        hp = decode_method_ibi(method)[1]
+        out1 = os.path.join(out, hp, metric)
+        metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
+        metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+        plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps)
+        plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps)
+        plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
 
 
 if __name__ == '__main__':
@@ -1155,4 +1163,5 @@ if __name__ == '__main__':
     out = os.path.join(root, 'bursting/plots/IBI_contrast')
     if not os.path.exists(out):
         os.makedirs(out)
-    generate_IBI_plots(root, out, m)
+    for met in ('cv', 'cv_ub', 'serr_pc'):
+        generate_IBI_plots(root, out, method=1, metric=met)
