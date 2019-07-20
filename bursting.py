@@ -569,8 +569,8 @@ def IBI_to_metric_trial(ibi_mat, metric='cv', mask=True):
         if group != 'meta':
             res[group] = {}
             k = 'IBIs_trial'
-            hit_mask = ibi_mat['array_t1']
-            miss_mask = ibi_mat['array_miss']
+            hit_mask = ibi_mat[group]['array_t1']
+            miss_mask = ibi_mat[group]['array_miss']
             redmask = ibi_mat[group]['redlabel'][:, :, :, np.newaxis]
             if mask:
                 hit_mask = np.logical_and(redmask, hit_mask)
@@ -603,12 +603,12 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, bins=None, same_rank=T
         IT_metric = IT_metric[inds]
         PT_metric = PT_metric[inds]
 
-    fig, axes = plt.subplots(nrows=1, ncols=2)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     if bins is not None:
-        axes[0].hist([IT_metric, PT_metric], bins=bins, density=True)
+        axes[0].hist([IT_metric, PT_metric], bins=bins, density=True, label=['IT', 'PT'])
     else:
-        axes[0].hist([IT_metric, PT_metric], bins=best_nbins(IT_metric), density=True)
-    axes[0].legend(['IT', 'PT'])
+        axes[0].hist([IT_metric, PT_metric], bins=best_nbins(IT_metric), density=True, label=['IT', 'PT'])
+    axes[0].legend()
     axes[0].set_title('IBI Contrast IT & PT All Sessions Histogram')
     axes[0].set_xlabel('AU')
     sns.distplot(IT_metric, bins=bins, hist=False, color="dodgerblue", label="IT", ax=axes[1])
@@ -639,7 +639,6 @@ def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
 
     def get_sequence_over_windows(metric_mats, group):
         metric = metric_mats[group]['IBIs_window'][metric_mats[group]['redlabel']]
-
         all_mean = np.nanmean(metric, axis=0)
         all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
         return all_mean, all_serr
@@ -648,10 +647,11 @@ def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True):
                    'window': get_sequence_over_windows(metric_mats, 'IT')},
             'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
                    'window': get_sequence_over_windows(metric_mats, 'PT')}}
-    fig, axes = plt.subplots(nrows=1, ncols=2)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     for i, t in enumerate(data['IT']):
         IT_mean, IT_serr = data['IT'][t]
         PT_mean, PT_serr = data['PT'][t]
+        print(np.mean(IT_serr), np.mean(PT_serr))
         axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
         axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
         axes[i].legend(['IT', 'PT'])
@@ -671,6 +671,8 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
         os.makedirs(out)
 
     def get_sequence_over_days(metric_mats, group):
+        if isinstance(metric_mats, tuple):
+            metric_mats=metric_mats[0]
         metric = metric_mats[group]['IBIs_trial']
         res = {}
         for t in 'hit', 'miss':
@@ -678,7 +680,7 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
             all_mean = np.empty(metric.shape[1])
             all_serr = np.empty(metric.shape[1])
             for d in range(metric.shape[1]):
-                mask = np.logical_and(metric_mats[group]['redlabel'][:, d, :, :], t_mask)
+                mask = np.logical_and(metric_mats[group]['redlabel'][:, d, :, :], t_mask[:, d, :, :])
                 data = metric[:, d, :, :][mask].ravel()
                 all_mean[d] = np.nanmean(data)
                 all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
@@ -687,6 +689,9 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
 
     def get_sequence_over_windows(metric_mats, group):
         res = {}
+        if isinstance(metric_mats,tuple):
+            print(metric_mats[0].keys())
+            metric_mats = metric_mats[0]
         for t in 'hit', 'miss':
             mask = np.logical_and(metric_mats[group]['array_' + t], metric_mats[group]['redlabel'])
             metric = metric_mats[group]['IBIs_trial'][mask]
@@ -699,21 +704,27 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
                    'window': get_sequence_over_windows(metric_mats, 'IT')},
             'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
                    'window': get_sequence_over_windows(metric_mats, 'PT')}}
-    fig, axes = plt.subplots(nrows=2, ncols=2, sharey=True) # Each row is [IT, PT]
+    fig, axes = plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(20, 10)) # Each row is [IT, PT]
     for i, s in enumerate(data['IT']):
+        # TODO: FIX WINDOW PLOT
+        if s == 'window':
+            continue
         if HM:
             pIT = []
             pPT = []
-            for t in 'hit', 'miss':
+            ts = 'hit', 'miss'
+            for t in ts:
                 IT_mean, IT_serr = data['IT'][s][t]
                 PT_mean, PT_serr = data['PT'][s][t]
-                pIT.append(axes[i][0].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr))
-                pPT.append(axes[i][1].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr))
-            axes[i][0].set_title('IT IBI HIT/MISS trial over {}s'.format(s))
-            axes[i][0].set_xlabel(s)
-            axes[i][0].set_ylabel('AU')
-            axes[i][1].set_title('PT IBI HIT/MISS trial over {}s'.format(s))
-            axes[i][1].set_xlabel(s)
+                pIT.append(axes[0].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr, label=t))
+                pPT.append(axes[1].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr, label=t))
+            axes[0].set_title('IT IBI HIT/MISS trial over {}s'.format(s))
+            axes[0].set_xlabel(s)
+            axes[0].set_ylabel('AU')
+            axes[1].set_title('PT IBI HIT/MISS trial over {}s'.format(s))
+            axes[1].set_xlabel(s)
+            axes[0].legend(pIT, ts)
+            axes[1].legend(pPT, ts)
         else:
             for j, t in enumerate(('hit', 'miss')):
                 IT_mean, IT_serr = data['IT'][s][t]
@@ -723,7 +734,7 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True):
                 axes[i][j].set_title('IT PT IBI over {}s'.format(s))
                 axes[i][j].set_xlabel(s)
                 axes[i][j].set_ylabel('AU')
-    fname = os.path.join(out, "ITPT_IBI_HMtrial_{}".format(metric_mats['meta']))
+    fname = os.path.join(out, "ITPT_IBI_HMtrial_{}".format(metric_mats[0]['meta'])) #TODO: identify why metric mat is a tuple
     fig.savefig(fname + '.png')
     if eps:
         fig.savefig(fname + ".eps")
@@ -1141,8 +1152,29 @@ def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
         for m in ibi_mat:
             hp = decode_method_ibi(m)[1]
             out1 = os.path.join(out, hp, metric)
-            metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
-            metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+            metric_mat_trial = IBI_to_metric_trial(ibi_mat[m], metric=metric, mask=False),
+            metric_mat_window = IBI_to_metric_window(ibi_mat[m], metric=metric, mask=False)
+            plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps)
+            plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps)
+            plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
+    else:
+        hp = decode_method_ibi(method)[1]
+        out1 = os.path.join(out, hp, metric)
+        metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
+        metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+        plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps)
+        plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps)
+        plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
+
+
+def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
+    ibi_mat = calcium_IBI_all_sessions(folder, {'IT': {'IT{}'.format(i): "*" for i in range(3, 6)}, 'PT': {'PT6': '*'}}, method=method)
+    if method == 0:
+        for m in ibi_mat:
+            hp = decode_method_ibi(m)[1]
+            out1 = os.path.join(out, hp, metric)
+            metric_mat_trial = IBI_to_metric_trial(ibi_mat[m], metric=metric, mask=False),
+            metric_mat_window = IBI_to_metric_window(ibi_mat[m], metric=metric, mask=False)
             plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps)
             plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps)
             plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
