@@ -538,8 +538,6 @@ def IBI_to_metric_save(folder, method=0):
                     f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
-
-
 def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
     """Returns metric mats for IBIs_window"""
     res = {}
