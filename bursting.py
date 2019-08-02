@@ -1168,7 +1168,8 @@ def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
 
 
 def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
-    ibi_mat = calcium_IBI_all_sessions(folder, {'IT': {'IT{}'.format(i): "*" for i in range(3, 6)}, 'PT': {'PT6': '*'}}, method=method)
+    ibi_mat = calcium_IBI_all_sessions(folder, {'IT': {'IT{}'.format(i): "*" for i in range(2, 6)}, 'PT': {'PT6': '*', 
+        'PT7': '*', 'PT9': '*', 'PT12': '*'}}, method=method)
     if method == 0:
         for m in ibi_mat:
             hp = decode_method_ibi(m)[1]
@@ -1188,6 +1189,25 @@ def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
         plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps)
 
 
+def check_burst(root, method):
+    slist = [] 
+    hp = decode_method_ibi(method)[1]
+    print(hp)
+    for animal in os.listdir(root): 
+        print(animal)
+        animal_path = os.path.join(root, animal) 
+        for day in os.listdir(animal_path): 
+            daypath = os.path.join(animal_path, day) 
+            bflag = False 
+            for f in os.listdir(daypath): 
+                if f.find(hp) != -1: 
+                    bflag = True 
+            if not bflag:
+                slist.append((animal, day)) 
+    return slist
+
+
+
 if __name__ == '__main__':
     root = "/home/user/"
     #mat = calcium_IBI_all_sessions(root)
@@ -1196,4 +1216,4 @@ if __name__ == '__main__':
     if not os.path.exists(out):
         os.makedirs(out)
     for met in ('cv', 'cv_ub', 'serr_pc'):
-        generate_IBI_plots(root, out, method=1, metric=met)
+        generate_IBI_plots(root, out, method=2, metric=met)
