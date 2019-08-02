@@ -452,15 +452,15 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                 hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
                 if not os.path.exists(hf_burst):
-                    # try:
-                    calcium_IBI_single_session(hf, out, window, method)
-                    print('Finished', animal, day)
-                    # except Exception as e:
-                    #     errorFile = True
-                    #     if animal in skipped:
-                    #         skipped[animal].append([day])
-                    #     else:
-                    #         skipped[animal] = [day]
+                    try:
+                        calcium_IBI_single_session(hf, out, window, method)
+                        print('Finished', animal, day)
+                    except Exception as e:
+                        errorFile = True
+                        if animal in skipped:
+                            skipped[animal].append([day])
+                        else:
+                            skipped[animal] = [day]
                 if not errorFile:
                     temp[animal][day] = {}
                     with h5py.File(hf, 'r') as f:
@@ -1152,13 +1152,15 @@ def deconv_fano_run():
 
 
 def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
-    generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, method, metric, eps)
+    generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 11, metric, eps)
+    generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 12, metric, eps)
 
 
 def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
-    generate_IBI_plots_base({'IT': {'IT{}'.format(i): "*" for i in range(2, 6)}, 'PT': {'PT6': '*', 
-        'PT7': '*', 'PT9': '*', 'PT12': '*'}}, folder, out, method, metric, eps)
-
+    for m in [11, 12]:
+        generate_IBI_plots_base({'IT': {'IT{}'.format(i): "*" for i in range(2, 6)}, 
+            'PT': {'PT6': '*', 'PT7': '*', 'PT9': '*', 'PT12': '*'}}, folder, out, m, metric, eps)
+        
 def generate_IBI_plots3(folder, out, method=0, metric='cv', eps=True):
     generate_IBI_plots_base({'IT': {'IT2': "*"}, 'PT': {'IT3': '*'}}, folder, out, method, metric, eps, eigen=['IT2', 'IT3'])
     generate_IBI_plots_base({'IT': {'PT6': "*"}, 'PT': {'PT7': '*'}}, folder, out, method, metric, eps, eigen=['PT6', 'PT7'])
