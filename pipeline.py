@@ -700,6 +700,102 @@ def check_trials(matinfo, vars, fr, trial_time=30):
     return trial_end, trial_start, array_t1, array_miss, hits, miss
 
 
+def view_wmat(wmat):
+    imp_fields = []
+    for k in wmat.keys():
+        if k.find('__') != -1:
+            continue
+        it = wmat[k]
+        if not isinstance(it, np.ndarray):
+            print(k, type(k))
+            continue
+        if np.prod(it.shape) == 1:
+            if isinstance(it.item(), np.ndarray):
+                print(k, it.item().shape if np.prod(it.item().shape) > 1 else it.item())
+            else:
+                print(k, type(it.item()), it.item())
+        elif it.shape[1] > 1 and len(it.shape) == 2:
+            print(k, it.shape)
+            imp_fields.append((k, it.shape))
+        else:
+            print(k, it.shape)
+    return imp_fields
+
+
+def mat_compare(wmat1, wmat2):
+    imp_eq_fields = []
+    imp_ineq_fields = []
+
+    def tuple_equal(t1, t2):
+        bval = True
+        for i in range(len(t1)):
+            if isinstance(t1[i], np.ndarray):
+                bval = np.array_equal(t1[i], t2[i])
+            else:
+                bval = t1[i] == t2[i]
+            if not bval:
+                return bval
+        return bval
+    for k in wmat1.keys():
+        if k.find('__') != -1:
+            continue
+        it1 = wmat1[k]
+        it2 = wmat2[k]
+        if not isinstance(it1, np.ndarray):
+            print(k, type(k))
+            continue
+        if np.prod(it1.shape) == 1:
+            if isinstance(it1.item(), np.ndarray):
+                boolval = np.array_equal(it1.item(), it2.item())
+                print(k, (('i1', it1.item().shape, 'i2', it2.item().shape) if np.prod(it1.item().shape) > 1
+                          else ('i1', it1.item(), 'i2', it2.item())), boolval)
+            else:
+                if isinstance(it1.item(), tuple):
+                    boolval = tuple_equal(it1.item(), it2.item())
+                else:
+                    boolval = (it1.item() == it2.item())
+                print(k, type(it1.item()), ('i1', it1.item(), 'i2', it2.item()), boolval)
+        elif it1.shape[1] > 1 and len(it1.shape) == 2:
+            boolval = np.array_equal(it1, it2)
+            print(k, ('i1', it1.shape, 'i2', it2.shape), boolval)
+        else:
+            boolval = np.array_equal(it1, it2)
+            print(k, ('i1', it1.shape, 'i2', it2.shape), boolval)
+        if boolval:
+            imp_eq_fields.append(k)
+        else:
+            imp_ineq_fields.append(k)
+    return imp_eq_fields, imp_ineq_fields
+
+
+def wmat_merge(wmat1f, wmat2f, norm_dur1=True, norm_dur2=True):
+    folder = wmat1f[:wmat1f.find('wmat1.mat')]
+    wmat1, wmat2 = scipy.io.loadmat(wmat1f), scipy.io.loadmat(wmat2f)
+    mod1 = wmat1['cursor'].shape[1] % 100
+    mod2 = wmat2['cursor'].shape[1] % 100
+    wmat1['duration'] = wmat1['cursor'].shape[1]
+    wmat2['duration'] = wmat2['cursor'].shape[1]
+    if norm_dur1 and mod1:
+        wmat1['duration'] = wmat1['cursor'].shape[1] - mod1
+    if norm_dur2 and mod2:
+        wmat2['duration'] = wmat2['cursor'].shape[1] - mod2
+    wmat = {}
+    for k in wmat2.keys():
+        if k in ('hits', 'miss', 'trialEnd'):
+            wmat[k] = np.concatenate((wmat1[k], wmat2[k]+wmat1['duration']), axis=1)
+        elif k == 'trialStart':
+            if wmat1[k].shape[1] > wmat1['trialEnd'].shape[1]:
+                s1 = wmat1[k][:, :-1]
+            wmat[k] = np.concatenate((s1, wmat2[k]+wmat1['duration']), axis=1)
+        elif k in ('cursor', 'frequency'):
+            wmat[k] = np.concatenate((wmat1[k][:, :wmat1['duration']],
+                                      wmat2[k][:, :wmat2['duration']]), axis=1)
+        else:
+            wmat[k] = wmat2[k]
+    scipy.io.savemat(os.path.join(folder, 'wmat.mat'), wmat)
+    return wmat
+
+
 def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes=4, maxdist=4, toplot=True):  
     """
     Function to identify red neurons with components returned by caiman

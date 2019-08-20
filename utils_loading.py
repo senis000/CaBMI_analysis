@@ -67,6 +67,14 @@ def path_prefix_free(path, symbol='/'):
         return path[path.rfind(symbol)+len(symbol):]
 
 
+def file_folder_path(f, symbol='/'):
+    len_sym = len(symbol)
+    if f[-len_sym:] == symbol:
+        return f[:f.rfind(symbol, 0, -len_sym)]
+    else:
+        return f[:f.rfind(symbol)]
+
+
 def parse_group_dict(folder, group_dict, opt):
     if "*" in group_dict:
         group_dict = {k: '*' for k in os.listdir(folder) if k.find(opt) != -1}

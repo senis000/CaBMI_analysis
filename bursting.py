@@ -538,8 +538,6 @@ def IBI_to_metric_save(folder, method=0):
                     f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
-
-
 def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
     """Returns metric mats for IBIs_window"""
     res = {}
@@ -743,6 +741,19 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True, eigen=None):
     fig.savefig(fname + '.png')
     if eps:
         fig.savefig(fname + ".eps")
+
+
+def displot_comp():
+    p1 = sns.color_palette("Blues", n_colors=7)
+    p2 = sns.color_palette("Reds", n_colors=7)
+    def sinplot(p, l, flip=1):
+        x = np.linspace(0, 14, 100)
+        for i in range(1, 7):
+            plt.plot(x, np.sin(x + i * .5) * (7 - i) * flip, color=p[i], label=l)
+    sinplot(p1, 'IT', 1)
+    sinplot(p2, 'PT', -1)
+    plt.legend()
+    plt.show()
 
 
 def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp=True, IBI_dist=False,
