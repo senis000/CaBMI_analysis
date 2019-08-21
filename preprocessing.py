@@ -19,40 +19,46 @@ def calcium_to_peak_times(inputs, low=1, high=20):
             outfile: Animal_Day.csv
                 columns: neuron number
     """
-
+    hyperparams = "low_{}_high_{}".format(low, high)
     if isinstance(inputs, np.ndarray):
         C = inputs
         animal, day = None, None
         path = './'
+        savepath = os.path.join(path, 'sample_IBI_{}.csv'.format(hyperparams))
     else:
         if isinstance(inputs, str):
             opts = path_prefix_free(inputs, '/').split('_')
             path = file_folder_path(inputs)
             animal, day = opts[1], opts[2]
-            f = h5py.File(inputs, 'r')
+            f = None
+            hfile = inputs
+        elif isinstance(inputs, tuple):
+            path, animal, day = inputs
+            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+            f = None
         elif isinstance(inputs, h5py.File):
             opts = path_prefix_free(inputs.filename, '/').split('_')
             path = file_folder_path(inputs.filename)
             animal, day = opts[1], opts[2]
             f = inputs
-        elif isinstance(inputs, tuple):
-            path, animal, day = inputs
-            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
-            f = h5py.File(hfile, 'r')
         else:
             raise RuntimeError("Input Format Unknown!")
+        savepath = os.path.join(path, '{}_{}_rawcwt_{}.csv'.format(animal, day, hyperparams))
+        cwt = os.path.join(path, 'cwt.txt')
+        if os.path.exists(cwt):
+            return
+        if f is None:
+            f = h5py.File(hfile, 'r')
         C = np.array(f['C'])
         f.close()
-    hyperparams = "low_{}_high_{}".format(low, high)
-    if animal is None:
-        savepath = os.path.join(path, 'sample_IBI_{}.csv'.format(hyperparams))
-    else:
-        savepath = os.path.join(path, '{}_{}_{}.csv'.format(animal, day, hyperparams))
 
     with open(savepath, 'w') as fh:
         cwriter = csv.writer(fh, delimiter=',')
         for i in range(C.shape[0]):
             cwriter.writerow(find_peaks_cwt(C[i, :], np.arange(low, high)))
+    if animal is not None:
+        with open(cwt, 'a') as cf:
+            cf.write(hyperparams)
 
 
 def calcium_to_peak_times_all(folder, groups, low=1, high=20):
@@ -70,5 +76,6 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
         group_dict = all_files[group]
         for animal in group_dict:
             for day in (group_dict[animal]):
+                print(animal, day)
                 hf = encode_to_filename(processed, animal, day)
                 calcium_to_peak_times(hf, low, high)

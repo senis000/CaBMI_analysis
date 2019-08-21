@@ -1232,7 +1232,7 @@ def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
     for m in [11, 12]:
         generate_IBI_plots_base({'IT': {'IT{}'.format(i): "*" for i in range(2, 6)}, 
             'PT': {'PT6': '*', 'PT7': '*', 'PT9': '*', 'PT12': '*'}}, folder, out, m, metric, eps)
-        
+
 def generate_IBI_plots3(folder, out, method=0, metric='cv', eps=True):
     generate_IBI_plots_base({'IT': {'IT2': "*"}, 'PT': {'IT3': '*'}}, folder, out, method, metric, eps, eigen=['IT2', 'IT3'])
     generate_IBI_plots_base({'IT': {'PT6': "*"}, 'PT': {'PT7': '*'}}, folder, out, method, metric, eps, eigen=['PT6', 'PT7'])
@@ -1284,5 +1284,6 @@ if __name__ == '__main__':
     out = os.path.join(root, 'bursting/plots/IBI_contrast')
     if not os.path.exists(out):
         os.makedirs(out)
-    for met in ('cv', 'cv_ub', 'serr_pc'):
-        generate_IBI_plots3(root, out, method=2, metric=met)
+    # for met in ('cv', 'cv_ub', 'serr_pc'):
+    #     generate_IBI_plots2(root, out, method=0, metric=met)
+    calcium_IBI_all_sessions(root, '*', method=0)
