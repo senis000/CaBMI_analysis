@@ -254,7 +254,7 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
             if str/h5py.File: string that represents the filename of hdf5 file
             if tuple: (path, animal, day), that describes the file location
             if np.ndarray: array C of calcium traces
-        out: str
+        out (I/O): str
             Output path for saving the metrics in a hdf5 file
             outfile: h5py.File
                 N: number of neurons
@@ -282,12 +282,14 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
                 opt: 0: std
                      1: mad
                 thres: number of std/mad
-    Alternatively, could store data in:
+    ***********************************************************************************************
+     Alternatively, could store data in:
         mat_ibi: np.ndarray
             N * s * m matrix, , where N is the number of neurons, s is number of sliding sessions,
             m is the number of metrics
         meta: dictionary
             meta data of form {axis: labels}
+    ***********************************************************************************************
     """
     if method == 0:
         return [calcium_IBI_single_session(inputs, out, window, m) for m in (1, 2, 11, 12)]
@@ -516,11 +518,32 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
 def IBI_to_metric_save(folder, method=0):
     # TODO: add asymtotic learning rate as well
     """Returns pandas DataFrame object consisting all the experiments
-        df_window: pd.DataFrame
-            cols: [group|animal|day|slide]
-        df_trial: pd.DataFrame
-            cols: [group|animal|day|H/M|trial]
+    Params:
+        folder: str
+            Input directory
+        method: int
+            threshold method for peak detection
+        in (I/O): each ANIMAL/DAY in folder
+            ibif: hdf5.File
+            Contents
+                N: number of neurons
+                s: number of sliding sections
+                t: number of trials
+                K: maximum number of IBIs extracted
+                K': maximum number of IBIs within each trial
+                'IBIs_window': N * s * K, IBIs across window
+                'IBIs_trial': N * t * K', IBIs across trial
+
+
+
+    Returns:
+        out (I/O):
+            df_window: pd.DataFrame
+                cols: [group|animal|day|slide]
+            df_trial: pd.DataFrame
+                cols: [group|animal|day|H/M|trial]
         """
+    # TODO: ALLOCATE MEMORY Posteriorly
     # TODO: first calculate cv then loop through
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
@@ -535,6 +558,44 @@ def IBI_to_metric_save(folder, method=0):
                     daypath = os.path.join(folder, animal, day)
                     ibif = h5py.File(os.path.join(daypath,
                                     encode_to_filename(folder, animal, day, decode_method_ibi(method))))
+                    f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
+
+
+def IBI_to_metric_single_session(inputs, method=0):
+    # TODO: add asymtotic learning rate as well
+    """Returns a pd.DataFrame with peak timing for calcium events
+        Params:
+            inputs: str, h5py.File
+                string that represents the filename of hdf5 file
+                Contents:
+                    N: number of neurons
+                    s: number of sliding sections
+                    t: number of trials
+                    K: maximum number of IBIs extracted
+                    K': maximum number of IBIs within each trial
+                    'IBIs_window': N * s * K, IBIs across window
+                    'IBIs_trial': N * t * K', IBIs across trial
+            out (I/O):
+                df_window: pd.DataFrame
+                    cols: [group|animal|day|slide]
+                df_trial: pd.DataFrame
+                    cols: [group|animal|day|H/M|trial]
+    """
+
+    if method == 0:
+        return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
+    dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'HM', 'trial', 'CV',
+                                  'CV_unbiased', 'StdErr_percent')}
+    dict_window = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'window', 'CV',
+                                   'CV_unbiased', 'StdErr_percent')}
+    for animal in os.listdir(folder):
+        if animal.startswith('PT') or animal.startswith('IT'):
+            for day in os.listdir(os.path.join(folder, animal)):
+                if day.isnumeric():
+                    daypath = os.path.join(folder, animal, day)
+                    ibif = h5py.File(os.path.join(daypath,
+                                                  encode_to_filename(folder, animal, day,
+                                                                     decode_method_ibi(method))))
                     f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
