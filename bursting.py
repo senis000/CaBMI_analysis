@@ -515,7 +515,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
     return mats
 
 
-def IBI_to_metric_save(folder, method=0):
+def IBI_to_metric_save(folder, processed, method=0):
     # TODO: add asymtotic learning rate as well
     """Returns pandas DataFrame object consisting all the experiments
     Params:
@@ -553,12 +553,12 @@ def IBI_to_metric_save(folder, method=0):
             for day in os.listdir(os.path.join(folder, animal)):
                 if day.isnumeric():
                     daypath = os.path.join(folder, animal, day)
-                    ibif = h5py.File(os.path.join(daypath,
-                                    encode_to_filename(folder, animal, day, decode_method_ibi(method))))
-                    f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
+                    hf = encode_to_filename(folder, animal, day, decode_method_ibi(method))
+                    IBI_to_metric_single_session(hf, processed)
+                    #f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
-def IBI_to_metric_single_session(inputs, processed):
+def IBI_to_metric_single_session(inputs, processed, test=True):
     # TODO: add asymtotic learning rate as well
     """Returns a pd.DataFrame with peak timing for calcium events
         Params:
@@ -593,7 +593,7 @@ def IBI_to_metric_single_session(inputs, processed):
     else:
         raise RuntimeError("Input Format Unknown!")
 
-    if 'df_window' in f and 'df_trial' in f:
+    if 'df_window' in f and 'df_trial' in f and not test:
         df_window, df_trial = pd.read_hdf(fname, 'df_window'), pd.read_hdf(fname, 'df_trial')
         if len(df_window[df_window['roi'] == 'E2']) == 0:
             with h5py.File(encode_to_filename(processed, animal, day), 'r') as fp:
@@ -642,9 +642,14 @@ def IBI_to_metric_single_session(inputs, processed):
         resT[k] = mets_trial[k].ravel(order='C')
     print('Generating hdf')
     df_window = pd.DataFrame(resW)
-    df_window.to_hdf(fname, 'df_window')
     df_trial = pd.DataFrame(resT)
-    df_trial.to_hdf(fname, 'df_trial')
+    if test:
+        df_window.to_csv(os.path.join(path, 'test.csv'), index=False)
+        df_trial.to_csv(os.path.join(path, 'test.csv'), index=False)
+    else:
+        df_window.to_hdf(fname, 'df_window')
+        df_trial.to_hdf(fname, 'df_trial')
+
     #
     # if method == 0:
     #     return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
