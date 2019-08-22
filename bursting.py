@@ -600,7 +600,8 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         if len(df_window[df_window['roi'] == 'E2']) == 0:
             with h5py.File(encode_to_filename(processed, animal, day), 'r') as fp:
                 if 'e2_neur' in fp:
-                    e2_neur = np.array(fp['e2_neur'])
+                    ens_neur = np.array(fp['ens_neur'])
+                    e2_neur = ens_neur[fp['e2_neur']]
                     for e in e2_neur:
                         df_window.loc[df_window['N'] == e, 'roi'] = 'E2'
                         df_trial.loc[df_trial['N'] == e, 'roi'] = 'E2'
@@ -610,8 +611,8 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         return df_window, df_trial
     fp = h5py.File(encode_to_filename(processed, animal, day), 'r')
     array_hit, array_miss = np.array(fp['array_t1']), np.array(fp['array_miss'])
-    e2_neur = np.array(fp['e2_neur']) if 'e2_neur' in fp else None
     ens_neur = np.array(fp['ens_neur'])
+    e2_neur = ens_neur[fp['e2_neur']] if 'e2_neur' in fp else None
     redlabel, nerden = np.array(fp['redlabel']), np.array(fp['nerden'])
     mets_window, mets_trial = IBI_cv_matrix(np.array(f['IBIs_window']), metric='all'), \
                               IBI_cv_matrix(np.array(f['IBIs_trial']),  metric='all')
@@ -638,7 +639,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     trials = np.arange(1, st+1)
     trials[array_miss] = -trials[array_miss]
     awhere = np.where(trials < 0)[0]
-    assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
+    # assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
     resT['trial'] = np.tile(trials, N)  # 1-indexed
     resT['roi'] = np.repeat(rois, st)
     resT['N'] = np.repeat(np.arange(N), st)
