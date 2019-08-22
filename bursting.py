@@ -629,14 +629,17 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     rois[ens_neur] = 'E1'
     if e2_neur is not None:
         rois[e2_neur] = 'E2'
+    print(ens_neur, e2_neur)
     # DF TRIAL
     resW['window'] = np.tile(np.arange(sw), N)
     resW['roi'] = np.repeat(rois, sw)
     resW['N'] = np.repeat(np.arange(N), sw)
     # DF TRIAL
-    trials = np.tile(np.arange(st), N)
+    trials = np.arange(1, st+1)
     trials[array_miss] = -trials[array_miss]
-    resT['trial'] = trials
+    awhere = np.where(trials < 0)[0]
+    assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
+    resT['trial'] = np.tile(trials, N)  # 1-indexed
     resT['roi'] = np.repeat(rois, st)
     resT['N'] = np.repeat(np.arange(N), st)
     for k in mets_window:
