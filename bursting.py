@@ -555,6 +555,7 @@ def IBI_to_metric_save(folder, processed, window=None, method=0):
                 if day.isnumeric():
                     daypath = os.path.join(folder, animal, day)
                     hf = encode_to_filename(folder, animal, day, hp)
+                    print(animal, day)
                     IBI_to_metric_single_session(hf, processed)
                     #f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
@@ -622,7 +623,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     probeW, probeT = mets_window['cv'], mets_trial['cv']
     assert probeW.shape[0] == probeT.shape[0], 'Inconsistent shape between windows and trials measures!'
     N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
-    rois = np.full(N, 'D')
+    rois = np.full(N, "D", dtype="U2")
     rois[nerden & ~redlabel] = 'IG'
     rois[nerden & redlabel] = 'IR'
     rois[ens_neur] = 'E1'
@@ -635,7 +636,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     # DF TRIAL
     trials = np.tile(np.arange(st), N)
     trials[array_miss] = -trials[array_miss]
-    resT['trial'] = np.tile(trials, st)
+    resT['trial'] = trials
     resT['roi'] = np.repeat(rois, st)
     resT['N'] = np.repeat(np.arange(N), st)
     for k in mets_window:
@@ -643,10 +644,20 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         resT[k] = mets_trial[k].ravel(order='C')
     print('Generating hdf')
     df_window = pd.DataFrame(resW)
+    #print(N, sw, st)
+    # def debug_print(res):
+    #     for k in res.keys():
+    #         print(k, res[k].shape)
+    # debug_print(resW)
+    # debug_print(resT)
     df_trial = pd.DataFrame(resT)
     if test:
-        df_window.to_csv(os.path.join(path, 'test.csv'), index=False)
-        df_trial.to_csv(os.path.join(path, 'test.csv'), index=False)
+        testing = os.path.join(path, 'test.csv')
+        if os.path.exists(testing):
+            print('Deleting', testing)
+            os.remove(testing)
+        df_window.to_csv(os.path.join(path, '{}_{}_window_test.csv'.format(animal, day)), index=False)
+        df_trial.to_csv(os.path.join(path, '{}_{}_trial_test.csv'.format(animal, day)), index=False)
     else:
         df_window.to_hdf(fname, 'df_window')
         df_trial.to_hdf(fname, 'df_trial')
