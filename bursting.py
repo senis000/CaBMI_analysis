@@ -630,7 +630,6 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     rois[ens_neur] = 'E1'
     if e2_neur is not None:
         rois[e2_neur] = 'E2'
-    print(ens_neur, e2_neur)
     # DF TRIAL
     resW['window'] = np.tile(np.arange(sw), N)
     resW['roi'] = np.repeat(rois, sw)
