@@ -553,7 +553,7 @@ def IBI_to_metric_save(folder, processed, method=0):
             for day in os.listdir(os.path.join(folder, animal)):
                 if day.isnumeric():
                     daypath = os.path.join(folder, animal, day)
-                    hf = encode_to_filename(folder, animal, day, decode_method_ibi(method))
+                    hf = encode_to_filename(folder, animal, day, decode_method_ibi(method)[1])
                     IBI_to_metric_single_session(hf, processed)
                     #f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 

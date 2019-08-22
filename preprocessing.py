@@ -55,6 +55,7 @@ def calcium_to_peak_times(inputs, low=1, high=20):
     with open(savepath, 'w') as fh:
         cwriter = csv.writer(fh, delimiter=',')
         for i in range(C.shape[0]):
+            print(i)
             cwriter.writerow(find_peaks_cwt(C[i, :], np.arange(low, high)))
     if animal is not None:
         with open(cwt, 'a') as cf:
