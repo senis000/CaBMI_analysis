@@ -5,7 +5,7 @@ import pandas as pd
 import os, h5py
 from utils_bursting import *
 from plotting_functions import best_nbins
-from utils_loading import get_PTIT_over_days, path_prefix_free, \
+from utils_loading import get_PTIT_over_days, path_prefix_free, file_folder_path,\
     decode_from_filename, encode_to_filename, get_redlabel, parse_group_dict, decode_method_ibi
 from utils_cabmi import time_lock_activity
 import matplotlib.pyplot as plt
@@ -533,9 +533,6 @@ def IBI_to_metric_save(folder, method=0):
                 K': maximum number of IBIs within each trial
                 'IBIs_window': N * s * K, IBIs across window
                 'IBIs_trial': N * t * K', IBIs across trial
-
-
-
     Returns:
         out (I/O):
             df_window: pd.DataFrame
@@ -561,7 +558,7 @@ def IBI_to_metric_save(folder, method=0):
                     f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
-def IBI_to_metric_single_session(inputs, method=0):
+def IBI_to_metric_single_session(inputs, processed):
     # TODO: add asymtotic learning rate as well
     """Returns a pd.DataFrame with peak timing for calcium events
         Params:
@@ -581,22 +578,89 @@ def IBI_to_metric_single_session(inputs, method=0):
                 df_trial: pd.DataFrame
                     cols: [group|animal|day|H/M|trial]
     """
+    if isinstance(inputs, str):
+        opts = path_prefix_free(inputs, '/').split('_')
+        path = file_folder_path(inputs)
+        animal, day = opts[1], opts[2]
+        f = h5py.File(inputs, 'r')
+        fname = inputs
+    elif isinstance(inputs, h5py.File):
+        opts = path_prefix_free(inputs.filename, '/').split('_')
+        path = file_folder_path(inputs.filename)
+        animal, day = opts[1], opts[2]
+        f = inputs
+        fname = inputs.filename
+    else:
+        raise RuntimeError("Input Format Unknown!")
 
-    if method == 0:
-        return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
-    dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'HM', 'trial', 'CV',
-                                  'CV_unbiased', 'StdErr_percent')}
-    dict_window = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'window', 'CV',
-                                   'CV_unbiased', 'StdErr_percent')}
-    for animal in os.listdir(folder):
-        if animal.startswith('PT') or animal.startswith('IT'):
-            for day in os.listdir(os.path.join(folder, animal)):
-                if day.isnumeric():
-                    daypath = os.path.join(folder, animal, day)
-                    ibif = h5py.File(os.path.join(daypath,
-                                                  encode_to_filename(folder, animal, day,
-                                                                     decode_method_ibi(method))))
-                    f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
+    if 'df_window' in f and 'df_trial' in f:
+        df_window, df_trial = pd.read_hdf(fname, 'df_window'), pd.read_hdf(fname, 'df_trial')
+        if len(df_window[df_window['roi'] == 'E2']) == 0:
+            with h5py.File(encode_to_filename(processed, animal, day), 'r') as fp:
+                if 'e2_neur' in fp:
+                    e2_neur = np.array(fp['e2_neur'])
+                    for e in e2_neur:
+                        df_window.loc[df_window['N'] == e, 'roi'] = 'E2'
+                        df_trial.loc[df_trial['N'] == e, 'roi'] = 'E2'
+                    df_window.to_hdf(fname, 'df_window')
+                    df_trial.to_hdf(fname, 'df_trial')
+        f.close()
+        return df_window, df_trial
+    fp = h5py.File(encode_to_filename(processed, animal, day), 'r')
+    array_hit, array_miss = np.array(fp['array_t1']), np.array(fp['array_miss'])
+    e2_neur = np.array(fp['e2_neur']) if 'e2_neur' in fp else None
+    ens_neur = np.array(fp['ens_neur'])
+    redlabel, nerden = np.array(fp['redlabel']), np.array(fp['nerden'])
+    mets_window, mets_trial = IBI_cv_matrix(np.array(f['IBIs_window']), metric='all'), \
+                              IBI_cv_matrix(np.array(f['IBIs_trial']),  metric='all')
+    f.close()
+    fp.close()
+
+    resW, resT = {}, {}
+    # Ensemble Neuron Possibly Unlabeled
+    probeW, probeT = mets_window['cv'], mets_trial['cv']
+    assert probeW.shape[0] == probeT.shape[0], 'Inconsistent shape between windows and trials measures!'
+    N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
+    rois = np.full(N, 'D')
+    rois[nerden & ~redlabel] = 'IG'
+    rois[nerden & redlabel] = 'IR'
+    rois[ens_neur] = 'E1'
+    if e2_neur is not None:
+        rois[e2_neur] = 'E2'
+    # DF TRIAL
+    resW['window'] = np.tile(np.arange(sw), N)
+    resW['roi'] = np.repeat(rois, sw)
+    resW['N'] = np.repeat(np.arange(N), sw)
+    # DF TRIAL
+    trials = np.tile(np.arange(st), N)
+    trials[array_miss] = -trials[array_miss]
+    resT['trial'] = np.tile(trials, st)
+    resT['roi'] = np.repeat(rois, st)
+    resT['N'] = np.repeat(np.arange(N), st)
+    for k in mets_window:
+        resW[k] = mets_window[k].ravel(order='C')
+        resT[k] = mets_trial[k].ravel(order='C')
+    print('Generating hdf')
+    df_window = pd.DataFrame(resW)
+    df_window.to_hdf(fname, 'df_window')
+    df_trial = pd.DataFrame(resT)
+    df_trial.to_hdf(fname, 'df_trial')
+    #
+    # if method == 0:
+    #     return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
+    # dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'roi', 'HM', 'trial', 'CV',
+    #                               'CV_unbiased', 'StdErr_percent')}
+    # dict_window = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'roi', 'window', 'CV',
+    #                                'CV_unbiased', 'StdErr_percent')}
+    # for animal in os.listdir(folder):
+    #     if animal.startswith('PT') or animal.startswith('IT'):
+    #         for day in os.listdir(os.path.join(folder, animal)):
+    #             if day.isnumeric():
+    #                 daypath = os.path.join(folder, animal, day)
+    #                 ibif = h5py.File(os.path.join(daypath,
+    #                                               encode_to_filename(folder, animal, day,
+    #                                                                  decode_method_ibi(method))))
+    #                 f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
 
 def IBI_to_metric_window(ibi_mat, metric='cv', mask=True):
