@@ -515,7 +515,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
     return mats
 
 
-def IBI_to_metric_save(folder, processed, method=0):
+def IBI_to_metric_save(folder, processed, window=None, method=0):
     # TODO: add asymtotic learning rate as well
     """Returns pandas DataFrame object consisting all the experiments
     Params:
@@ -542,6 +542,7 @@ def IBI_to_metric_save(folder, processed, method=0):
         """
     # TODO: ALLOCATE MEMORY Posteriorly
     # TODO: first calculate cv then loop through
+    hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
     dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'HM', 'trial', 'CV',
@@ -553,7 +554,7 @@ def IBI_to_metric_save(folder, processed, method=0):
             for day in os.listdir(os.path.join(folder, animal)):
                 if day.isnumeric():
                     daypath = os.path.join(folder, animal, day)
-                    hf = encode_to_filename(folder, animal, day, decode_method_ibi(method)[1])
+                    hf = encode_to_filename(folder, animal, day, hp)
                     IBI_to_metric_single_session(hf, processed)
                     #f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
 
