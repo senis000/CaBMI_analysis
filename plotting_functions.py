@@ -16,7 +16,9 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib import interactive
 from matplotlib.widgets import Slider
 from utils_cabmi import *
+import seaborn as sns
 
+PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 
 def plot_trial_end_all(folder, animal, day,
         trial_type=0, sec_var=''):

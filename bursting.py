@@ -515,7 +515,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
     return mats
 
 
-def IBI_to_metric_save(folder, processed, window=None, method=0):
+def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
     # TODO: add asymtotic learning rate as well
     """Returns pandas DataFrame object consisting all the experiments
     Params:
@@ -535,29 +535,40 @@ def IBI_to_metric_save(folder, processed, window=None, method=0):
                 'IBIs_trial': N * t * K', IBIs across trial
     Returns:
         out (I/O):
-            df_window: pd.DataFrame
-                cols: [group|animal|day|slide]
-            df_trial: pd.DataFrame
-                cols: [group|animal|day|H/M|trial]
+            all_df_window: pd.DataFrame
+                cols: [group|animal|date|session|roi_type|window|N|cv|cv_ub|serr_pc]
+            all_df_trial: pd.DataFrame
+                cols: [group|animal|date|session|trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
         """
     # TODO: ALLOCATE MEMORY Posteriorly
-    # TODO: first calculate cv then loop through
     hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
-    dict_trial = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'HM', 'trial', 'CV',
-                                  'CV_unbiased', 'StdErr_percent')}
-    dict_window = {l: [] for l in ('group', 'animal', 'day', 'neuron', 'red', 'window', 'CV',
-                                  'CV_unbiased', 'StdErr_percent')}
+    all_df_trial, all_df_window = pd.DataFrame(), pd.DataFrame() #TODO: think of ways to speed up
     for animal in os.listdir(folder):
         if animal.startswith('PT') or animal.startswith('IT'):
-            for day in os.listdir(os.path.join(folder, animal)):
-                if day.isnumeric():
-                    daypath = os.path.join(folder, animal, day)
-                    hf = encode_to_filename(folder, animal, day, hp)
-                    print(animal, day)
-                    IBI_to_metric_single_session(hf, processed)
-                    #f = IBI_cv_matrix(ibif['IBIs_window'], metric='all')
+            for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
+                                            if day.isnumeric()])):
+                hf = encode_to_filename(folder, animal, day, hp)
+                print(animal, day)
+                df_window, df_trial = IBI_to_metric_single_session(hf, processed, test=test)
+                df_window.loc[:, 'group'] = animal[:2]
+                df_trial.loc[:, 'group'] = animal[:2]
+                df_window.loc[:, 'animal'] = animal
+                df_trial.loc[:, 'animal'] = animal
+                df_window.loc[:, 'date'] = day # Real Date
+                df_trial.loc[:, 'date'] = day
+                df_window.loc[:, 'session'] = i + 1
+                df_trial.loc[:, 'session'] = i + 1
+                all_df_window = all_df_window.append(df_window)
+                all_df_trial = all_df_trial.append(df_trial)
+    all_df_trial.loc[:, 'HIT/MISS'] = 'miss'
+    all_df_trial.loc[all_df_trial['HM_trial'] > 0, 'HIT/MISS'] = 'hit'
+    all_df_trial.loc[:, 'HM_trial'] = np.abs(all_df_trial.loc[:, 'HM_trial'])
+    if test:
+        all_df_trial.to_csv(os.path.join(folder, 'df_trial.csv'))
+        all_df_window.to_csv(os.path.join(folder, 'df_window.csv'))
+    return {'window': all_df_window, 'trial': all_df_trial}
 
 
 def IBI_to_metric_single_session(inputs, processed, test=True):
@@ -576,9 +587,9 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
                     'IBIs_trial': N * t * K', IBIs across trial
             out (I/O):
                 df_window: pd.DataFrame
-                    cols: [group|animal|day|slide]
+                    cols: [roi_type|window|N|cv|cv_ub|serr_pc]
                 df_trial: pd.DataFrame
-                    cols: [group|animal|day|H/M|trial]
+                    cols: [trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
     """
     if isinstance(inputs, str):
         opts = path_prefix_free(inputs, '/').split('_')
@@ -597,14 +608,14 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
 
     if 'df_window' in f and 'df_trial' in f and not test:
         df_window, df_trial = pd.read_hdf(fname, 'df_window'), pd.read_hdf(fname, 'df_trial')
-        if len(df_window[df_window['roi'] == 'E2']) == 0:
+        if len(df_window[df_window['roi_type'] == 'E2']) == 0:
             with h5py.File(encode_to_filename(processed, animal, day), 'r') as fp:
                 if 'e2_neur' in fp:
                     ens_neur = np.array(fp['ens_neur'])
                     e2_neur = ens_neur[fp['e2_neur']]
                     for e in e2_neur:
-                        df_window.loc[df_window['N'] == e, 'roi'] = 'E2'
-                        df_trial.loc[df_trial['N'] == e, 'roi'] = 'E2'
+                        df_window.loc[df_window['N'] == e, 'roi_type'] = 'E2'
+                        df_trial.loc[df_trial['N'] == e, 'roi_type'] = 'E2'
                     df_window.to_hdf(fname, 'df_window')
                     df_trial.to_hdf(fname, 'df_trial')
         f.close()
@@ -632,7 +643,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         rois[e2_neur] = 'E2'
     # DF TRIAL
     resW['window'] = np.tile(np.arange(sw), N)
-    resW['roi'] = np.repeat(rois, sw)
+    resW['roi_type'] = np.repeat(rois, sw)
     resW['N'] = np.repeat(np.arange(N), sw)
     # DF TRIAL
     trials = np.arange(1, st+1)
@@ -654,7 +665,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     # assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
     resT['trial'] = np.tile(trials, N)  # 1-indexed
     resT['HM_trial'] = np.tile(hm_trial, N) # 1-indexed
-    resT['roi'] = np.repeat(rois, st)
+    resT['roi_type'] = np.repeat(rois, st)
     resT['N'] = np.repeat(np.arange(N), st)
     for k in mets_window:
         resW[k] = mets_window[k].ravel(order='C')
@@ -679,6 +690,7 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         df_window.to_hdf(fname, 'df_window')
         df_trial.to_hdf(fname, 'df_trial')
 
+    return df_window, df_trial
     #
     # if method == 0:
     #     return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
@@ -745,163 +757,6 @@ def IBI_to_metric_trial(ibi_mat, metric='cv', mask=True):
     return res
 
 
-def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, bins=None, same_rank=True, eps=True, eigen=None):
-    # FIG 1
-    if not os.path.exists(out):
-        os.makedirs(out)
-    IT_metric = metric_mats['IT']['IBIs_window'].ravel()
-    IT_metric = IT_metric[~np.isnan(IT_metric)]
-    PT_metric = metric_mats['PT']['IBIs_window'].ravel()
-    PT_metric = PT_metric[~np.isnan(PT_metric)]
-
-    if same_rank:
-        minSize = min(len(IT_metric), len(PT_metric))
-        inds = np.arange(minSize)
-        IT_metric = IT_metric[inds]
-        PT_metric = PT_metric[inds]
-    if eigen is None:
-        eigen = ['IT', 'PT']
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-    labels = [eigen[0], eigen[1]]
-    if bins is not None:
-        axes[0].hist([IT_metric, PT_metric], bins=bins, density=True, label=labels)
-    else:
-        axes[0].hist([IT_metric, PT_metric], bins=best_nbins(IT_metric), density=True, label=labels)
-    axes[0].legend()
-    con_opt = "{} & {}".format(eigen[0], eigen[1])
-    axes[0].set_title('IBI Contrast {} All Sessions Histogram'.format(con_opt))
-    axes[0].set_xlabel('AU')
-    sns.distplot(IT_metric, bins=bins, hist=False, color="dodgerblue", label=eigen[0], ax=axes[1])
-    sns.distplot(PT_metric, bins=bins, hist=False, color="deeppink", label=eigen[1], ax=axes[1])
-    axes[1].set_title("IBI Contrast {} All Sessions Histogram ".format(con_opt))
-    axes[1].set_xlabel('AU')
-    fname = os.path.join(out, "{}_all_IBI_{}".format("".join(eigen), metric_mats['meta']))
-    fig.savefig(fname+'.png')
-    if eps:
-        fig.savefig(fname+".eps")
-
-
-def plot_IBI_ITPT_evolution_days_windows(metric_mats, out, eps=True, eigen=None):
-    # TODO: handle redlabel more elegantly
-    # FIG 2
-    if not os.path.exists(out):
-        os.makedirs(out)
-
-    def get_sequence_over_days(metric_mats, group):
-        metric = metric_mats[group]['IBIs_window']
-        all_mean = np.empty(metric.shape[1])
-        all_serr = np.empty(metric.shape[1])
-        for d in range(metric.shape[1]):
-            data = metric[:, d, :, :][metric_mats[group]['redlabel'][:, d, :]].ravel()
-            all_mean[d] = np.nanmean(data)
-            all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
-        return all_mean, all_serr
-
-    def get_sequence_over_windows(metric_mats, group):
-        metric = metric_mats[group]['IBIs_window'][metric_mats[group]['redlabel']]
-        all_mean = np.nanmean(metric, axis=0)
-        all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
-        return all_mean, all_serr
-    if eigen is None:
-        eigen=["IT", "PT"]
-    data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
-                   'window': get_sequence_over_windows(metric_mats, 'IT')},
-            'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
-                   'window': get_sequence_over_windows(metric_mats, 'PT')}}
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-    for i, t in enumerate(data['IT']):
-        IT_mean, IT_serr = data['IT'][t]
-        PT_mean, PT_serr = data['PT'][t]
-        print(np.mean(IT_serr), np.mean(PT_serr))
-        axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
-        axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
-        axes[i].legend(eigen)
-        axes[i].set_title('{} IBI over {}s'.format(" ".join(eigen), t))
-        axes[i].set_xlabel(t)
-        axes[i].set_ylabel('AU')
-    fname = os.path.join(out, "{}_IBI_evolution_{}".format("".join(eigen), metric_mats['meta']))
-    fig.savefig(fname + '.png')
-    if eps:
-        fig.savefig(fname + ".eps")
-
-
-def plot_IBI_ITPT_compare_HM(metric_mats, out, HM=True, eps=True, eigen=None):
-    # Compares IBI CV distribution in hit and miss trials for IT & PT respectively
-    # FIG 3
-    if not os.path.exists(out):
-        os.makedirs(out)
-    if eigen is None:
-        eigen = ["IT", "PT"]
-    def get_sequence_over_days(metric_mats, group):
-        if isinstance(metric_mats, tuple):
-            metric_mats=metric_mats[0]
-        metric = metric_mats[group]['IBIs_trial']
-        res = {}
-        for t in 'hit', 'miss':
-            t_mask = metric_mats[group]['array_'+t]
-            all_mean = np.empty(metric.shape[1])
-            all_serr = np.empty(metric.shape[1])
-            for d in range(metric.shape[1]):
-                mask = np.logical_and(metric_mats[group]['redlabel'][:, d, :, :], t_mask[:, d, :, :])
-                data = metric[:, d, :, :][mask].ravel()
-                all_mean[d] = np.nanmean(data)
-                all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
-            res[t] = all_mean, all_serr
-        return res
-
-    def get_sequence_over_windows(metric_mats, group):
-        res = {}
-        if isinstance(metric_mats,tuple):
-            print(metric_mats[0].keys())
-            metric_mats = metric_mats[0]
-        for t in 'hit', 'miss':
-            mask = np.logical_and(metric_mats[group]['array_' + t], metric_mats[group]['redlabel'])
-            metric = metric_mats[group]['IBIs_trial'][mask]
-            all_mean = np.nanmean(metric, axis=0)
-            all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
-            res[t] = all_mean, all_serr
-        return res
-
-    data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
-                   'window': get_sequence_over_windows(metric_mats, 'IT')},
-            'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
-                   'window': get_sequence_over_windows(metric_mats, 'PT')}}
-    fig, axes = plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(20, 10)) # Each row is [IT, PT]
-    for i, s in enumerate(data['IT']):
-        # TODO: FIX WINDOW PLOT
-        if s == 'window':
-            continue
-        if HM:
-            pIT = []
-            pPT = []
-            ts = 'hit', 'miss'
-            for t in ts:
-                IT_mean, IT_serr = data['IT'][s][t]
-                PT_mean, PT_serr = data['PT'][s][t]
-                pIT.append(axes[0].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr, label=t))
-                pPT.append(axes[1].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr, label=t))
-            axes[0].set_title('{} IBI HIT/MISS trial over {}s'.format(eigen[0], s))
-            axes[0].set_xlabel(s)
-            axes[0].set_ylabel('AU')
-            axes[1].set_title('{} IBI HIT/MISS trial over {}s'.format(eigen[1], s))
-            axes[1].set_xlabel(s)
-            axes[0].legend(pIT, ts)
-            axes[1].legend(pPT, ts)
-        else:
-            for j, t in enumerate(('hit', 'miss')):
-                IT_mean, IT_serr = data['IT'][s][t]
-                PT_mean, PT_serr = data['PT'][s][t]
-                axes[i][j].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
-                axes[i][j].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
-                axes[i][j].set_title('{} IBI over {}s'.format(" ".join(eigen), s))
-                axes[i][j].set_xlabel(s)
-                axes[i][j].set_ylabel('AU')
-    fname = os.path.join(out, "{}_IBI_HMtrial_{}".format("".join(eigen), metric_mats[0]['meta'])) #TODO: identify why metric mat is a tuple
-    fig.savefig(fname + '.png')
-    if eps:
-        fig.savefig(fname + ".eps")
-
-
 def displot_comp():
     p1 = sns.color_palette("Blues", n_colors=7)
     p2 = sns.color_palette("Reds", n_colors=7)
@@ -913,6 +768,321 @@ def displot_comp():
     sinplot(p2, 'PT', -1)
     plt.legend()
     plt.show()
+
+
+def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=None, same_rank=True, eps=True, \
+                                                                                             eigen=True):
+    """ Takes in DataFrame of trials or windows or both, and save plots in out directory
+
+    Params:
+        metric_mats: dict
+            {['window': df_window], ['trial': df_trial]}
+        out: str: outpath
+        metric: str
+            'all' for all metrics
+            'cv', 'cv_ub' for 'unbiased cv', 'serr_pc' for Standard Error in Percentage
+
+    """
+    if not os.path.exists(out):
+        os.makedirs(out)
+
+    if metric == 'all':
+        for m in 'cv', 'cv_ub', 'serr_pc':
+            plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric=m, bins=bins, same_rank=same_rank,
+                                                eps=eps, eigen=True)
+        return
+
+    df = metric_mats['window']
+    ITdf = df[df['group'] == 'IT']
+    PTdf = df[df['group'] == 'PT']
+    def generate_dist_series(df, colors, ax):
+        animals = df.animal.unique()
+        palette = sns.color_palette(colors, n_colors=len(animals))
+        for i, a in enumerate(animals):
+            sns.distplot(df[df['animal'] == a][metric], bins=bins, hist=False, color=palette[i],
+                         label=a, ax=ax)
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+
+    if bins is not None:
+        axes[0].hist([ITdf[metric], PTdf[metric]], bins=bins, density=True, label=['IT', 'PT'])
+    else:
+        axes[0].hist([ITdf[metric], PTdf[metric]], bins=best_nbins(ITdf[metric]), density=True,
+                     label=['IT', 'PT'])
+    axes[0].legend()
+    axes[0].set_title('IBI Contrast IT/PT All Sessions Histogram')
+    axes[0].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
+    generate_dist_series(ITdf, 'Blues', axes[1])
+    generate_dist_series(PTdf, 'Reds', axes[1])
+    axes[1].legend()
+    axes[1].set_title("IBI Contrast IT/PT All Sessions Histogram ")
+    axes[1].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
+    fname = os.path.join(out, "{}IBI_contrast_all_{}".format('all_dist_' if eigen else '', metric))
+    fig.savefig(fname+'.png')
+    if eps:
+        fig.savefig(fname+".eps")
+    # FIG 1
+    # if not os.path.exists(out):
+    #     os.makedirs(out)
+    # IT_metric = metric_mats['IT']['IBIs_window'].ravel()
+    # IT_metric = IT_metric[~np.isnan(IT_metric)]
+    # PT_metric = metric_mats['PT']['IBIs_window'].ravel()
+    # PT_metric = PT_metric[~np.isnan(PT_metric)]
+    #
+    # if same_rank:
+    #     minSize = min(len(IT_metric), len(PT_metric))
+    #     inds = np.arange(minSize)
+    #     IT_metric = IT_metric[inds]
+    #     PT_metric = PT_metric[inds]
+    # if eigen is None:
+    #     eigen = ['IT', 'PT']
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    # labels = [eigen[0], eigen[1]]
+    # if bins is not None:
+    #     axes[0].hist([IT_metric, PT_metric], bins=bins, density=True, label=labels)
+    # else:
+    #     axes[0].hist([IT_metric, PT_metric], bins=best_nbins(IT_metric), density=True, label=labels)
+    # axes[0].legend()
+    # con_opt = "{} & {}".format(eigen[0], eigen[1])
+    # axes[0].set_title('IBI Contrast {} All Sessions Histogram'.format(con_opt))
+    # axes[0].set_xlabel('AU')
+    # sns.distplot(IT_metric, bins=bins, hist=False, color="dodgerblue", label=eigen[0], ax=axes[1])
+    # sns.distplot(PT_metric, bins=bins, hist=False, color="deeppink", label=eigen[1], ax=axes[1])
+    # axes[1].set_title("IBI Contrast {} All Sessions Histogram ".format(con_opt))
+    # axes[1].set_xlabel('AU')
+    # fname = os.path.join(out, "{}_all_IBI_{}".format("".join(eigen), metric_mats['meta']))
+    # fig.savefig(fname+'.png')
+    # if eps:
+    #     fig.savefig(fname+".eps")
+
+
+def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True, scatter_off=False):
+    # TODO: ADD between animal comparison (eigen parameter)
+    """ Takes in metric mats and plots the evolution plots across windows/days
+    Params:
+        metric_mats: dict
+            {['window': df_window], ['trial': df_trial]}
+        out: str: outpath
+        df_window: pd.DataFrame
+            cols: [roi_type|window|N|cv|cv_ub|serr_pc]
+        df_trial: pd.DataFrame
+            cols: [trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
+    """
+    # FIG 2
+    if not os.path.exists(out):
+        os.makedirs(out)
+    if metric == 'all':
+        for m in 'cv', 'cv_ub', 'serr_pc':
+            plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric=m, eps=eps, scatter_off=scatter_off)
+        return
+    df = metric_mats['window']
+    fig1 = plt.figure(figsize=(8, 15))
+    sns.lmplot(x='session', y=metric, data=df, hue='group', row='roi_type',
+               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
+
+    scatter_opt = '_scatteroff' if scatter_off else ''
+    fname1 = os.path.join(out, "IBI_evolution_across_days_{}{}".format(metric, scatter_opt))
+    fig1.savefig(fname1 + '.png')
+    if eps:
+        fig1.savefig(fname1 + ".eps")
+
+    fig2 = plt.figure(figsize=(25, 10))
+    sns.lmplot(x='window', y=metric, data=df, hue='group', col='roi_type',
+               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
+
+    fname2 = os.path.join(out, "IBI_evolution_across_windows_{}{}".format(metric, scatter_opt))
+    fig2.savefig(fname2 + '.png')
+    if eps:
+        fig2.savefig(fname2 + ".eps")
+
+    # # FIG 2
+    # if not os.path.exists(out):
+    #     os.makedirs(out)
+    # def get_sequence_over_days(metric_mats, group):
+    #     metric = metric_mats[group]['IBIs_window']
+    #     all_mean = np.empty(metric.shape[1])
+    #     all_serr = np.empty(metric.shape[1])
+    #     for d in range(metric.shape[1]):
+    #         data = metric[:, d, :, :][metric_mats[group]['redlabel'][:, d, :]].ravel()
+    #         all_mean[d] = np.nanmean(data)
+    #         all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
+    #     return all_mean, all_serr
+    #
+    # def get_sequence_over_windows(metric_mats, group):
+    #     metric = metric_mats[group]['IBIs_window'][metric_mats[group]['redlabel']]
+    #     all_mean = np.nanmean(metric, axis=0)
+    #     all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
+    #     return all_mean, all_serr
+    # if eigen is None:
+    #     eigen=["IT", "PT"]
+    # data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'IT')},
+    #         'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'PT')}}
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    # for i, t in enumerate(data['IT']):
+    #     IT_mean, IT_serr = data['IT'][t]
+    #     PT_mean, PT_serr = data['PT'][t]
+    #     print(np.mean(IT_serr), np.mean(PT_serr))
+    #     axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
+    #     axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+    #     axes[i].legend(eigen)
+    #     axes[i].set_title('{} IBI over {}s'.format(" ".join(eigen), t))
+    #     axes[i].set_xlabel(t)
+    #     axes[i].set_ylabel('AU')
+    # fname = os.path.join(out, "{}_IBI_evolution_{}".format("".join(eigen), metric_mats['meta']))
+    # fig.savefig(fname + '.png')
+    # if eps:
+    #     fig.savefig(fname + ".eps")
+    # def get_sequence_over_days(metric_mats, group):
+    #     metric = metric_mats[group]['IBIs_window']
+    #     all_mean = np.empty(metric.shape[1])
+    #     all_serr = np.empty(metric.shape[1])
+    #     for d in range(metric.shape[1]):
+    #         data = metric[:, d, :, :][metric_mats[group]['redlabel'][:, d, :]].ravel()
+    #         all_mean[d] = np.nanmean(data)
+    #         all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
+    #     return all_mean, all_serr
+    #
+    # def get_sequence_over_windows(metric_mats, group):
+    #     metric = metric_mats[group]['IBIs_window'][metric_mats[group]['redlabel']]
+    #     all_mean = np.nanmean(metric, axis=0)
+    #     all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
+    #     return all_mean, all_serr
+    # if eigen is None:
+    #     eigen=["IT", "PT"]
+    # data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'IT')},
+    #         'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'PT')}}
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    # for i, t in enumerate(data['IT']):
+    #     IT_mean, IT_serr = data['IT'][t]
+    #     PT_mean, PT_serr = data['PT'][t]
+    #     print(np.mean(IT_serr), np.mean(PT_serr))
+    #     axes[i].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
+    #     axes[i].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+    #     axes[i].legend(eigen)
+    #     axes[i].set_title('{} IBI over {}s'.format(" ".join(eigen), t))
+    #     axes[i].set_xlabel(t)
+    #     axes[i].set_ylabel('AU')
+    # fname = os.path.join(out, "{}_IBI_evolution_{}".format("".join(eigen), metric_mats['meta']))
+    # fig.savefig(fname + '.png')
+    # if eps:
+    #     fig.savefig(fname + ".eps")
+
+
+def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, scatter_off=False):
+    """ Takes in metric mats and outputs plots of ITPT IBI cv contrast using [metric] across Hits/Miss Trials
+    Params:
+        metric_mats: dict
+            {['window': df_window], ['trial': df_trial]}
+        out: str: outpath
+        df_window: pd.DataFrame
+            cols: [roi_type|window|N|cv|cv_ub|serr_pc]
+        df_trial: pd.DataFrame
+            cols: [trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
+    """
+    # FIG 3
+    if not os.path.exists(out):
+        os.makedirs(out)
+    if metric == 'all':
+        for m in 'cv', 'cv_ub', 'serr_pc':
+            plot_IBI_ITPT_compare_HM(metric_mats, out, metric=m, eps=eps, scatter_off=scatter_off)
+        return
+    df = metric_mats['trial']
+    fig1 = plt.figure(figsize=(20, 15))
+    sns.lmplot(x='session', y=metric, data=df, hue='group', row='roi_type', col='HIT/MISS',
+               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
+
+    scatter_opt = '_scatteroff' if scatter_off else ''
+    fname1 = os.path.join(out, "IBI_HM_compare_across_days_{}{}".format(metric, scatter_opt))
+    fig1.savefig(fname1 + '.png')
+    if eps:
+        fig1.savefig(fname1 + ".eps")
+
+    fig2 = plt.figure(figsize=(25, 10))
+    sns.lmplot(x='HM_trial', y=metric, data=df, hue='group', row='roi_type', col='HIT/MISS',
+               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
+
+    fname2 = os.path.join(out, "IBI_HM_compare_across_trials_{}{}".format(metric, scatter_opt))
+    fig2.savefig(fname2 + '.png')
+    if eps:
+        fig2.savefig(fname2 + ".eps")
+    # Compares IBI CV distribution in hit and miss trials for IT & PT respectively
+    # FIG 3
+    # if not os.path.exists(out):
+    #     os.makedirs(out)
+    # if eigen is None:
+    #     eigen = ["IT", "PT"]
+    # def get_sequence_over_days(metric_mats, group):
+    #     if isinstance(metric_mats, tuple):
+    #         metric_mats=metric_mats[0]
+    #     metric = metric_mats[group]['IBIs_trial']
+    #     res = {}
+    #     for t in 'hit', 'miss':
+    #         t_mask = metric_mats[group]['array_'+t]
+    #         all_mean = np.empty(metric.shape[1])
+    #         all_serr = np.empty(metric.shape[1])
+    #         for d in range(metric.shape[1]):
+    #             mask = np.logical_and(metric_mats[group]['redlabel'][:, d, :, :], t_mask[:, d, :, :])
+    #             data = metric[:, d, :, :][mask].ravel()
+    #             all_mean[d] = np.nanmean(data)
+    #             all_serr[d] = np.nanstd(data)/np.sum(~np.isnan(data))
+    #         res[t] = all_mean, all_serr
+    #     return res
+    #
+    # def get_sequence_over_windows(metric_mats, group):
+    #     res = {}
+    #     if isinstance(metric_mats,tuple):
+    #         print(metric_mats[0].keys())
+    #         metric_mats = metric_mats[0]
+    #     for t in 'hit', 'miss':
+    #         mask = np.logical_and(metric_mats[group]['array_' + t], metric_mats[group]['redlabel'])
+    #         metric = metric_mats[group]['IBIs_trial'][mask]
+    #         all_mean = np.nanmean(metric, axis=0)
+    #         all_serr = np.nanstd(metric, axis=0)/np.sum(~np.isnan(metric), axis=0)
+    #         res[t] = all_mean, all_serr
+    #     return res
+    #
+    # data = {'IT': {'day': get_sequence_over_days(metric_mats, 'IT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'IT')},
+    #         'PT': {'day': get_sequence_over_days(metric_mats, 'PT'),
+    #                'window': get_sequence_over_windows(metric_mats, 'PT')}}
+    # fig, axes = plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(20, 10)) # Each row is [IT, PT]
+    # for i, s in enumerate(data['IT']):
+    #     # TODO: FIX WINDOW PLOT
+    #     if s == 'window':
+    #         continue
+    #     if HM:
+    #         pIT = []
+    #         pPT = []
+    #         ts = 'hit', 'miss'
+    #         for t in ts:
+    #             IT_mean, IT_serr = data['IT'][s][t]
+    #             PT_mean, PT_serr = data['PT'][s][t]
+    #             pIT.append(axes[0].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr, label=t))
+    #             pPT.append(axes[1].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr, label=t))
+    #         axes[0].set_title('{} IBI HIT/MISS trial over {}s'.format(eigen[0], s))
+    #         axes[0].set_xlabel(s)
+    #         axes[0].set_ylabel('AU')
+    #         axes[1].set_title('{} IBI HIT/MISS trial over {}s'.format(eigen[1], s))
+    #         axes[1].set_xlabel(s)
+    #         axes[0].legend(pIT, ts)
+    #         axes[1].legend(pPT, ts)
+    #     else:
+    #         for j, t in enumerate(('hit', 'miss')):
+    #             IT_mean, IT_serr = data['IT'][s][t]
+    #             PT_mean, PT_serr = data['PT'][s][t]
+    #             axes[i][j].errorbar(np.arange(1, len(IT_mean) + 1), IT_mean, yerr=IT_serr)
+    #             axes[i][j].errorbar(np.arange(1, len(PT_mean) + 1), PT_mean, yerr=PT_serr)
+    #             axes[i][j].set_title('{} IBI over {}s'.format(" ".join(eigen), s))
+    #             axes[i][j].set_xlabel(s)
+    #             axes[i][j].set_ylabel('AU')
+    # fname = os.path.join(out, "{}_IBI_HMtrial_{}".format("".join(eigen), metric_mats[0]['meta'])) #TODO: identify why metric mat is a tuple
+    # fig.savefig(fname + '.png')
+    # if eps:
+    #     fig.savefig(fname + ".eps")
 
 
 def plot_IBI_contrast_CVs_ITPTsubset(folder, ITs, PTs, window=None, perc=30, ptp=True, IBI_dist=False,
@@ -1321,39 +1491,50 @@ def deconv_fano_run():
 
 
 
-def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
-    generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 11, metric, eps)
-    generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 12, metric, eps)
+# def generate_IBI_plots(folder, out, method=0, metric='cv', eps=True):
+#     generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 11, metric, eps)
+#     generate_IBI_plots_base({'IT': {'IT4': '*'}, 'PT': {'PT6': '*'}}, folder, out, 12, metric, eps)
+#
+#
+# def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
+#     for m in [11, 12]:
+#         generate_IBI_plots_base({'IT': {'IT{}'.format(i): "*" for i in range(2, 6)},
+#             'PT': {'PT6': '*', 'PT7': '*', 'PT9': '*', 'PT12': '*'}}, folder, out, m, metric, eps)
+#
+# def generate_IBI_plots3(folder, out, method=0, metric='cv', eps=True):
+#     generate_IBI_plots_base({'IT': {'IT2': "*"}, 'PT': {'IT3': '*'}}, folder, out, method, metric, eps, eigen=['IT2', 'IT3'])
+#     generate_IBI_plots_base({'IT': {'PT6': "*"}, 'PT': {'PT7': '*'}}, folder, out, method, metric, eps, eigen=['PT6', 'PT7'])
+#
+# def generate_IBI_plots_base(animals, folder, out, method=0, metric='cv', eps=True, eigen=None):
+#     ibi_mat = calcium_IBI_all_sessions(folder, animals, method=method)
+#     if method == 0:
+#         for m in ibi_mat:
+#             hp = decode_method_ibi(m)[1]
+#             out1 = os.path.join(out, hp, metric)
+#             metric_mat_trial = IBI_to_metric_trial(ibi_mat[m], metric=metric, mask=False),
+#             metric_mat_window = IBI_to_metric_window(ibi_mat[m], metric=metric, mask=False)
+#             plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps, eigen=eigen)
+#             plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps,eigen=eigen)
+#             plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps, eigen=eigen)
+#     else:
+#         hp = decode_method_ibi(method)[1]
+#         out1 = os.path.join(out, hp, metric)
+#         metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
+#         metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
+#         plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps, eigen=eigen)
+#         plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps, eigen=eigen)
+#         plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps, eigen=eigen)
 
 
-def generate_IBI_plots2(folder, out, method=0, metric='cv', eps=True):
-    for m in [11, 12]:
-        generate_IBI_plots_base({'IT': {'IT{}'.format(i): "*" for i in range(2, 6)}, 
-            'PT': {'PT6': '*', 'PT7': '*', 'PT9': '*', 'PT12': '*'}}, folder, out, m, metric, eps)
-
-def generate_IBI_plots3(folder, out, method=0, metric='cv', eps=True):
-    generate_IBI_plots_base({'IT': {'IT2': "*"}, 'PT': {'IT3': '*'}}, folder, out, method, metric, eps, eigen=['IT2', 'IT3'])
-    generate_IBI_plots_base({'IT': {'PT6': "*"}, 'PT': {'PT7': '*'}}, folder, out, method, metric, eps, eigen=['PT6', 'PT7'])
-
-def generate_IBI_plots_base(animals, folder, out, method=0, metric='cv', eps=True, eigen=None):
-    ibi_mat = calcium_IBI_all_sessions(folder, animals, method=method)
-    if method == 0:
-        for m in ibi_mat:
-            hp = decode_method_ibi(m)[1]
-            out1 = os.path.join(out, hp, metric)
-            metric_mat_trial = IBI_to_metric_trial(ibi_mat[m], metric=metric, mask=False),
-            metric_mat_window = IBI_to_metric_window(ibi_mat[m], metric=metric, mask=False)
-            plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps, eigen=eigen)
-            plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps,eigen=eigen)
-            plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps, eigen=eigen)
-    else:
-        hp = decode_method_ibi(method)[1]
-        out1 = os.path.join(out, hp, metric)
-        metric_mat_trial = IBI_to_metric_trial(ibi_mat, metric=metric, mask=False),
-        metric_mat_window = IBI_to_metric_window(ibi_mat, metric=metric, mask=False)
-        plot_IBI_ITPT_contrast_all_sessions(metric_mat_window, out1, eps=eps, eigen=eigen)
-        plot_IBI_ITPT_evolution_days_windows(metric_mat_window, out1, eps=eps, eigen=eigen)
-        plot_IBI_ITPT_compare_HM(metric_mat_trial, out1, eps=eps, eigen=eigen)
+# TODO: write code that only processes specific animal sessions
+def generate_IBI_plots_base(root, method=0, eps=True, eigen=True, metric='all', scatter_off=False):
+    processed = os.path.join(root, 'CaBMI_analysis/processed')
+    IBIs = os.path.join(root, 'bursting/IBI')
+    out = os.path.join(root, 'bursting/plots/IBI_contrast')
+    mats = IBI_to_metric_save(IBIs, processed, window=None, method=method, test=True)
+    plot_IBI_ITPT_contrast_all_sessions(mats, out, eps=eps, eigen=eigen)
+    plot_IBI_ITPT_evolution_days_slides(mats, out, metric=metric, eps=eps, scatter_off=scatter_off)
+    plot_IBI_ITPT_compare_HM(mats, out, metric=metric, eps=eps, scatter_off=scatter_off)
 
 
 def check_burst(root, method):
