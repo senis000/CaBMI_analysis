@@ -636,10 +636,24 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     resW['N'] = np.repeat(np.arange(N), sw)
     # DF TRIAL
     trials = np.arange(1, st+1)
-    trials[array_miss] = -trials[array_miss]
-    awhere = np.where(trials < 0)[0]
+    tempm = trials[array_miss]
+    temph = trials[array_hit]
+    misses = np.empty_like(tempm)
+    hits = np.empty_like(temph)
+    sortedm = np.argsort(tempm)
+    sortedh = np.argsort(temph)
+    for i in range(len(sortedm)):
+        misses[sortedm[i]] = -i-1
+    for i in range(len(sortedh)):
+        hits[sortedh[i]] = i+1
+    hm_trial = np.empty_like(trials)
+    hm_trial[array_hit] = hits
+    hm_trial[array_miss] = misses
+    #trials[array_miss] = -trials[array_miss]
+    # awhere = np.where(trials < 0)[0]
     # assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
     resT['trial'] = np.tile(trials, N)  # 1-indexed
+    resT['HM_trial'] = np.tile(hm_trial, N) # 1-indexed
     resT['roi'] = np.repeat(rois, st)
     resT['N'] = np.repeat(np.arange(N), st)
     for k in mets_window:
@@ -655,10 +669,10 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     # debug_print(resT)
     df_trial = pd.DataFrame(resT)
     if test:
-        testing = os.path.join(path, 'test.csv')
-        if os.path.exists(testing):
-            print('Deleting', testing)
-            os.remove(testing)
+        # testing = os.path.join(path, 'test.csv')
+        # if os.path.exists(testing):
+        #     print('Deleting', testing)
+        #     os.remove(testing)
         df_window.to_csv(os.path.join(path, '{}_{}_window_test.csv'.format(animal, day)), index=False)
         df_trial.to_csv(os.path.join(path, '{}_{}_trial_test.csv'.format(animal, day)), index=False)
     else:

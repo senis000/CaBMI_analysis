@@ -128,12 +128,12 @@ def IBI_cv_matrix(ibis, metric='cv_ub'):
     m = np.nanmean(ibis, axis=ax)
     m[m == 0] = 1e-16
     s = np.nanstd(ibis, axis=ax)
-    oldshape = s.shape
+    # oldshape = s.shape
     nn = np.sum(~np.isnan(ibis), axis=ax)
-    counts = np.sum(nn==1)
-    print(counts)
+    # counts = np.sum(nn==1)
+    # print(counts)
     s[nn == 1] = np.nan
-    assert nn.shape == s.shape, "Shape Inconsistency {}, {}".format(oldshape, s.shape)
+    # assert nn.shape == s.shape, "Shape Inconsistency {}, {}".format(oldshape, s.shape)
     if metric == 'all':
         cv = s / m
         cv_ub = (1 + 1 / (4 * nn)) * s / m
