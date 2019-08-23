@@ -129,19 +129,19 @@ def IBI_cv_matrix(ibis, metric='cv_ub'):
     m[m == 0] = 1e-16
     s = np.nanstd(ibis, axis=ax)
     oldshape = s.shape
-    s[s == 0] = np.nan
-    assert oldshape == s.shape, "Shape Inconsistency {}, {}".format(oldshape, s.shape)
+    nn = np.sum(~np.isnan(ibis), axis=ax)
+    counts = np.sum(nn==1)
+    print(counts)
+    s[nn == 1] = np.nan
+    assert nn.shape == s.shape, "Shape Inconsistency {}, {}".format(oldshape, s.shape)
     if metric == 'all':
-        nn = np.sum(~np.isnan(ibis), axis=ax)
         cv = s / m
         cv_ub = (1 + 1 / (4 * nn)) * s / m
         serr_pc = s / (np.sqrt(nn) * m)
         return {'cv': cv, 'cv_ub': cv_ub, 'serr_pc': serr_pc}
     elif metric == 'cv_ub':
-        nn = np.sum(~np.isnan(ibis), axis=ax)
         s *= 1 + 1 / (4 * nn)
     elif metric == 'serr_pc':
-        nn = np.sum(~np.isnan(ibis), axis=ax)
         s /= np.sqrt(nn)
     elif metric == 'cv':
         pass
