@@ -127,21 +127,24 @@ def IBI_cv_matrix(ibis, metric='cv_ub'):
     ax = len(ibis.shape) - 1
     m = np.nanmean(ibis, axis=ax)
     m[m == 0] = 1e-16
-    if metric == 'cv':
-        s = np.nanstd(ibis, axis=ax)
-    elif metric == 'cv_ub':
-        nn = np.sum(~np.isnan(ibis), axis=ax)
-        s = (1 + 1 / (4 * nn)) * np.nanstd(ibis, axis=ax)
-    elif metric == 'serr_pc':
-        nn = np.sum(~np.isnan(ibis), axis=ax)
-        s = np.nanstd(ibis, axis=ax) / np.sqrt(nn)
-    elif metric == 'all':
-        s = np.nanstd(ibis, axis=ax)
+    s = np.nanstd(ibis, axis=ax)
+    oldshape = s.shape
+    s[s == 0] = np.nan
+    assert oldshape == s.shape, "Shape Inconsistency {}, {}".format(oldshape, s.shape)
+    if metric == 'all':
         nn = np.sum(~np.isnan(ibis), axis=ax)
         cv = s / m
         cv_ub = (1 + 1 / (4 * nn)) * s / m
         serr_pc = s / (np.sqrt(nn) * m)
         return {'cv': cv, 'cv_ub': cv_ub, 'serr_pc': serr_pc}
+    elif metric == 'cv_ub':
+        nn = np.sum(~np.isnan(ibis), axis=ax)
+        s *= 1 + 1 / (4 * nn)
+    elif metric == 'serr_pc':
+        nn = np.sum(~np.isnan(ibis), axis=ax)
+        s /= np.sqrt(nn)
+    elif metric == 'cv':
+        pass
     else:
         raise ValueError("wrong metric")
     return s / m
