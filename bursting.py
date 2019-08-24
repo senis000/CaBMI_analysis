@@ -541,6 +541,7 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
                 cols: [group|animal|date|session|trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
         """
     # TODO: ALLOCATE MEMORY Posteriorly
+    skippers = open(os.path.join(folder, "skipper.txt"), 'w')
     hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
@@ -548,8 +549,12 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
     for animal in os.listdir(folder):
         if animal.startswith('PT') or animal.startswith('IT'):
             for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
-                                            if day.isnumeric()])):
+                                            if d.isnumeric()])):
                 hf = encode_to_filename(folder, animal, day, hp)
+                if not os.path.exists(hf):
+                    print("Skipping, ", hf)
+                    skipper.write(hf + "\n")
+                    continue
                 print(animal, day)
                 df_window, df_trial = IBI_to_metric_single_session(hf, processed, test=test)
                 df_window.loc[:, 'group'] = animal[:2]
@@ -562,12 +567,15 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
                 df_trial.loc[:, 'session'] = i + 1
                 all_df_window = all_df_window.append(df_window)
                 all_df_trial = all_df_trial.append(df_trial)
+    print('Done with all loops')
     all_df_trial.loc[:, 'HIT/MISS'] = 'miss'
     all_df_trial.loc[all_df_trial['HM_trial'] > 0, 'HIT/MISS'] = 'hit'
     all_df_trial.loc[:, 'HM_trial'] = np.abs(all_df_trial.loc[:, 'HM_trial'])
-    if test:
-        all_df_trial.to_csv(os.path.join(folder, 'df_trial.csv'))
-        all_df_window.to_csv(os.path.join(folder, 'df_window.csv'))
+    # if test:
+    #     print('Start Saving')
+    #     all_df_trial.to_csv(os.path.join(folder, 'df_trial.csv'), index=False)
+    #     all_df_window.to_csv(os.path.join(folder, 'df_window.csv'), index=False)
+    skipper.close()
     return {'window': all_df_window, 'trial': all_df_trial}
 
 
@@ -605,7 +613,10 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
         fname = inputs.filename
     else:
         raise RuntimeError("Input Format Unknown!")
-
+    wcsv = os.path.join(path,'{}_{}_window_test.csv'.format(animal, day))
+    tcsv = os.path.join(path,'{}_{}_trial_test.csv'.format(animal, day))
+    if test and os.path.exists(wcsv) and os.path.exists(tcsv):
+        return pd.read_csv(wcsv), pd.read_csv(tcsv)
     if 'df_window' in f and 'df_trial' in f and not test:
         df_window, df_trial = pd.read_hdf(fname, 'df_window'), pd.read_hdf(fname, 'df_trial')
         if len(df_window[df_window['roi_type'] == 'E2']) == 0:
@@ -810,12 +821,12 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
         axes[0].hist([ITdf[metric], PTdf[metric]], bins=best_nbins(ITdf[metric]), density=True,
                      label=['IT', 'PT'])
     axes[0].legend()
-    axes[0].set_title('IBI Contrast IT/PT All Sessions Histogram')
+    axes[0].set_title('IBI Contrast IT&PT All Sessions Histogram')
     axes[0].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
     generate_dist_series(ITdf, 'Blues', axes[1])
     generate_dist_series(PTdf, 'Reds', axes[1])
     axes[1].legend()
-    axes[1].set_title("IBI Contrast IT/PT All Sessions Histogram ")
+    axes[1].set_title("IBI Contrast IT&PT All Sessions Histogram ")
     axes[1].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
     fname = os.path.join(out, "{}IBI_contrast_all_{}".format('all_dist_' if eigen else '', metric))
     fig.savefig(fname+'.png')
@@ -1528,13 +1539,19 @@ def deconv_fano_run():
 
 # TODO: write code that only processes specific animal sessions
 def generate_IBI_plots_base(root, method=0, eps=True, eigen=True, metric='all', scatter_off=False):
+    if method == 0:
+        for m in (1, 2, 11, 12):
+            generate_IBI_plots_base(root, method=m, eps=eps, eigen=eigen, metric=metric, scatter_off=scatter_off)
     processed = os.path.join(root, 'CaBMI_analysis/processed')
     IBIs = os.path.join(root, 'bursting/IBI')
     out = os.path.join(root, 'bursting/plots/IBI_contrast')
+    hp = decode_method_ibi(method)[1]
+    out1 = os.path.join(out, hp)
     mats = IBI_to_metric_save(IBIs, processed, window=None, method=method, test=True)
-    plot_IBI_ITPT_contrast_all_sessions(mats, out, eps=eps, eigen=eigen)
-    plot_IBI_ITPT_evolution_days_slides(mats, out, metric=metric, eps=eps, scatter_off=scatter_off)
-    plot_IBI_ITPT_compare_HM(mats, out, metric=metric, eps=eps, scatter_off=scatter_off)
+    print("Done with Metrics")
+    plot_IBI_ITPT_contrast_all_sessions(mats, out1, eps=eps, eigen=eigen)
+    plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, scatter_off=scatter_off)
+    plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, scatter_off=scatter_off)
 
 
 def check_burst(root, method):
