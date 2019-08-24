@@ -810,7 +810,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
         animals = df.animal.unique()
         palette = sns.color_palette(colors, n_colors=len(animals))
         for i, a in enumerate(animals):
-            sns.distplot(df[df['animal'] == a][metric], bins=bins, hist=False, color=palette[i],
+            sns.distplot(df[df['animal'] == a][metric].dropna(), bins=bins, hist=False, color=palette[i],
                          label=a, ax=ax)
 
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
@@ -888,7 +888,7 @@ def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True
         return
     df = metric_mats['window']
     fig1 = plt.figure(figsize=(8, 15))
-    sns.lmplot(x='session', y=metric, data=df, hue='group', row='roi_type',
+    sns.lmplot(x='session', y=metric, data=df.dropna(), hue='group', row='roi_type',
                scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
 
     scatter_opt = '_scatteroff' if scatter_off else ''
@@ -898,7 +898,7 @@ def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True
         fig1.savefig(fname1 + ".eps")
 
     fig2 = plt.figure(figsize=(25, 10))
-    sns.lmplot(x='window', y=metric, data=df, hue='group', col='roi_type',
+    sns.lmplot(x='window', y=metric, data=df.dropna(), hue='group', col='roi_type',
                scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
 
     fname2 = os.path.join(out, "IBI_evolution_across_windows_{}{}".format(metric, scatter_opt))
@@ -1003,7 +1003,7 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, scatter_o
         return
     df = metric_mats['trial']
     fig1 = plt.figure(figsize=(20, 15))
-    sns.lmplot(x='session', y=metric, data=df, hue='group', row='roi_type', col='HIT/MISS',
+    sns.lmplot(x='session', y=metric, data=df.dropna(), hue='group', row='roi_type', col='HIT/MISS',
                scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
 
     scatter_opt = '_scatteroff' if scatter_off else ''
@@ -1013,7 +1013,7 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, scatter_o
         fig1.savefig(fname1 + ".eps")
 
     fig2 = plt.figure(figsize=(25, 10))
-    sns.lmplot(x='HM_trial', y=metric, data=df, hue='group', row='roi_type', col='HIT/MISS',
+    sns.lmplot(x='HM_trial', y=metric, data=df.dropna(), hue='group', row='roi_type', col='HIT/MISS',
                scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
 
     fname2 = os.path.join(out, "IBI_HM_compare_across_trials_{}{}".format(metric, scatter_opt))
