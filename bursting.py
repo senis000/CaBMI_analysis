@@ -541,6 +541,7 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
                 cols: [group|animal|date|session|trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
         """
     # TODO: ALLOCATE MEMORY Posteriorly
+    skippers = open(os.path.join(folder, "skipper.txt"), 'w')
     hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
@@ -550,6 +551,10 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
             for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
                                             if d.isnumeric()])):
                 hf = encode_to_filename(folder, animal, day, hp)
+                if not os.path.exists(hf):
+                    print("Skipping, ", hf)
+                    skipper.write(hf + "\n")
+                    continue
                 print(animal, day)
                 df_window, df_trial = IBI_to_metric_single_session(hf, processed, test=test)
                 df_window.loc[:, 'group'] = animal[:2]
@@ -570,6 +575,7 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
     #     print('Start Saving')
     #     all_df_trial.to_csv(os.path.join(folder, 'df_trial.csv'), index=False)
     #     all_df_window.to_csv(os.path.join(folder, 'df_window.csv'), index=False)
+    skipper.close()
     return {'window': all_df_window, 'trial': all_df_trial}
 
 
@@ -1535,7 +1541,7 @@ def deconv_fano_run():
 def generate_IBI_plots_base(root, method=0, eps=True, eigen=True, metric='all', scatter_off=False):
     if method == 0:
         for m in (1, 2, 11, 12):
-            generate_IBI_plots_base(root, method=m, eps=eps, eigen=eigen, metric=m, scatter_off=scatter_off)
+            generate_IBI_plots_base(root, method=m, eps=eps, eigen=eigen, metric=metric, scatter_off=scatter_off)
     processed = os.path.join(root, 'CaBMI_analysis/processed')
     IBIs = os.path.join(root, 'bursting/IBI')
     out = os.path.join(root, 'bursting/plots/IBI_contrast')
