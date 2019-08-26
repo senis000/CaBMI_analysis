@@ -515,7 +515,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
     return mats
 
 
-def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
+def IBI_to_metric_save(folder, processed, animals=None, window=None, method=0, test=True):
     # TODO: add asymtotic learning rate as well
     """Returns pandas DataFrame object consisting all the experiments
     Params:
@@ -546,7 +546,13 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
     all_df_trial, all_df_window = pd.DataFrame(), pd.DataFrame() #TODO: think of ways to speed up
-    for animal in os.listdir(folder):
+    if animals is None:
+        animals = os.listdir(folder)
+        meta = ""
+    else:
+        meta = "_" + "_".join(animals)
+    # for animal in os.listdir(folder):
+    for animal in animals:
         if animal.startswith('PT') or animal.startswith('IT'):
             for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
                                             if d.isnumeric()])):
@@ -571,12 +577,12 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
     all_df_trial.loc[:, 'HIT/MISS'] = 'miss'
     all_df_trial.loc[all_df_trial['HM_trial'] > 0, 'HIT/MISS'] = 'hit'
     all_df_trial.loc[:, 'HM_trial'] = np.abs(all_df_trial.loc[:, 'HM_trial'])
-    # if test:
-    #     print('Start Saving')
-    #     all_df_trial.to_csv(os.path.join(folder, 'df_trial.csv'), index=False)
-    #     all_df_window.to_csv(os.path.join(folder, 'df_window.csv'), index=False)
+    if test:
+        print('Start Saving')
+        all_df_trial.to_csv(os.path.join(folder, 'df_trial{}_{}.csv'.format(meta, hp)), index=False)
+        all_df_window.to_csv(os.path.join(folder, 'df_window{}_{}.csv'.format(meta, hp)), index=False)
     skipper.close()
-    return {'window': all_df_window, 'trial': all_df_trial}
+    return {'window': all_df_window, 'trial': all_df_trial, 'meta': meta}
 
 
 def IBI_to_metric_single_session(inputs, processed, test=True):
@@ -792,17 +798,17 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
         metric: str
             'all' for all metrics
             'cv', 'cv_ub' for 'unbiased cv', 'serr_pc' for Standard Error in Percentage
-
     """
-    if not os.path.exists(out):
-        os.makedirs(out)
+    # TODO: Take into account of five different roi types!
 
     if metric == 'all':
         for m in 'cv', 'cv_ub', 'serr_pc':
             plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric=m, bins=bins, same_rank=same_rank,
                                                 eps=eps, eigen=True)
         return
-
+    out = os.path.join(out, metric)
+    if not os.path.exists(out):
+        os.makedirs(out)
     df = metric_mats['window']
     ITdf = df[df['group'] == 'IT']
     PTdf = df[df['group'] == 'PT']
@@ -823,15 +829,18 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
     axes[0].legend()
     axes[0].set_title('IBI Contrast IT&PT All Sessions Histogram')
     axes[0].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
+    axes[0].set_ylabel('Relative Frequency')
     generate_dist_series(ITdf, 'Blues', axes[1])
     generate_dist_series(PTdf, 'Reds', axes[1])
     axes[1].legend()
     axes[1].set_title("IBI Contrast IT&PT All Sessions Histogram ")
     axes[1].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
-    fname = os.path.join(out, "{}IBI_contrast_all_{}".format('all_dist_' if eigen else '', metric))
+    axes[1].set_ylabel('Relative Frequency')
+    fname = os.path.join(out, "{}IBI_contrast_all_{}{}".format('all_dist_' if eigen else '', metric, metric_mats['meta']))
     fig.savefig(fname+'.png')
     if eps:
         fig.savefig(fname+".eps")
+    plt.close('all')
     # FIG 1
     # if not os.path.exists(out):
     #     os.makedirs(out)
@@ -867,7 +876,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
     #     fig.savefig(fname+".eps")
 
 
-def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True, scatter_off=False):
+def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True, dropna=True, scatter_off=False, ci='ci'):
     # TODO: ADD between animal comparison (eigen parameter)
     """ Takes in metric mats and plots the evolution plots across windows/days
     Params:
@@ -880,31 +889,38 @@ def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True
             cols: [trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
     """
     # FIG 2
-    if not os.path.exists(out):
-        os.makedirs(out)
     if metric == 'all':
         for m in 'cv', 'cv_ub', 'serr_pc':
             plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric=m, eps=eps, scatter_off=scatter_off)
         return
+    out = os.path.join(out, metric)
+    if not os.path.exists(out):
+        os.makedirs(out)
     df = metric_mats['window']
-    fig1 = plt.figure(figsize=(8, 15))
-    sns.lmplot(x='session', y=metric, data=df.dropna(), hue='group', row='roi_type',
-               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
-
+    data = df.dropna() if dropna else df
+    if scatter_off:
+        sp1 = sns.lmplot(x='session', y=metric, data=data, hue='group', row='roi_type', scatter=False, x_ci=ci)
+    else:
+        sp1 = sns.lmplot(x='session', y=metric, data=data, hue='group', row='roi_type', x_ci=ci,
+               scatter_kws={'alpha': 0.7, 's': 0.1})
     scatter_opt = '_scatteroff' if scatter_off else ''
-    fname1 = os.path.join(out, "IBI_evolution_across_days_{}{}".format(metric, scatter_opt))
-    fig1.savefig(fname1 + '.png')
+    drop_opt = "_dropna" if dropna else ''
+    fname1 = os.path.join(out, "IBI_evolution_across_days_{}_{}{}{}{}".format(metric, ci, scatter_opt, drop_opt, metric_mats['meta']))
+    sp1.savefig(fname1 + '.png')
     if eps:
-        fig1.savefig(fname1 + ".eps")
+        sp1.savefig(fname1 + ".eps")
+    plt.close('all')
+    if scatter_off:
+        sp2=sns.lmplot(x='window', y=metric, data=data, hue='group', col='roi_type', scatter=False, x_ci=ci)
+    else:
+        sp2=sns.lmplot(x='window', y=metric, data=data, hue='group', col='roi_type', x_ci=ci,
+            scatter_kws={'alpha': 0.7, 's': 0.1})
 
-    fig2 = plt.figure(figsize=(25, 10))
-    sns.lmplot(x='window', y=metric, data=df.dropna(), hue='group', col='roi_type',
-               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
-
-    fname2 = os.path.join(out, "IBI_evolution_across_windows_{}{}".format(metric, scatter_opt))
-    fig2.savefig(fname2 + '.png')
+    fname2 = os.path.join(out, "IBI_evolution_across_windows_{}_{}{}{}{}".format(metric, ci, scatter_opt, drop_opt, metric_mats['meta']))
+    sp2.savefig(fname2 + '.png')
     if eps:
-        fig2.savefig(fname2 + ".eps")
+        sp2.savefig(fname2 + ".eps")
+    plt.close('all')
 
     # # FIG 2
     # if not os.path.exists(out):
@@ -983,7 +999,7 @@ def plot_IBI_ITPT_evolution_days_slides(metric_mats, out, metric='all', eps=True
     #     fig.savefig(fname + ".eps")
 
 
-def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, scatter_off=False):
+def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, HM=True, dropna=True, scatter_off=False, ci='ci'):
     """ Takes in metric mats and outputs plots of ITPT IBI cv contrast using [metric] across Hits/Miss Trials
     Params:
         metric_mats: dict
@@ -995,31 +1011,41 @@ def plot_IBI_ITPT_compare_HM(metric_mats, out, metric='all', eps=True, scatter_o
             cols: [trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
     """
     # FIG 3
-    if not os.path.exists(out):
-        os.makedirs(out)
     if metric == 'all':
         for m in 'cv', 'cv_ub', 'serr_pc':
             plot_IBI_ITPT_compare_HM(metric_mats, out, metric=m, eps=eps, scatter_off=scatter_off)
         return
+    out = os.path.join(out, metric)
+    if not os.path.exists(out):
+        os.makedirs(out)
     df = metric_mats['trial']
-    fig1 = plt.figure(figsize=(20, 15))
-    sns.lmplot(x='session', y=metric, data=df.dropna(), hue='group', row='roi_type', col='HIT/MISS',
-               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
+    data = df.dropna() if dropna else df
+    h = 'HIT/MISS' if HM else 'group'
+    c = 'group' if HM else 'HIT/MISS'
+    if scatter_off:
+        sp1 = sns.lmplot(x='session', y=metric, data=data, hue=h, row='roi_type', col=c, scatter=False, x_ci=ci)
+    else:
+        sp1 = sns.lmplot(x='session', y=metric, data=data, hue=h, row='roi_type', col=c, x_ci=ci,
+               scatter_kws={'alpha': 0.7, 's': 0.1})
 
     scatter_opt = '_scatteroff' if scatter_off else ''
-    fname1 = os.path.join(out, "IBI_HM_compare_across_days_{}{}".format(metric, scatter_opt))
-    fig1.savefig(fname1 + '.png')
+    drop_opt = '_dropna' if dropna else ''
+    fname1 = os.path.join(out, "IBI_HM_compare_across_days_{}_{}{}{}{}".format(metric, ci, scatter_opt, drop_opt, metric_mats['meta']))
+    sp1.savefig(fname1 + '.png')
     if eps:
-        fig1.savefig(fname1 + ".eps")
+        sp1.savefig(fname1 + ".eps")
+    plt.close('all')
+    if scatter_off:
+        sp2 = sns.lmplot(x='HM_trial', y=metric, data=df.dropna(), hue=h, row='roi_type', col=c, scatter=False, x_ci=ci)
+    else:
+        sp2 = sns.lmplot(x='HM_trial', y=metric, data=df.dropna(), hue=h, row='roi_type', col=c, x_ci=ci,
+               scatter_kws={'alpha': 0.7, 's': 0.1})
 
-    fig2 = plt.figure(figsize=(25, 10))
-    sns.lmplot(x='HM_trial', y=metric, data=df.dropna(), hue='group', row='roi_type', col='HIT/MISS',
-               scatter_kws={'alpha': 0.1, 's': 0} if scatter_off else {'alpha': 0.1})
-
-    fname2 = os.path.join(out, "IBI_HM_compare_across_trials_{}{}".format(metric, scatter_opt))
-    fig2.savefig(fname2 + '.png')
+    fname2 = os.path.join(out, "IBI_HM_compare_across_trials_{}_{}{}{}{}".format(metric, ci, scatter_opt, drop_opt, metric_mats['meta']))
+    sp2.savefig(fname2 + '.png')
     if eps:
-        fig2.savefig(fname2 + ".eps")
+        sp2.savefig(fname2 + ".eps")
+    plt.close('all')
     # Compares IBI CV distribution in hit and miss trials for IT & PT respectively
     # FIG 3
     # if not os.path.exists(out):
@@ -1542,16 +1568,46 @@ def generate_IBI_plots_base(root, method=0, eps=True, eigen=True, metric='all', 
     if method == 0:
         for m in (1, 2, 11, 12):
             generate_IBI_plots_base(root, method=m, eps=eps, eigen=eigen, metric=metric, scatter_off=scatter_off)
+        return
     processed = os.path.join(root, 'CaBMI_analysis/processed')
     IBIs = os.path.join(root, 'bursting/IBI')
-    out = os.path.join(root, 'bursting/plots/IBI_contrast')
+    out = os.path.join(root, 'bursting/plots/IBI_contrast/IT6_PT12')
     hp = decode_method_ibi(method)[1]
     out1 = os.path.join(out, hp)
-    mats = IBI_to_metric_save(IBIs, processed, window=None, method=method, test=True)
+    mats = IBI_to_metric_save(IBIs, processed, animals = ['IT6', 'PT12'], window=None, method=method, test=True)
     print("Done with Metrics")
+    print("Plotting all contrasts!")
     plot_IBI_ITPT_contrast_all_sessions(mats, out1, eps=eps, eigen=eigen)
-    plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, scatter_off=scatter_off)
-    plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, scatter_off=scatter_off)
+    for dna in (True, False):
+        for soff in (True, False):
+            print("Plotting evolution")
+            plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff)
+            print("Plotting HM compare")
+            plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff)
+
+def generate_IBI_plots_4animals(root, method=0, eps=True, eigen=True, metric='all', scatter_off=False):
+    if method == 0:
+        for m in (1, 2, 11, 12):
+            generate_IBI_plots_4animals(root, method=m, eps=eps, eigen=eigen, metric=metric, scatter_off=scatter_off)
+        return
+    processed = os.path.join(root, 'CaBMI_analysis/processed')
+    IBIs = os.path.join(root, 'bursting/IBI')
+    animals = ['IT3', 'IT4', 'IT5', 'IT6', 'PT6', 'PT7', 'PT9', 'PT12']
+    out = os.path.join(root, 'bursting/plots/IBI_contrast/{}animals'.format(len(animals) // 2))
+    hp = decode_method_ibi(method)[1]
+    out1 = os.path.join(out, hp)
+    mats = IBI_to_metric_save(IBIs, processed, animals = animals, window=None, method=method, test=True)
+    print("Done with Metrics")
+    print("Plotting all contrasts!")
+    plot_IBI_ITPT_contrast_all_sessions(mats, out1, eps=eps, eigen=eigen)
+    for ci in ('ci', 'sd'):
+        for dna in (True, False):
+            for soff in (True, False):
+                print("Plotting evolution")
+                plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff, ci=ci)
+                for hm in (True, False):
+                    print("Plotting HM compare")
+                    plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, HM=hm, dropna=dna, scatter_off=soff, ci=ci)
 
 
 def check_burst(root, method):

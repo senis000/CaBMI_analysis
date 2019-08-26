@@ -35,6 +35,7 @@ def plot_all_sessions_hpm():
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
     binsizes = [1, 3, 5]
     for b in binsizes:
+        print("BIN {}".format(b))
         for animal in os.listdir(processed):
             animal_path = folder + animal + '/'
             if not os.path.isdir(animal_path):
@@ -45,6 +46,7 @@ def plot_all_sessions_hpm():
             days.sort()
             for day in days:
                 if day.isnumeric():
+                    print(animal, day)
                     learning_params(folder, animal, day, bin_size=b, to_plot=True)
 
 
