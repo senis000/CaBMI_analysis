@@ -525,7 +525,7 @@ def plot_rfecv_thresholds():
     plt.show(block=True)
     
 if __name__=='__main__':
-    plot_itpt_learning()
+    plot_all_sessions_hpm()
     # analyze_feature_selection(rfecv_accuracy_threshold=.7)
     # sys.exit(0)
     #
