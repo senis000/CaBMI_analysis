@@ -32,7 +32,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from matplotlib import interactive
 import utils_cabmi as ut
-
+PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
 def learning(folder, animal, day, sec_var='', to_plot=True):
@@ -139,7 +139,7 @@ def learning_params(
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot is not None:
-        maxHit, hit_salient, pc_salient = to_plot
+        maxHit, hitIT_salient, hitPT_salient, pcIT_salient, pcIT_salien= to_plot
         out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
@@ -150,6 +150,9 @@ def learning_params(
         ax.set_ylabel('Hit Rate (hit/min)')
         ax.set_title('Hit Rate Evolution')
         ax.set_ylim((-maxHit / 20, maxHit * 21 / 20))
+        ax.axhline(hitIT_salient, color=PALETTE[0], lw=1.25)
+        ax.axhline(hitPT_salient, color=PALETTE[1], lw=1.25)
+        # TODO: ADD CHANCE LEVEL
         ax1 = fig1.add_subplot(132)
         sns.regplot(np.arange(tth.shape[0]), tth / fr, label='time to hit')
         ax1.set_xlabel('Reward Trial')
@@ -158,6 +161,8 @@ def learning_params(
         ax1.set_ylim((-1.5, 31.5))
         ax2 = fig1.add_subplot(133)
         sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
+        ax2.axhline(pcIT_salient, color=PALETTE[0], lw=1.25)
+        ax2.axhline(pcPT_salient, color=PALETTE[1], lw=1.25)
         ax2.set_xlabel('Minutes')
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
