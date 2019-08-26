@@ -149,19 +149,19 @@ def learning_params(
         ax.set_xlabel('Minutes')
         ax.set_ylabel('Hit Rate (hit/min)')
         ax.set_title('Hit Rate Evolution')
-        ax.set_ylim((0, maxHit))
+        ax.set_ylim((-maxHit / 20, maxHit * 21 / 20))
         ax1 = fig1.add_subplot(132)
         sns.regplot(np.arange(tth.shape[0]), tth / fr, label='time to hit')
         ax1.set_xlabel('Reward Trial')
         ax1.set_ylabel('Hit Time (second)')
         ax1.set_title('Hit Time Evolution')
-        ax1.set_ylim((0, 30))
+        ax1.set_ylim((-1.5, 31.5))
         ax2 = fig1.add_subplot(133)
         sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
         ax2.set_xlabel('Minutes')
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
-        ax2.set_ylim((0, 100))
+        ax2.set_ylim((-5, 105))
         fig1.savefig(
             out + "{}_{}_evolution_{}.png".format(animal, day, bin_size),
             bbox_inches="tight"
