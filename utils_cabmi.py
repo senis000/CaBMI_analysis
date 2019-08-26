@@ -114,20 +114,32 @@ class OnlineNormalEstimator(object):
     http://alias-i.com/lingpipe/docs/api/com/aliasi/stats/
     """
 
-    def __init__(self):
+    def __init__(self, algor='welford'):
         # Constructs an instance that has seen no data
         self.mN = 0 # Number of samples
         self.mM = 0.0 # Mean
         self.mS = 0.0 # Sum of squared differences from mean
+        if algor == 'welford':
+            self.handle = self.handle_welford
+            self.unHandle = self.unHandle_welford
+            self.mean = self.mean_welford
+            self.std = self.std_welford
+        elif algor == 'moment':
+            self.handle = self.handle_moment
+            self.unHandle = self.unHandle_moment
+            self.mean = self.mean_moment
+            self.std = self.std_moment
+        else:
+            raise ValueError("Unknown Algorithm: {}".format(algor))
 
-    def handle(self, x):
+    def handle_welford(self, x):
         # Adds X to the collection of samples for this estimator
         self.mN += 1
         nextM = self.mM + (x - self.mM)/self.mN
         self.mS += (x - self.mM)*(x - nextM)
         self.mM = nextM
 
-    def unHandle(self, x):
+    def unHandle_welford(self, x):
         # Removes the specified value from the sample set
         assert(self.mN != 0)
         if (self.mN ==1):
@@ -139,11 +151,43 @@ class OnlineNormalEstimator(object):
         self.mM = mOld
         self.mN -= 1
 
-    def mean(self):
+    def mean_welford(self):
         return self.mM
 
-    def std(self):
+    def std_welford(self):
         if self.mN > 1:
             return sqrt(self.mS/self.mN)
         else:
             return 0.0
+
+    def handle_moment(self, x):
+        # Adds X to the collection of samples for this estimator
+        if isinstance(x, np.ndarray):
+            self.mN += len(x[~np.isnan(x)])
+            self.mS += np.nansum(np.square(x))
+            self.mM += np.nansum(x)
+        else:
+            self.mN += 1
+            self.mS += x ** 2
+            self.mM += x
+
+    def unHandle_moment(self, x):
+        # TODO: FIX THIS
+        raise NotImplementedError("Not Implemented Yet")
+
+    def mean_moment(self):
+        return self.mM / self.mN
+
+    def std_moment(self):
+        if self.mN > 1:
+            return sqrt(self.mS / self.mN - self.mean_moment() ** 2)
+        else:
+            return 0.0
+
+    @staticmethod
+    def join(o1, o2):
+        # Return joint mean, standard deviation
+        mN = o1.mN + o2.mN
+        mS = o1.mS + o2.mS
+        mM = o1.mM + o2.mM
+        return sqrt(mS / mN - mM ** 2)

@@ -30,12 +30,14 @@ from sklearn.linear_model import LinearRegression
 sns.palplot(sns.color_palette("Set2"))
 
 
-def plot_all_sessions_hpm():
+def plot_all_sessions_hpm(sharey=False):
     folder = '/home/user/'
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     binsizes = [1, 3, 5]
     print("PRELIM")
     maxHit = 0
+    IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+    IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
     for b in binsizes:
         print("BIN {}".format(b))
         for animal in os.listdir(processed):
@@ -49,32 +51,27 @@ def plot_all_sessions_hpm():
             for day in days:
                 if day.isnumeric():
                     print(animal, day)
-                    _, hpm, _, _, = learning_params(folder, animal, day, bin_size=b)
+                    _, hpm, pc, _, = learning_params(folder, animal, day, bin_size=b)
+                    if animal.startswith('IT'):
+                        IT_hit.handle(hpm)
+                        IT_pc.handle(pc)
+                    else:
+                        PT_hit.handle(hpm)
+                        PT_pc.handle(pc)
                     maxHit = max(maxHit, np.nanmax(hpm))
-                    print(maxHit)
+
+
+    allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
+    tHitIT, tHitPT, tHitAll = IT_hit.mean() + IT_hit.std(), PT_hit.mean() + PT_hit.std(), allhitm + allhits
+    allPCm, allPCs = OnlineNormalEstimator.join(IT_pc, PT_pc)
+    tPCIT, tPCPT, tPCAll = IT_pc.mean() + IT_pc.std(), PT_pc.mean() + PT_pc.std(), allPCm + allPCs
+
+    if not sharey:
+        opt = (None, tHitIT, tHitPT, tHitAll, tPCIT, tPCPT, tPCAll)
+    else:
+        opt = (maxHit, tHitIT, tHitPT, tHitAll, tPCIT, tPCPT, tPCAll)
+
     print("PLOT", maxHit)
-    # for b in binsizes:
-    #     print("BIN {}".format(b))
-    #     for animal in os.listdir(processed):
-    #         animal_path = processed + animal + '/'
-    #         if not os.path.isdir(animal_path):
-    #             continue
-    #         if not (animal.startswith('IT') or animal.startswith('PT')):
-    #             continue
-    #         days = os.listdir(animal_path)
-    #         days.sort()
-    #         for day in days:
-    #             if day.isnumeric():
-    #                 print(animal, day)
-    #                 learning_params(folder, animal, day, bin_size=b, to_plot=maxHit)
-
-
-def plot_all_sessions_hpm_alt():
-    folder = '/home/user/'
-    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
-    binsizes = [1, 3, 5]
-    print("PRELIM")
-    maxHit = 0
     for b in binsizes:
         print("BIN {}".format(b))
         for animal in os.listdir(processed):
@@ -88,24 +85,9 @@ def plot_all_sessions_hpm_alt():
             for day in days:
                 if day.isnumeric():
                     print(animal, day)
-                    _, hpm, _, _, = learning_params(folder, animal, day, bin_size=b)
-                    maxHit = max(maxHit, np.nanmax(hpm))
-                    print(maxHit)
-    print("PLOT", maxHit)
-    # for b in binsizes:
-    #     print("BIN {}".format(b))
-    #     for animal in os.listdir(processed):
-    #         animal_path = processed + animal + '/'
-    #         if not os.path.isdir(animal_path):
-    #             continue
-    #         if not (animal.startswith('IT') or animal.startswith('PT')):
-    #             continue
-    #         days = os.listdir(animal_path)
-    #         days.sort()
-    #         for day in days:
-    #             if day.isnumeric():
-    #                 print(animal, day)
-    #                 learning_params(folder, animal, day, bin_size=b, to_plot=maxHit)
+                    learning_params(folder, animal, day, bin_size=b, to_plot=opt)
+
+
 
 
 def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200,

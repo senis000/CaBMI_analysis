@@ -86,7 +86,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False):
+    to_plot=None, end_bin=None, reg=False, dropend=True):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -121,14 +121,20 @@ def learning_params(
     trial_start = np.asarray(f['trial_start'])
     #percentage_correct = hits.shape[0]/trial_end.shape[0]
     bigbin = bin_size*60
-    bins = np.arange(0, int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1, bigbin)
+    if dropend:
+        ebin = trial_end[-1]/fr + 1
+    else:
+        ebin = int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1
+    bins = np.arange(0, ebin, bigbin)
     [hpm, xx] = np.histogram(hits/fr, bins)
     [mpm, _] = np.histogram(miss/fr, bins)
     hpm = hpm[blen_min//bin_size:]
     mpm = mpm[blen_min//bin_size:]
     percentage_correct = hpm / (hpm+mpm)
-    last_binsize = (trial_end[-1] / fr - bins[-2])
-    hpm[-1] *= bigbin / last_binsize
+    # TODO: CONSIDER SETTING THRESHOLD USING ONLY THE WHOLE WINDOWS
+    if not dropend:
+        last_binsize = (trial_end[-1] / fr - bins[-2])
+        hpm[-1] *= bigbin / last_binsize
     xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
     xx = xx[1:]
     hpm = hpm / bin_size
@@ -139,19 +145,24 @@ def learning_params(
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot is not None:
-        maxHit, hitIT_salient, hitPT_salient, pcIT_salient, pcIT_salien= to_plot
+        maxHit, hitIT_salient, hitPT_salient, hit_all_salient, pcIT_salient, pcPT_salient, pc_all_salient= \
+            to_plot
         out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
         fig1 = plt.figure(figsize=(15, 5))
         ax = fig1.add_subplot(131)
+        ax.axhline(hitIT_salient, color=PALETTE[0], lw=1.25, label='IT salience')
+        ax.axhline(hitPT_salient, color=PALETTE[1], lw=1.25, label='PT salience')
+        ax.axhline(hit_all_salient, color='yellow', lw=1.25, label='All salience')
         sns.regplot(xx/60, hpm, label='hits per min')
         ax.set_xlabel('Minutes')
         ax.set_ylabel('Hit Rate (hit/min)')
         ax.set_title('Hit Rate Evolution')
-        ax.set_ylim((-maxHit / 20, maxHit * 21 / 20))
-        ax.axhline(hitIT_salient, color=PALETTE[0], lw=1.25)
-        ax.axhline(hitPT_salient, color=PALETTE[1], lw=1.25)
+        if maxHit is not None:
+            ax.set_ylim((-maxHit / 20, maxHit * 21 / 20))
+
+
         # TODO: ADD CHANCE LEVEL
         ax1 = fig1.add_subplot(132)
         sns.regplot(np.arange(tth.shape[0]), tth / fr, label='time to hit')
@@ -160,9 +171,10 @@ def learning_params(
         ax1.set_title('Hit Time Evolution')
         ax1.set_ylim((-1.5, 31.5))
         ax2 = fig1.add_subplot(133)
+        ax2.axhline(pcIT_salient, color=PALETTE[0], lw=1.25, label='IT salience')
+        ax2.axhline(pcPT_salient, color=PALETTE[1], lw=1.25, label='PT salience')
+        ax2.axhline(pc_all_salient, color='yellow', lw=1.25, label='All salience')
         sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
-        ax2.axhline(pcIT_salient, color=PALETTE[0], lw=1.25)
-        ax2.axhline(pcPT_salient, color=PALETTE[1], lw=1.25)
         ax2.set_xlabel('Minutes')
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
