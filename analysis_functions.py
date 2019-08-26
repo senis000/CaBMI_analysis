@@ -86,7 +86,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False):
+    to_plot=None, end_bin=None, reg=False, dropend=True):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -121,14 +121,20 @@ def learning_params(
     trial_start = np.asarray(f['trial_start'])
     #percentage_correct = hits.shape[0]/trial_end.shape[0]
     bigbin = bin_size*60
-    bins = np.arange(0, int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1, bigbin)
+    if dropend:
+    	ebin = trial_end[-1]/fr + 1
+    else:
+    	ebin = int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1
+    bins = np.arange(0, ebin, bigbin)
     [hpm, xx] = np.histogram(hits/fr, bins)
     [mpm, _] = np.histogram(miss/fr, bins)
     hpm = hpm[blen_min//bin_size:]
     mpm = mpm[blen_min//bin_size:]
     percentage_correct = hpm / (hpm+mpm)
-    last_binsize = (trial_end[-1] / fr - bins[-2])
-    hpm[-1] *= bigbin / last_binsize
+    # TODO: CONSIDER SETTING THRESHOLD USING ONLY THE WHOLE WINDOWS
+    if not dropend:
+        last_binsize = (trial_end[-1] / fr - bins[-2])
+        hpm[-1] *= bigbin / last_binsize
     xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
     xx = xx[1:]
     hpm = hpm / bin_size
@@ -139,7 +145,8 @@ def learning_params(
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot is not None:
-        maxHit, hit_salient, pc_salient = to_plot
+        #maxHit, hit_salient, pc_salient = to_plot
+        maxHit = to_plot
         out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
