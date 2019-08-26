@@ -86,7 +86,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=False, end_bin=None, reg=False):
+    to_plot=None, end_bin=None, reg=False):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -138,7 +138,8 @@ def learning_params(
         xx = xx[:end_frame]
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
-    if to_plot:
+    if to_plot is not None:
+        maxHit, hit_salient, pc_salient = to_plot
         out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
@@ -148,20 +149,24 @@ def learning_params(
         ax.set_xlabel('Minutes')
         ax.set_ylabel('Hit Rate (hit/min)')
         ax.set_title('Hit Rate Evolution')
+        ax.set_ylim((0, maxHit))
         ax1 = fig1.add_subplot(132)
-        sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
+        sns.regplot(np.arange(tth.shape[0]), tth / fr, label='time to hit')
         ax1.set_xlabel('Reward Trial')
-        ax1.set_ylabel('Number of Frames')
+        ax1.set_ylabel('Hit Time (second)')
         ax1.set_title('Hit Time Evolution')
+        ax1.set_ylim((0, 30))
         ax2 = fig1.add_subplot(133)
         sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
         ax2.set_xlabel('Minutes')
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
+        ax2.set_ylim((0, 100))
         fig1.savefig(
             out + "{}_{}_evolution_{}.png".format(animal, day, bin_size),
             bbox_inches="tight"
             )
+        plt.close('all')
 
     xx_axis = xx/bigbin
     xx_axis = np.expand_dims(xx_axis, axis=1)

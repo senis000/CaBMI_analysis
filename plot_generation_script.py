@@ -32,12 +32,14 @@ sns.palplot(sns.color_palette("Set2"))
 
 def plot_all_sessions_hpm():
     folder = '/home/user/'
-    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     binsizes = [1, 3, 5]
+    print("PRELIM")
+    maxHit = 0
     for b in binsizes:
         print("BIN {}".format(b))
         for animal in os.listdir(processed):
-            animal_path = folder + animal + '/'
+            animal_path = processed + animal + '/'
             if not os.path.isdir(animal_path):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
@@ -47,7 +49,23 @@ def plot_all_sessions_hpm():
             for day in days:
                 if day.isnumeric():
                     print(animal, day)
-                    learning_params(folder, animal, day, bin_size=b, to_plot=True)
+                    _, hpm, _, _, = learning_params(folder, animal, day, bin_size=b)
+                    maxHit = max(maxHit, np.max(hpm))
+    print("PLOT")
+    for b in binsizes:
+        print("BIN {}".format(b))
+        for animal in os.listdir(processed):
+            animal_path = processed + animal + '/'
+            if not os.path.isdir(animal_path):
+                continue
+            if not (animal.startswith('IT') or animal.startswith('PT')):
+                continue
+            days = os.listdir(animal_path)
+            days.sort()
+            for day in days:
+                if day.isnumeric():
+                    print(animal, day)
+                    learning_params(folder, animal, day, bin_size=b, to_plot=maxHit)
 
 
 def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200,

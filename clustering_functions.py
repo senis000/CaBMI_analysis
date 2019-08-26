@@ -3,6 +3,7 @@ import h5py
 import time
 import pdb
 import community
+#from networkx.algorithms import community
 import networkx as nx
 import markov_clustering as mc
 from sklearn.cluster import KMeans, AgglomerativeClustering
