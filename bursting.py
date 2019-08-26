@@ -541,7 +541,7 @@ def IBI_to_metric_save(folder, processed, window=None, method=0, test=True):
                 cols: [group|animal|date|session|trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
         """
     # TODO: ALLOCATE MEMORY Posteriorly
-    skippers = open(os.path.join(folder, "skipper.txt"), 'w')
+    skipper = open(os.path.join(folder, "skipper.txt"), 'w')
     hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
