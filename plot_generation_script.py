@@ -29,6 +29,25 @@ from sklearn.linear_model import LinearRegression
 
 sns.palplot(sns.color_palette("Set2"))
 
+
+def plot_all_sessions_hpm():
+    folder = '/home/user/'
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+    binsizes = [1, 3, 5]
+    for b in binsizes:
+        for animal in os.listdir(processed):
+            animal_path = folder + animal + '/'
+            if not os.path.isdir(animal_path):
+                continue
+            if not (animal.startswith('IT') or animal.startswith('PT')):
+                continue
+            days = os.listdir(animal_path)
+            days.sort()
+            for day in days:
+                if day.isnumeric():
+                    learning_params(folder, animal, day, bin_size=b, to_plot=True)
+
+
 def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200,
     first_N_experiments=100):
     """
@@ -504,13 +523,14 @@ def plot_rfecv_thresholds():
     plt.show(block=True)
     
 if __name__=='__main__':
-    analyze_feature_selection(rfecv_accuracy_threshold=.7)
-    sys.exit(0)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('animal', help='Animal name')
-    parser.add_argument('day', help='Day of experiment')
-    args = parser.parse_args()
-    folder = "./"
-    animal = args.animal
-    day = args.day
+    plot_itpt_learning()
+    # analyze_feature_selection(rfecv_accuracy_threshold=.7)
+    # sys.exit(0)
+    #
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('animal', help='Animal name')
+    # parser.add_argument('day', help='Day of experiment')
+    # args = parser.parse_args()
+    # folder = "./"
+    # animal = args.animal
+    # day = args.day

@@ -86,7 +86,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=False, end_bin=None):
+    to_plot=False, end_bin=None, reg=False):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -102,7 +102,7 @@ def learning_params(
         REG: The fitted linear regression model
     '''
     
-    folder_path = folder +  'processed/' + animal + '/' + day + '/'
+    folder_path = folder +  'CaBMI_analysis/processed/' + animal + '/' + day + '/'
     folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
     f = h5py.File(
         folder_path + 'full_' + animal + '_' + day + '_' +
@@ -119,12 +119,19 @@ def learning_params(
     array_miss = np.asarray(f['array_miss'])
     trial_end = np.asarray(f['trial_end'])
     trial_start = np.asarray(f['trial_start'])
-    percentage_correct = hits.shape[0]/trial_end.shape[0]
-    bins = np.arange(0, trial_end[-1]/fr, bin_size*60)
+    #percentage_correct = hits.shape[0]/trial_end.shape[0]
+    bigbin = bin_size*60
+    bins = np.arange(0, int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1, bigbin)
     [hpm, xx] = np.histogram(hits/fr, bins)
+    [mpm, _] = np.histogram(miss/fr, bins)
     hpm = hpm[blen_min//bin_size:]
+    mpm = mpm[blen_min//bin_size:]
+    percentage_correct = hpm / (hpm+mpm)
+    last_binsize = (trial_end[-1] / fr - bins[-2])
+    hpm[-1] *= bigbin / last_binsize
     xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
     xx = xx[1:]
+    hpm = hpm / bin_size
     if end_bin is not None:
         end_frame = end_bin//bin_size + 1
         hpm = hpm[:end_frame]
@@ -132,25 +139,33 @@ def learning_params(
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot:
-        fig1 = plt.figure()
-        ax = fig1.add_subplot(121)
-        sns.regplot(xx[1:]/(bin_size*60.0), hpm, label='hits per min')
+        out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
+        if not os.path.exists(out):
+            os.makedirs(out)
+        fig1 = plt.figure(figsize=(15, 5))
+        ax = fig1.add_subplot(131)
+        sns.regplot(xx/60, hpm, label='hits per min')
         ax.set_xlabel('Minutes')
         ax.set_ylabel('Hit Rate (hit/min)')
-        ax1 = fig1.add_subplot(122)
+        ax.set_title('Hit Rate Evolution')
+        ax1 = fig1.add_subplot(132)
         sns.regplot(np.arange(tth.shape[0]), tth, label='time to hit')
         ax1.set_xlabel('Reward Trial')
         ax1.set_ylabel('Number of Frames')
-        ax1.yaxis.set_label_position('right')
+        ax1.set_title('Hit Time Evolution')
+        ax2 = fig1.add_subplot(133)
+        sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
+        ax2.set_xlabel('Minutes')
+        ax2.set_ylabel('Percentage Correct (%)')
+        ax2.set_title('Percentage Correct Evolution')
         fig1.savefig(
-            folder_path + 'hpm' + str(bin_size) + '.png',
+            out + "{}_{}_evolution_{}.png".format(animal, day, bin_size),
             bbox_inches="tight"
             )
 
-    xx_axis = xx/(bin_size*60.0)
+    xx_axis = xx/bigbin
     xx_axis = np.expand_dims(xx_axis, axis=1)
-    reg = LinearRegression().fit(xx_axis, hpm)
-    return xx_axis, hpm, percentage_correct, reg
+    return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
