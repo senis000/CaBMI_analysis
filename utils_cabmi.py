@@ -190,4 +190,5 @@ class OnlineNormalEstimator(object):
         mN = o1.mN + o2.mN
         mS = o1.mS + o2.mS
         mM = o1.mM + o2.mM
-        return sqrt(mS / mN - mM ** 2)
+        m = mM / mN
+        return m, sqrt(mS / mN - m ** 2)
