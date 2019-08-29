@@ -99,10 +99,14 @@ def plot_all_sessions_hpm(sharey=False):
                     vals[4] = (svfive - IT_hit.mean()) / IT_hit.std()
                     vals[6] = (ninety - IT_hit.mean()) / IT_hit.std()
                 else:
-                    vals[1] = (nmax - allPCm) / allPCs
-                    vals[3] = (sixty - allPCm) / allPCs
-                    vals[5] = (svfive - allPCm) / allPCs
-                    vals[7] = (ninety - allPCm) / allPCs
+                    vals[0] = (nmax - PT_hit.mean()) / PT_hit.std()
+                    vals[2] = (sixty - PT_hit.mean()) / PT_hit.std()
+                    vals[4] = (svfive - PT_hit.mean()) / PT_hit.std()
+                    vals[6] = (ninety - PT_hit.mean()) / PT_hit.std()
+                vals[1] = (nmax - allPCm) / allPCs
+                vals[3] = (sixty - allPCm) / allPCs
+                vals[5] = (svfive - allPCm) / allPCs
+                vals[7] = (ninety - allPCm) / allPCs
                 cwriter.writerow([animal, day] + vals)
         cf.close()
 
