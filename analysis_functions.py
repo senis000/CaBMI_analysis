@@ -155,6 +155,7 @@ def learning_params(
         ax.axhline(hitIT_salient, color=PALETTE[0], lw=1.25, label='IT salience')
         ax.axhline(hitPT_salient, color=PALETTE[1], lw=1.25, label='PT salience')
         ax.axhline(hit_all_salient, color='yellow', lw=1.25, label='All salience')
+        ax.legend()
         sns.regplot(xx/60, hpm, label='hits per min')
         ax.set_xlabel('Minutes')
         ax.set_ylabel('Hit Rate (hit/min)')
@@ -170,6 +171,7 @@ def learning_params(
         ax1.set_ylabel('Hit Time (second)')
         ax1.set_title('Hit Time Evolution')
         ax1.set_ylim((-1.5, 31.5))
+        ax1.legend()
         ax2 = fig1.add_subplot(133)
         ax2.axhline(pcIT_salient, color=PALETTE[0], lw=1.25, label='IT salience')
         ax2.axhline(pcPT_salient, color=PALETTE[1], lw=1.25, label='PT salience')
@@ -179,6 +181,7 @@ def learning_params(
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
         ax2.set_ylim((-5, 105))
+        ax2.legend()
         fig1.savefig(
             out + "{}_{}_evolution_{}.png".format(animal, day, bin_size),
             bbox_inches="tight"
