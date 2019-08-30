@@ -541,47 +541,53 @@ def IBI_to_metric_save(folder, processed, animals=None, window=None, method=0, t
                 cols: [group|animal|date|session|trial|HM_trial|N|roi_type|cv|cv_ub|serr_pc]
         """
     # TODO: ALLOCATE MEMORY Posteriorly
-    skipper = open(os.path.join(folder, "skipper.txt"), 'w')
     hp = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     if method == 0:
         return {m: IBI_to_metric_save(folder, m) for m in (1, 2, 11, 12)}
-    all_df_trial, all_df_window = pd.DataFrame(), pd.DataFrame() #TODO: think of ways to speed up
     if animals is None:
         animals = os.listdir(folder)
         meta = ""
     else:
         meta = "_" + "_".join(animals)
     # for animal in os.listdir(folder):
-    for animal in animals:
-        if animal.startswith('PT') or animal.startswith('IT'):
-            for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
-                                            if d.isnumeric()])):
-                hf = encode_to_filename(folder, animal, day, hp)
-                if not os.path.exists(hf):
-                    print("Skipping, ", hf)
-                    skipper.write(hf + "\n")
-                    continue
-                print(animal, day)
-                df_window, df_trial = IBI_to_metric_single_session(hf, processed, test=test)
-                df_window.loc[:, 'group'] = animal[:2]
-                df_trial.loc[:, 'group'] = animal[:2]
-                df_window.loc[:, 'animal'] = animal
-                df_trial.loc[:, 'animal'] = animal
-                df_window.loc[:, 'date'] = day # Real Date
-                df_trial.loc[:, 'date'] = day
-                df_window.loc[:, 'session'] = i + 1
-                df_trial.loc[:, 'session'] = i + 1
-                all_df_window = all_df_window.append(df_window)
-                all_df_trial = all_df_trial.append(df_trial)
-    print('Done with all loops')
-    all_df_trial.loc[:, 'HIT/MISS'] = 'miss'
-    all_df_trial.loc[all_df_trial['HM_trial'] > 0, 'HIT/MISS'] = 'hit'
-    all_df_trial.loc[:, 'HM_trial'] = np.abs(all_df_trial.loc[:, 'HM_trial'])
-    if test:
-        print('Start Saving')
-        all_df_trial.to_csv(os.path.join(folder, 'df_trial{}_{}.csv'.format(meta, hp)), index=False)
-        all_df_window.to_csv(os.path.join(folder, 'df_window{}_{}.csv'.format(meta, hp)), index=False)
-    skipper.close()
+    trial_target = os.path.join(folder, 'df_trial{}_{}.csv'.format(meta, hp))
+    window_target = os.path.join(folder, 'df_window{}_{}.csv'.format(meta, hp))
+
+    if test and os.path.exists(trial_target) and os.path.exists(window_target):
+        all_df_trial, all_df_window = pd.read_csv(trial_target), pd.read_csv(window_target)
+    else:
+        all_df_trial, all_df_window = pd.DataFrame(), pd.DataFrame() #TODO: think of ways to speed up
+        skipper = open(os.path.join(folder, "skipper.txt"), 'w')
+        for animal in animals:
+            if animal.startswith('PT') or animal.startswith('IT'):
+                for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
+                                                if d.isnumeric()])):
+                    hf = encode_to_filename(folder, animal, day, hp)
+                    if not os.path.exists(hf):
+                        print("Skipping, ", hf)
+                        skipper.write(hf + "\n")
+                        continue
+                    print(animal, day)
+                    df_window, df_trial = IBI_to_metric_single_session(hf, processed, test=test)
+                    df_window.loc[:, 'group'] = animal[:2]
+                    df_trial.loc[:, 'group'] = animal[:2]
+                    df_window.loc[:, 'animal'] = animal
+                    df_trial.loc[:, 'animal'] = animal
+                    df_window.loc[:, 'date'] = day # Real Date
+                    df_trial.loc[:, 'date'] = day
+                    df_window.loc[:, 'session'] = i + 1
+                    df_trial.loc[:, 'session'] = i + 1
+                    all_df_window = all_df_window.append(df_window)
+                    all_df_trial = all_df_trial.append(df_trial)
+        print('Done with all loops')
+        all_df_trial.loc[:, 'HIT/MISS'] = 'miss'
+        all_df_trial.loc[all_df_trial['HM_trial'] > 0, 'HIT/MISS'] = 'hit'
+        all_df_trial.loc[:, 'HM_trial'] = np.abs(all_df_trial.loc[:, 'HM_trial'])
+        if test:
+            print('Start Saving')
+            all_df_trial.to_csv(trial_target, index=False)
+            all_df_window.to_csv(window_target, index=False)
+        skipper.close()
     return {'window': all_df_window, 'trial': all_df_trial, 'meta': meta}
 
 
