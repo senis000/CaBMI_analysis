@@ -825,23 +825,26 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
             sns.distplot(df[df['animal'] == a][metric].dropna(), bins=bins, hist=False, color=palette[i],
                          label=a, ax=ax)
 
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-
-    if bins is not None:
-        axes[0].hist([ITdf[metric], PTdf[metric]], bins=bins, density=True, label=['IT', 'PT'])
-    else:
-        axes[0].hist([ITdf[metric], PTdf[metric]], bins=best_nbins(ITdf[metric]), density=True,
-                     label=['IT', 'PT'])
-    axes[0].legend()
-    axes[0].set_title('IBI Contrast IT&PT All Sessions Histogram')
-    axes[0].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
-    axes[0].set_ylabel('Relative Frequency')
-    generate_dist_series(ITdf, 'Blues', axes[1])
-    generate_dist_series(PTdf, 'Reds', axes[1])
-    axes[1].legend()
-    axes[1].set_title("IBI Contrast IT&PT All Sessions Histogram ")
-    axes[1].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
-    axes[1].set_ylabel('Relative Frequency')
+    fig, axes = plt.subplots(nrows=2, ncols=5, sharey=True, figsize=(20, 10))
+    for i, t in enumerate(('D', 'IG', 'IR', 'E1', 'E2')):
+        ITf, PTf = ITdf[ITdf == t], PTdf[PTdf == t]
+        if bins is not None:
+            axes[0][i].hist([ITf[metric], PTf[metric]], bins=bins, density=True,
+                         label=['IT', 'PT'])
+        else:
+            axes[0][i].hist([ITf[metric], PTf[metric]],
+                            bins=best_nbins(ITf[metric]), density=True, label=['IT', 'PT'])
+        axes[0][i].legend()
+        axes[0][i].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
+        axes[0][i].set_ylabel('Relative Frequency')
+        axes[0][i].set_title('ROI type: {}'.format(t))
+        generate_dist_series(ITf, 'Blues', axes[1][i])
+        generate_dist_series(PTf, 'Reds', axes[1][i])
+        axes[1][i].legend()
+        axes[1][i].set_title("IBI Contrast IT&PT All Sessions Histogram ")
+        axes[1][i].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
+        axes[1][i].set_ylabel('Relative Frequency')
+    fig.suptitle('IBI Contrast IT&PT All Sessions Histogram')
     fname = os.path.join(out, "{}IBI_contrast_all_{}{}".format('all_dist_' if eigen else '', metric, metric_mats['meta']))
     fig.savefig(fname+'.png')
     if eps:
