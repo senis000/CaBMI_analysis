@@ -845,7 +845,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
         axes[1][i].set_xlabel('Coefficient of Variation of Interburst Interval (AU)')
         axes[1][i].set_ylabel('Relative Frequency')
     fig.suptitle('IBI Contrast IT&PT All Sessions Histogram')
-    fname = os.path.join(out, "{}IBI_contrast_all_{}{}".format('all_dist_' if eigen else '', metric, metric_mats['meta']))
+    fname = os.path.join(out, "{}IBI_contrast_all_{}{}_roitype".format('all_dist_' if eigen else '', metric, metric_mats['meta']))
     fig.savefig(fname+'.png')
     if eps:
         fig.savefig(fname+".eps")
@@ -1609,14 +1609,14 @@ def generate_IBI_plots_4animals(root, method=0, eps=True, eigen=True, metric='al
     print("Done with Metrics")
     print("Plotting all contrasts!")
     plot_IBI_ITPT_contrast_all_sessions(mats, out1, eps=eps, eigen=eigen)
-    for ci in ('ci', 'sd'):
-        for dna in (True, False):
-            for soff in (True, False):
-                print("Plotting evolution")
-                plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff, ci=ci)
-                for hm in (True, False):
-                    print("Plotting HM compare")
-                    plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, HM=hm, dropna=dna, scatter_off=soff, ci=ci)
+    # for ci in ('ci', 'sd'):
+    #     for dna in (True, False):
+    #         for soff in (True, False):
+    #             print("Plotting evolution")
+    #             plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff, ci=ci)
+    #             for hm in (True, False):
+    #                 print("Plotting HM compare")
+    #                 plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, HM=hm, dropna=dna, scatter_off=soff, ci=ci)
 
 
 def check_burst(root, method):
