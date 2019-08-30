@@ -818,6 +818,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
     df = metric_mats['window']
     ITdf = df[df['group'] == 'IT']
     PTdf = df[df['group'] == 'PT']
+    ITdf, PTdf = ITdf[~np.isnan(ITdf)], PTdf[~np.isnan(PTdf)]
     def generate_dist_series(df, colors, ax):
         animals = df.animal.unique()
         palette = sns.color_palette(colors, n_colors=len(animals))
