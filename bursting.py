@@ -820,7 +820,6 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
     df = metric_mats['window']
     ITdf = df[df['group'] == 'IT']
     PTdf = df[df['group'] == 'PT']
-    ITdf, PTdf = ITdf[~np.isnan(ITdf)], PTdf[~np.isnan(PTdf)]
     def generate_dist_series(df, colors, ax):
         animals = df.animal.unique()
         palette = sns.color_palette(colors, n_colors=len(animals))
@@ -830,7 +829,7 @@ def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=Non
 
     fig, axes = plt.subplots(nrows=2, ncols=5, sharey=True, figsize=(20, 10))
     for i, t in enumerate(('D', 'IG', 'IR', 'E1', 'E2')):
-        ITf, PTf = ITdf[ITdf == t], PTdf[PTdf == t]
+        ITf, PTf = ITdf[ITdf['roi_type'] == t], PTdf[PTdf['roi_type'] == t]
         if bins is not None:
             axes[0][i].hist([ITf[metric], PTf[metric]], bins=bins, density=True,
                          label=['IT', 'PT'])
