@@ -661,9 +661,11 @@ def IBI_to_metric_single_session(inputs, processed, test=True):
     rois = np.full(N, "D", dtype="U2")
     rois[nerden & ~redlabel] = 'IG'
     rois[nerden & redlabel] = 'IR'
-    rois[ens_neur] = 'E1'
     if e2_neur is not None:
+        rois[ens_neur] = 'E1'
         rois[e2_neur] = 'E2'
+    else:
+        rois[ens_neur] = 'E'
     # DF TRIAL
     resW['window'] = np.tile(np.arange(sw), N)
     resW['roi_type'] = np.repeat(rois, sw)
@@ -1594,6 +1596,7 @@ def generate_IBI_plots_base(root, method=0, eps=True, eigen=True, metric='all', 
             plot_IBI_ITPT_evolution_days_slides(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff)
             print("Plotting HM compare")
             plot_IBI_ITPT_compare_HM(mats, out1, metric=metric, eps=eps, dropna=dna, scatter_off=soff)
+
 
 def generate_IBI_plots_4animals(root, method=0, eps=True, eigen=True, metric='all', scatter_off=False):
     if method == 0:
