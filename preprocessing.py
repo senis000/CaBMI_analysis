@@ -80,3 +80,9 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
                 print(animal, day)
                 hf = encode_to_filename(processed, animal, day)
                 calcium_to_peak_times(hf, low, high)
+
+
+if __name__ == '__main__':
+    home = "/home/user/"
+    calcium_to_peak_times_all(home, {'IT': {'IT8':'*', 'IT9': '*'}, 'PT': {'PT13': "*", 'PT18':"*"}})
+

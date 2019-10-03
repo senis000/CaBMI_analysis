@@ -21,7 +21,6 @@ from plotting_functions import *
 from analysis_functions import *
 from utils_gte import *
 from utils_clustering import *
-from clustering_functions import *
 
 def count_experiments():
     """
