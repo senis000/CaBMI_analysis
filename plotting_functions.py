@@ -355,7 +355,7 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
     plt.show()
 
 
-def plot_peak_psth_window(folder, animal, day, method, window, tlock=30, eps=True):
+def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     psth = os.path.join(folder, 'bursting/plots/PSTH/')
     windowplot = os.path.join(psth, 'window')
@@ -386,18 +386,18 @@ def plot_peak_psth_window(folder, animal, day, method, window, tlock=30, eps=Tru
         missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
         plt.plot(hitsx, hitsy, 'b.', markersize=3)
         plt.plot(missx, missy, 'k.', markersize=3)
-        plt.legend(['hits', 'miss'])
+        plt.plot(array_start, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
+        plt.legend(['hits', 'miss', 'trial start'])
         plt.axvline(0, color='r')
         fig.suptitle("PSTH trial")
         plt.xlabel('Time(fr)')
         plt.ylabel('Trial Number')
-        fname = os.path.join(ntfolder, "hp")
+        fname = os.path.join(ntfolder, hp)
         fig.savefig(fname + '.png')
         if eps:
             fig.savefig(fname + ".eps")
         plt.close('all')
         # WINDOW
-
         fig = plt.figure(figsize=(20, 10))
         slidex = np.concatenate([D_window[i][j] - window * j for j in range(len(D_window[i]))])
         slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
@@ -406,15 +406,10 @@ def plot_peak_psth_window(folder, animal, day, method, window, tlock=30, eps=Tru
         fig.suptitle("PSTH trial")
         plt.xlabel('Time(fr)')
         plt.ylabel('Slide')
-        fname = os.path.join(ntfolder, "hp")
+        fname = os.path.join(ntfolder, hp)
         fig.savefig(fname + '.png')
         if eps:
             fig.savefig(fname + ".eps")
-
-
-
-
-
 
 
 

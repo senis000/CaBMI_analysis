@@ -176,7 +176,6 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
     return D_trial, D_window
 
 
-
 if __name__ == '__main__':
     home = "/home/user/"
-    calcium_to_peak_times_all(home, {'IT': {'IT10':'*'}, 'PT': {'PT19': "*", 'PT20':"*"}})
+    calcium_to_peak_times_all(home, {'IT': {'IT10': '*'}, 'PT': {'PT19': "*", 'PT20':"*"}})
