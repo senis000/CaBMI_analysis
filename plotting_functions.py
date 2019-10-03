@@ -422,3 +422,12 @@ def best_nbins(data):
         return max(len(data) // 100, len(data) // 10, 1)
     nbins = min(int((np.max(data) - np.min(data)) / binsize) + 1, 1000)
     return nbins if nbins < len(data) / 4 else max(len(data) // 20, 1)
+
+if __name__ == '__main__':
+    home = "/home/user/"
+    processed = os.path.join(home, "CaBMI_analysis/processed/")
+    inputs = [(processed, "IT2", "181002"), (processed, "PT7", "190114")]
+    for m in (1, 2, 11, 12):
+        for window in (3000, 6000, 9000):
+            for inp in inputs:
+                plot_peak_psth(*inp, m, window)
