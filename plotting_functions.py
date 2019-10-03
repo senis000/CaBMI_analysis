@@ -16,6 +16,8 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib import interactive
 from matplotlib.widgets import Slider
 from utils_cabmi import *
+from utils_loading import encode_to_filename, decode_method_ibi
+from preprocessing import get_roi_type, get_peak_times_over_thres
 import seaborn as sns
 
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
@@ -351,6 +353,69 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
     trial_slider.on_changed(update)
     pdb.set_trace()
     plt.show()
+
+
+def plot_peak_psth_window(folder, animal, day, method, window, tlock=30, eps=True):
+    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
+    psth = os.path.join(folder, 'bursting/plots/PSTH/')
+    windowplot = os.path.join(psth, 'window')
+    trialplot = os.path.join(psth, 'trial')
+    D_trial, D_window = get_peak_times_over_thres((processed, animal, day), window, method, tlock=tlock)
+    # LABEL NEURON IN FRONT
+    with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
+        C = np.array(f['C'])
+        hits = np.array(f['hits'])
+        misses = np.array(f['miss'])
+        array_start = np.array(f['trial_start'])
+        array_end = np.array(f['trial_end'])
+    roi_types = get_roi_type(processed, animal, day)
+    hp = "psth_window_{}_theta_{}".format(window, decode_method_ibi(method)[1])
+    for i in range(C.shape[0]):
+        nstr = roi_types[i] + "_" + str(i)
+        ntfolder = os.path.join(windowplot, nstr)
+        nwfolder = os.path.join(trialplot, nstr)
+        if not os.path.exists(ntfolder):
+            os.makedirs(ntfolder)
+        if not os.path.exists((nwfolder)):
+            os.makedirs(nwfolder)
+        # TRIAL
+        fig = plt.figure(figsize=(20, 10))
+        hitsx = np.concatenate([D_trial[i][j] - array_end[j] for j in hits])
+        hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
+        missx = np.concatenate([D_trial[i][j] - array_end[j] for j in misses])
+        missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
+        plt.plot(hitsx, hitsy, 'b.', markersize=3)
+        plt.plot(missx, missy, 'k.', markersize=3)
+        plt.legend(['hits', 'miss'])
+        plt.axvline(0, color='r')
+        fig.suptitle("PSTH trial")
+        plt.xlabel('Time(fr)')
+        plt.ylabel('Trial Number')
+        fname = os.path.join(ntfolder, "hp")
+        fig.savefig(fname + '.png')
+        if eps:
+            fig.savefig(fname + ".eps")
+        plt.close('all')
+        # WINDOW
+
+        fig = plt.figure(figsize=(20, 10))
+        slidex = np.concatenate([D_window[i][j] - window * j for j in range(len(D_window[i]))])
+        slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
+        plt.plot(slidex, slidey, 'k.', markersize=3)
+        plt.axvline(0, color='r')
+        fig.suptitle("PSTH trial")
+        plt.xlabel('Time(fr)')
+        plt.ylabel('Slide')
+        fname = os.path.join(ntfolder, "hp")
+        fig.savefig(fname + '.png')
+        if eps:
+            fig.savefig(fname + ".eps")
+
+
+
+
+
+
 
 
 def best_nbins(data):

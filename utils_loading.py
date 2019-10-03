@@ -2,6 +2,7 @@ import os
 import numpy as np
 import json
 import h5py
+import re
 from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
@@ -153,4 +154,9 @@ def change_window_IBI(ibi):
             d = fname.find('.h')
             os.rename(fname, fname[:w]+'None'+fname[d:])
 
+
+def find_file_regex(folder, regex):
+    for f in os.listdir(folder):
+        if re.match(regex, f):
+            return os.path.join(folder, f)
 

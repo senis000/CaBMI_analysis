@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import h5py, os
 from utils_loading import path_prefix_free, file_folder_path, get_PTIT_over_days, \
-    parse_group_dict, encode_to_filename
+    parse_group_dict, encode_to_filename, find_file_regex
+from utils_cabmi import median_absolute_deviation
 import csv
 
 
@@ -45,7 +46,7 @@ def calcium_to_peak_times(inputs, low=1, high=20):
             raise RuntimeError("Input Format Unknown!")
         savepath = os.path.join(path, '{}_{}_rawcwt_{}.csv'.format(animal, day, hyperparams))
         cwt = os.path.join(path, 'cwt.txt')
-        if os.path.exists(cwt):
+        if os.path.exists(savepath):
             return
         if f is None:
             f = h5py.File(hfile, 'r')
@@ -59,7 +60,8 @@ def calcium_to_peak_times(inputs, low=1, high=20):
             cwriter.writerow(find_peaks_cwt(C[i, :], np.arange(low, high)))
     if animal is not None:
         with open(cwt, 'a') as cf:
-            cf.write(hyperparams)
+            cf.write(hyperparams + "\n")
+    return savepath
 
 
 def calcium_to_peak_times_all(folder, groups, low=1, high=20):
@@ -82,7 +84,99 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
                 calcium_to_peak_times(hf, low, high)
 
 
+
+def get_roi_type(processed, animal, day):
+    rois = None
+    with h5py.File(os.path.join(processed, animal, day, "full_{}_{}__data.hdf5".format(animal, day)),
+                   'r') as hfile:
+        N = hfile['C'].shape[0]
+        rois = np.full(N, "D", dtype="U2")
+        nerden = np.array(hfile['nerden'])
+        redlabel = np.array(hfile['redlabel'])
+        e2_neur = hfile['e2_neur']
+        ens_neur = hfile['ens_neur']
+        rois[nerden & ~redlabel] = 'IG'
+        rois[nerden & redlabel] = 'IR'
+        if e2_neur is not None:
+            rois[ens_neur] = 'E1'
+            rois[e2_neur] = 'E2'
+        else:
+            rois[ens_neur] = 'E'
+    return rois
+
+
+def get_peak_times_over_thres(inputs, window, method, tlock=30):
+    """ Returns Peak Times, organized by window bins and trial bins respectively, that Passes a specific
+    threshold specified by method. """
+    if isinstance(inputs, str):
+        opts = path_prefix_free(inputs, '/').split('_')
+        path = file_folder_path(inputs)
+        animal, day = opts[1], opts[2]
+        f = None
+        hfile = inputs
+    elif isinstance(inputs, tuple):
+        path, animal, day = inputs
+        hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+        f = None
+    elif isinstance(inputs, h5py.File):
+        opts = path_prefix_free(inputs.filename, '/').split('_')
+        path = file_folder_path(inputs.filename)
+        animal, day = opts[1], opts[2]
+        f = inputs
+    else:
+        raise RuntimeError("Input Format Unknown!")
+    cwt_pattern = '{}_{}_rawcwt_low_(\d+)_high_(\d+).csv'.format(animal, day)
+    cwtfile = find_file_regex(path, cwt_pattern)
+    if cwtfile is None:
+        print("({}, {}) requires preprocessing!".format(animal, day))
+        cwtfile = calcium_to_peak_times((path, animal, day))
+    if f is None:
+        f = h5py.File(hfile, 'r')
+    C = np.array(f['C'])
+    trial_start = np.array(f['trial_start'])
+    trial_end = np.array(f['trial_end'])
+    f.close()
+
+    opt, th = method // 10, method % 10
+    dispersion = median_absolute_deviation if opt else np.nanstd
+    T = C.shape[1]
+    slides = int(np.ceil(T / window))
+    with open(cwtfile) as cwtstream:
+        creader = csv.reader(cwtstream)
+        D_trial = {}
+        D_window = {}
+        for i, row in enumerate(creader):
+            c = C[i]
+            D_trial[i] = {s: [] for s in range(slides)}
+            D_window[i] = {t: [] for t in range(len(trial_start))}
+            t = 0
+            s = 0
+            s_end = min(window, T)
+            thres = np.nanmean(c) + dispersion(c) * th # Use the entire signal as a criteria for evaluating
+            # large events
+            for j in range(len(row)):
+                p = int(row[j])
+                if p >= s_end:
+                    s += 1
+                    D_window[i][s] = []
+                    s_end = min(s_end + window, T)
+                elif c[p] >= thres:
+                    D_window[i][s].append(p)
+                if p > trial_end[t] + tlock:
+                    if t < len(trial_start) -1 and p > trial_start[t+1]:
+                        print("Frame overflow into next trial bin {}, (end: {}, start: {})"
+                              .format(t, trial_end[t], trial_start[t+1]))
+                    t += 1
+                    D_trial[i][t] = []
+                elif p >= trial_start[t]:
+                    if c[p] >= thres:
+                        D_trial[i][t].append(p)
+                else:
+                    print("Out of bin frame: {}, out of ({}, {})".format(p, trial_start[t], trial_end[t]))
+    return D_trial, D_window
+
+
+
 if __name__ == '__main__':
     home = "/home/user/"
-    calcium_to_peak_times_all(home, {'IT': {'IT8':'*', 'IT9': '*'}, 'PT': {'PT13': "*", 'PT18':"*"}})
-
+    calcium_to_peak_times_all(home, {'IT': {'IT10':'*'}, 'PT': {'PT19': "*", 'PT20':"*"}})
