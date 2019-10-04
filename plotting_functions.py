@@ -380,9 +380,9 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
             os.makedirs(nwfolder)
         # TRIAL
         fig = plt.figure(figsize=(20, 10))
-        hitsx = np.concatenate([D_trial[i][j] - array_end[j] for j in hits])
+        hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
         hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
-        missx = np.concatenate([D_trial[i][j] - array_end[j] for j in misses])
+        missx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in misses])
         missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
         plt.plot(hitsx, hitsy, 'b.', markersize=3)
         plt.plot(missx, missy, 'k.', markersize=3)
@@ -399,7 +399,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         plt.close('all')
         # WINDOW
         fig = plt.figure(figsize=(20, 10))
-        slidex = np.concatenate([D_window[i][j] - window * j for j in range(len(D_window[i]))])
+        slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
         slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
         plt.plot(slidex, slidey, 'k.', markersize=3)
         plt.axvline(0, color='r')
