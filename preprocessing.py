@@ -163,11 +163,11 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                 elif c[p] >= thres:
                     D_window[i][s].append(p)
                 if p > trial_end[t] + tlock:
-                    if t < len(trial_start) -1 and p > trial_start[t+1]:
-                        print("Frame overflow into next trial bin {}, (end: {}, start: {})"
-                              .format(t, trial_end[t], trial_start[t+1]))
+                    # if t < len(trial_start) -1 and p > trial_start[t+1]:
+                    #     print("Frame overflow into next trial bin {}, (end: {}, start: {})"
+                    #           .format(t, trial_end[t], trial_start[t+1]))
                     t += 1
-                    D_trial[i][t] = []
+                    D_trial[i][t] = [p]
                 elif p >= trial_start[t]:
                     if c[p] >= thres:
                         D_trial[i][t].append(p)
