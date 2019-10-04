@@ -165,6 +165,7 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                     D_window[i][s].append(p)
                 if t >= len(trial_start):
                     print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
+                    break
                 if p > trial_end[t] + tlock:
                     # if t < len(trial_start) -1 and p > trial_start[t+1]:
                     #     print("Frame overflow into next trial bin {}, (end: {}, start: {})"
