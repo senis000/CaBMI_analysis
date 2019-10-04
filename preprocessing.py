@@ -126,7 +126,8 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
     else:
         raise RuntimeError("Input Format Unknown!")
     cwt_pattern = '{}_{}_rawcwt_low_(\d+)_high_(\d+).csv'.format(animal, day)
-    cwtfile = find_file_regex(path, cwt_pattern)
+    session_path = os.path.join(path, animal, day)
+    cwtfile = find_file_regex(session_path, cwt_pattern)
     if cwtfile is None:
         print("({}, {}) requires preprocessing!".format(animal, day))
         cwtfile = calcium_to_peak_times((path, animal, day))
@@ -162,17 +163,21 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                     s_end = min(s_end + window, T)
                 elif c[p] >= thres:
                     D_window[i][s].append(p)
+                if t == len(trial_start):
+                        print("OVERFLOW LAST {}, {}".format(p, trial_end[-1] + tlock))
+                if t < len(trial_start) -1 and trial_end[t] + tlock > trial_start[t+1]:
+                        print("Frame overflow into next trial bin {}, {}, (end: {}, start: {})"
+                              .format(t, p, trial_end[t], trial_start[t+1]))
                 if p > trial_end[t] + tlock:
-                    if t < len(trial_start) -1 and p > trial_start[t+1]:
-                        print("Frame overflow into next trial bin {}, (end: {}, start: {})"
-                              .format(t, trial_end[t], trial_start[t+1]))
+#and p > trial_start[t+1]
                     t += 1
                     D_trial[i][t] = []
                 elif p >= trial_start[t]:
                     if c[p] >= thres:
                         D_trial[i][t].append(p)
                 else:
-                    print("Out of bin frame: {}, out of ({}, {})".format(p, trial_start[t], trial_end[t]))
+                    print("Out of bin frame: {}, out of ({}, {}, prev {})".format(p, trial_start[t], trial_end[t], trial_end[t-1]))
+
     return D_trial, D_window
 
 

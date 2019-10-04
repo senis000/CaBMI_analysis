@@ -426,7 +426,7 @@ def best_nbins(data):
 if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
-    inputs = [(processed, "IT2", "181002"), (processed, "PT7", "190114")]
+    inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
     for m in (1, 2, 11, 12):
         for window in (3000, 6000, 9000):
             for inp in inputs:
