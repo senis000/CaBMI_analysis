@@ -364,7 +364,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
     # LABEL NEURON IN FRONT
     with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
         C = np.array(f['C'])
-        hits = np.array(f['array_hits'])
+        hits = np.array(f['array_t1'])
         misses = np.array(f['array_miss'])
         array_start = np.array(f['trial_start'])
         array_end = np.array(f['trial_end'])
