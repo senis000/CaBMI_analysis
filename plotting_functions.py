@@ -372,8 +372,8 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
     hp = "psth_window_{}_theta_{}".format(window, decode_method_ibi(method)[1])
     for i in range(C.shape[0]):
         nstr = roi_types[i] + "_" + str(i)
-        ntfolder = os.path.join(windowplot, nstr)
-        nwfolder = os.path.join(trialplot, nstr)
+        ntfolder = os.path.join(trialplot, nstr)
+        nwfolder = os.path.join(windowplot, nstr)
         if not os.path.exists(ntfolder):
             os.makedirs(ntfolder)
         if not os.path.exists((nwfolder)):
@@ -386,7 +386,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
         plt.plot(hitsx, hitsy, 'b.', markersize=3)
         plt.plot(missx, missy, 'k.', markersize=3)
-        plt.plot(array_start, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
+        plt.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
         plt.legend(['hits', 'miss', 'trial start'])
         plt.axvline(0, color='r')
         fig.suptitle("PSTH trial")
@@ -400,7 +400,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         # WINDOW
         fig = plt.figure(figsize=(20, 10))
         slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
-        slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
+        slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in range(len(D_window[i]))])
         plt.plot(slidex, slidey, 'k.', markersize=3)
         plt.axvline(0, color='r')
         fig.suptitle("PSTH trial")

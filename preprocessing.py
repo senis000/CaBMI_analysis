@@ -136,6 +136,8 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
     C = np.array(f['C'])
     trial_start = np.array(f['trial_start'])
     trial_end = np.array(f['trial_end'])
+    array_hit = np.array(f['array_t1'])
+    array_miss = np.array(f['array_miss'])
     blen = f.attrs['blen']
     f.close()
 
@@ -168,7 +170,8 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                 if p <= blen:
                     pass
                 if t >= len(trial_start):
-                    print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
+                    if i == 0:
+                        print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
                     break
                 if p > trial_end[t] + tlock:
                     # if t < len(trial_start) -1 and p > trial_start[t+1]:
@@ -180,7 +183,8 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                 elif p >= trial_start[t]:
                     if c[p] >= thres:
                         D_trial[i][t].append(p)
-                else:
+                elif i == 0:
+                    HM = "hit" if t in array_hit else "miss"
                     print("Out of bin frame: {}, out of ({}, {}, prev {})".format(p, trial_start[t], trial_end[t], trial_end[t-1]))
 
     return D_trial, D_window
