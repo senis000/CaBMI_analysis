@@ -169,23 +169,26 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
 
                 if p <= blen:
                     pass
-                if t >= len(trial_start):
+                elif t >= len(trial_start):
                     if i == 0:
                         print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
-                    break
-                if p > trial_end[t] + tlock:
-                    # if t < len(trial_start) -1 and p > trial_start[t+1]:
-                    #     print("Frame overflow into next trial bin {}, (end: {}, start: {})"
-                    #           .format(t, trial_end[t], trial_start[t+1]))
-                    if t < len(trial_start):
-                        t += 1
-                        D_trial[i][t] = [p]
-                elif p >= trial_start[t]:
-                    if c[p] >= thres:
-                        D_trial[i][t].append(p)
-                elif i == 0:
-                    HM = "hit" if t in array_hit else "miss"
-                    print("Out of bin frame: {}, out of ({}, {}, prev {})".format(p, trial_start[t], trial_end[t], trial_end[t-1]))
+                else:
+                    if p > trial_end[t] + tlock:
+                        # if t < len(trial_start) -1 and p > trial_start[t+1]:
+                        #     print("Frame overflow into next trial bin {}, (end: {}, start: {})"
+                        #           .format(t, trial_end[t], trial_start[t+1]))`
+                        t+=1
+                        if t < len(trial_start):
+                            if p >= trial_start[t] and c[p] >= thres:
+                                D_trial[i][t] = [p]
+                            else:
+                                D_trial[i][t] = []
+                    elif p >= trial_start[t]:
+                        if c[p] >= thres:
+                            D_trial[i][t].append(p)
+                    elif i == 0:
+                        HM = "hit" if t in array_hit else "miss"
+                        print("Out of bin frame: {}, out of ({}, {}, prev {}), {}".format(p, trial_start[t], trial_end[t], trial_end[t-1],HM))
 
     return D_trial, D_window
 

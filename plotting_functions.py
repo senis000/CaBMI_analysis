@@ -400,7 +400,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         # WINDOW
         fig = plt.figure(figsize=(20, 10))
         slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
-        slidey = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in range(len(D_window[i]))])
+        slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(len(D_window[i]))])
         plt.plot(slidex, slidey, 'k.', markersize=3)
         plt.axvline(0, color='r')
         fig.suptitle("PSTH trial")
