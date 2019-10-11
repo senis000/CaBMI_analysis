@@ -93,8 +93,8 @@ def get_roi_type(processed, animal, day):
         rois = np.full(N, "D", dtype="U2")
         nerden = np.array(hfile['nerden'])
         redlabel = np.array(hfile['redlabel'])
-        e2_neur = hfile['e2_neur']
-        ens_neur = hfile['ens_neur']
+        ens_neur = np.array(hfile['ens_neur'])
+        e2_neur = ens_neur[hfile['e2_neur']] if 'e2_neur' in hfile else None
         rois[nerden & ~redlabel] = 'IG'
         rois[nerden & redlabel] = 'IR'
         if e2_neur is not None:
@@ -140,6 +140,7 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
     array_miss = np.array(f['array_miss'])
     blen = f.attrs['blen']
     f.close()
+    print(animal, day)
 
     opt, th = method // 10, method % 10
     dispersion = median_absolute_deviation if opt else np.nanstd
@@ -151,8 +152,8 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
         D_window = {}
         for i, row in enumerate(creader):
             c = C[i]
-            D_trial[i] = {s: [] for s in range(slides)}
-            D_window[i] = {t: [] for t in range(len(trial_start))}
+            D_window[i] = {s: [] for s in range(slides)}
+            D_trial[i] = {t: [] for t in range(len(trial_start))}
             t = 0
             s = 0
             s_end = min(window, T)
@@ -170,9 +171,12 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                 if p <= blen:
                     pass
                 elif t >= len(trial_start):
-                    if i == 0:
-                        print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
+                    pass
+                #     # if i == 0:
+                #     #     print("Reaches End, dropping future frames ({}/{})".format(p, trial_end[-1] + tlock))
                 else:
+                    # if t > 0 and trial_start[t] - trial_end[t-1] > tlock and i == 0:
+                    #     print("trial {}, out of ({}, {}, prev {}), diff:{}, {}".format(t, trial_start[t], trial_end[t], trial_end[t-1], trial_start[t]-trial_end[t-1], HM))
                     if p > trial_end[t] + tlock:
                         # if t < len(trial_start) -1 and p > trial_start[t+1]:
                         #     print("Frame overflow into next trial bin {}, (end: {}, start: {})"
@@ -180,19 +184,16 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
                         t+=1
                         if t < len(trial_start):
                             if p >= trial_start[t] and c[p] >= thres:
-                                D_trial[i][t] = [p]
-                            else:
-                                D_trial[i][t] = []
-                    elif p >= trial_start[t]:
-                        if c[p] >= thres:
+                                D_trial[i][t].append(p)
+                    elif p >= trial_start[t] and c[p] >= thres:
                             D_trial[i][t].append(p)
-                    elif i == 0:
-                        HM = "hit" if t in array_hit else "miss"
-                        print("Out of bin frame: {}, out of ({}, {}, prev {}), {}".format(p, trial_start[t], trial_end[t], trial_end[t-1],HM))
+                    # elif i == 0:
+                    #     HM = "hit" if t in array_hit else "miss"
+                    #     print("trial {}, Out of bin frame: {}".format(t, p))
 
     return D_trial, D_window
 
 
 if __name__ == '__main__':
     home = "/home/user/"
-    calcium_to_peak_times_all(home, {'IT': {'IT10': '*'}, 'PT': {'PT19': "*", 'PT20':"*"}})
+    calcium_to_peak_times_all(home, "*")

@@ -355,11 +355,11 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
     plt.show()
 
 
-def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
+def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=True, w=True):
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     psth = os.path.join(folder, 'bursting/plots/PSTH/')
-    windowplot = os.path.join(psth, 'window')
-    trialplot = os.path.join(psth, 'trial')
+    windowplot = os.path.join(psth, 'window', animal, day)
+    trialplot = os.path.join(psth, 'trial', animal, day)
     D_trial, D_window = get_peak_times_over_thres((processed, animal, day), window, method, tlock=tlock)
     # LABEL NEURON IN FRONT
     with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
@@ -371,45 +371,48 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
     roi_types = get_roi_type(processed, animal, day)
     hp = "psth_window_{}_theta_{}".format(window, decode_method_ibi(method)[1])
     for i in range(C.shape[0]):
-        nstr = roi_types[i] + "_" + str(i)
+        nstr = roi_types[i] + "/" + roi_types[i] + "_" + str(i)
         ntfolder = os.path.join(trialplot, nstr)
         nwfolder = os.path.join(windowplot, nstr)
+        fnamet = os.path.join(ntfolder, animal + "_" + day+"_"+hp)
+        fnamew = os.path.join(nwfolder, animal + "_" + day+"_"+hp)
         if not os.path.exists(ntfolder):
             os.makedirs(ntfolder)
         if not os.path.exists((nwfolder)):
             os.makedirs(nwfolder)
         # TRIAL
-        fig = plt.figure(figsize=(20, 10))
-        hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
-        hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
-        missx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in misses])
-        missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
-        plt.plot(hitsx, hitsy, 'b.', markersize=3)
-        plt.plot(missx, missy, 'k.', markersize=3)
-        plt.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
-        plt.legend(['hits', 'miss', 'trial start'])
-        plt.axvline(0, color='r')
-        fig.suptitle("PSTH trial")
-        plt.xlabel('Time(fr)')
-        plt.ylabel('Trial Number')
-        fname = os.path.join(ntfolder, hp)
-        fig.savefig(fname + '.png')
-        if eps:
-            fig.savefig(fname + ".eps")
-        plt.close('all')
+        if t and not os.path.exists(fnamet):
+            fig = plt.figure(figsize=(20, 10))
+            hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
+            hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
+            missx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in misses])
+            missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
+            plt.plot(hitsx, hitsy, 'b.', markersize=3)
+            plt.plot(missx, missy, 'k.', markersize=3)
+            plt.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
+            plt.legend(['hits', 'miss', 'trial start'])
+            plt.axvline(0, color='r')
+            fig.suptitle("PSTH trial")
+            plt.xlabel('Time(fr)')
+            plt.ylabel('Trial Number')
+            fig.savefig(fnamet + '.png')
+            if eps:
+                fig.savefig(fnamet + ".eps")
+            plt.close('all')
         # WINDOW
-        fig = plt.figure(figsize=(20, 10))
-        slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
-        slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(len(D_window[i]))])
-        plt.plot(slidex, slidey, 'k.', markersize=3)
-        plt.axvline(0, color='r')
-        fig.suptitle("PSTH trial")
-        plt.xlabel('Time(fr)')
-        plt.ylabel('Slide')
-        fname = os.path.join(ntfolder, hp)
-        fig.savefig(fname + '.png')
-        if eps:
-            fig.savefig(fname + ".eps")
+        if w and not os.path.exists(fnamew):
+            fig = plt.figure(figsize=(20, 10))
+            slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
+            slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(len(D_window[i]))])
+            plt.plot(slidex, slidey, 'k.', markersize=3)
+            plt.axvline(0, color='r')
+            fig.suptitle("PSTH window")
+            plt.xlabel('Time(fr)')
+            plt.ylabel('Slide')
+            fig.savefig(fnamew + '.png')
+            if eps:
+                fig.savefig(fnamew + ".eps")
+            plt.close("all")
 
 
 
@@ -426,8 +429,17 @@ def best_nbins(data):
 if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
-    inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
+    #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
+    #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
     for m in (1, 2, 11, 12):
         for window in (3000, 6000, 9000):
-            for inp in inputs:
-                plot_peak_psth(*inp, m, window)
+            # for inp in inputs:
+                # plot_peak_psth(*inp, m, window)
+            #for animal in os.listdir(processed):
+            for animal in ['IT2', 'PT7']:
+                if animal.find('IT') == -1 and animal.find('PT') == -1:
+                    continue
+                animal_path = os.path.join(processed, animal)
+                sdays = sorted(os.listdir(animal_path))
+                for day in sdays:
+                    plot_peak_psth(home, animal, day, m, window)
