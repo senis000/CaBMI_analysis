@@ -24,6 +24,7 @@ import seaborn as sns
 
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 
+
 def plot_trial_end_all(folder, animal, day,
         trial_type=0, sec_var=''):
     '''
@@ -357,12 +358,12 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
     plt.show()
 
 
-def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
+def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=True, w=True):
     # TODO: ADD CV TUNING
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     psth = os.path.join(folder, 'bursting/plots/PSTH/')
-    windowplot = os.path.join(psth, 'window')
-    trialplot = os.path.join(psth, 'trial')
+    windowplot = os.path.join(psth, 'window', animal, day)
+    trialplot = os.path.join(psth, 'trial', animal, day)
     D_trial, D_window = get_peak_times_over_thres((processed, animal, day), window, method, tlock=tlock)
     # LABEL NEURON IN FRONT
     with h5py.File(encode_to_filename(processed, animal, day), 'r') as f:
@@ -373,52 +374,93 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         array_end = np.array(f['trial_end'])
     roi_types = get_roi_type(processed, animal, day)
     hp = "psth_window_{}_theta_{}".format(window, decode_method_ibi(method)[1])
+    metrics = ('cv', 'cv_ub', 'serr_pc')
     for i in range(C.shape[0]):
-        nstr = roi_types[i] + "_" + str(i)
+        nstr = roi_types[i] + "/" + roi_types[i] + "_" + str(i)
         ntfolder = os.path.join(trialplot, nstr)
         nwfolder = os.path.join(windowplot, nstr)
+        fnamet = os.path.join(ntfolder, animal + "_" + day+"_"+hp)
+        fnamew = os.path.join(nwfolder, animal + "_" + day+"_"+hp)
         if not os.path.exists(ntfolder):
             os.makedirs(ntfolder)
         if not os.path.exists((nwfolder)):
             os.makedirs(nwfolder)
         # TRIAL
-        ibis_hit = [np.diff(D_trial[i][j]) for j in hits]
-        ibis_miss = [np.diff(D_trial[i][j]) for j in misses]
-        fig = plt.figure(figsize=(20, 10))
-        hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
-        hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
-        missx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in misses])
-        missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
-        plt.plot(hitsx, hitsy, 'b.', markersize=3)
-        plt.plot(missx, missy, 'k.', markersize=3)
-        plt.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
-        plt.legend(['hits', 'miss', 'trial start'])
-        plt.axvline(0, color='r')
-        fig.suptitle("PSTH trial")
-        plt.xlabel('Time(fr)')
-        plt.ylabel('Trial Number')
-        fname = os.path.join(ntfolder, hp)
-        fig.savefig(fname + '.png')
-        if eps:
-            fig.savefig(fname + ".eps")
-        plt.close('all')
+        if t and not os.path.exists(fnamet):
+            ibis_hit = [np.diff(D_trial[i][j]) for j in hits]
+            ibis_hit_mat = np.full((len(hits), len(max(ibis_hit, key=len))), np.nan)
+            for j in range(len(hits)):
+                ibis_hit_mat[j, :len(ibis_hit[j])] = ibis_hit[j]
+            ibis_miss = [np.diff(D_trial[i][j]) for j in misses]
+            ibis_miss_mat = np.full((len(misses), len(max(ibis_miss, key=len))), np.nan)
+            for j in range(len(misses)):
+                ibis_miss_mat[j, :len(ibis_miss[j])] = ibis_miss[j]
+            fig = plt.figure(figsize=(20, 10))
+            hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
+            hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
+            missx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in misses])
+            missy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in misses])
+            gs = gridspec.GridSpec(3, 1, height_ratios=[5, 1, 1])
+            ax0 = plt.subplot(gs[0])
+            ax1 = plt.subplot(gs[1])
+            ax2 = plt.subplot(gs[2])
+
+            ax0.plot(hitsx, hitsy, 'b.', markersize=3)
+            ax0.plot(missx, missy, 'k.', markersize=3)
+            ax0.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
+            ax0.legend(['hits', 'miss', 'trial start'])
+            ax0.axvline(0, color='r')
+            ax0.set_title("PSTH trial")
+            ax0.set_xlabel('Time(fr)')
+            ax0.set_ylabel('Trial Number')
+            blues, reds = sns.color_palette("Blues", 3), sns.color_palette('Reds', 3)
+            for i, m in enumerate(metrics):
+                ax1.plot(hits, IBI_cv_matrix(hits, m), c=blues[i], label='hit '+ m)
+                ax1.plot(misses, IBI_cv_matrix(misses, m), c = reds[i], label = 'miss ' + m)
+            ax1.set_title("HM cv evolution")
+            ax1.set_xlabel("Trial#")
+
+            ax2.plot(hits, map(ibis_hit, np.nanmean))
+            ax2.plot(misses, map(ibis_miss, np.nanmean))
+            ax2.legend(['hit', 'miss'])
+            ax2.set_xlabel("Trial#")
+            ax2.set_ylabel("No. of Frames")
+            #TODO: MAYBE ADD A PSTH here
+            fig.savefig(fnamet + '.png')
+            if eps:
+                fig.savefig(fnamet + ".eps")
+            plt.close('all')
         # WINDOW
-        fig = plt.figure(figsize=(20, 10))
-        slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
-        slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(len(D_window[i]))])
-        ibis_slide = [np.diff(D_window[i][j]) for j in range(len(D_window[i]))]
-        ibis_slide_mat = np.full((len(D_window[i], len(max(ibis_slide, key=len)))), np.nan)
-        gs = gridspec.GridSpec(3, 1, height_ratios=[5, 1, 1])
-        ax0 = plt.subplot(gs[0])
-        ax0.plot(slidex, slidey, 'k.', markersize=3)
-        plt.axvline(0, color='r')
-        fig.suptitle("PSTH window")
-        plt.xlabel('Time(fr)')
-        plt.ylabel('Slide')
-        fname = os.path.join(ntfolder, hp)
-        fig.savefig(fname + '.png')
-        if eps:
-            fig.savefig(fname + ".eps")
+        if w and not os.path.exists(fnamew):
+            fig = plt.figure(figsize=(20, 10))
+            wlen = len(D_window[i])
+            slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(wlen)])
+            slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(wlen)])
+            ibis_slide = [np.diff(D_window[i][j]) for j in range(wlen)]
+            ibis_slide_mat = np.full((wlen, len(max(ibis_slide, key=len))), np.nan)
+            for j in range(wlen):
+                ibis_slide_mat[j, :len(ibis_slide[j])] = ibis_slide[j]
+            gs = gridspec.GridSpec(3, 1, height_ratios=[5, 1, 1])
+            ax0 = plt.subplot(gs[0])
+            ax1 = plt.subplot(gs[1])
+            ax2 = plt.subplot(gs[2])
+            ax0.plot(slidex, slidey, 'k.', markersize=3)
+            ax0.axvline(0, color='r')
+            ax0.set_title("PSTH window")
+            ax0.set_xlabel('Time(fr)')
+            ax0.set_ylabel('Slide')
+            for m in metrics:
+                ax1.plot(np.arange(wlen), IBI_cv_matrix(ibis_slide_mat, m))
+            ax1.legend(metrics)
+            ax1.set_title("CV evolution")
+            ax1.set_xlabel("Window")
+            ax2.hist(ibis_slide, density=True)
+            ax2.legend(np.arange(wlen))
+            ax2.set_title("IBI dist evolution")
+            fig.savefig(fnamew + '.png')
+            if eps:
+                fig.savefig(fnamew + ".eps")
+            plt.close("all")
 
 
 
@@ -435,8 +477,17 @@ def best_nbins(data):
 if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
-    inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
+    #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
+    #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
     for m in (1, 2, 11, 12):
         for window in (3000, 6000, 9000):
-            for inp in inputs:
-                plot_peak_psth(*inp, m, window)
+            # for inp in inputs:
+                # plot_peak_psth(*inp, m, window)
+            #for animal in os.listdir(processed):
+            for animal in ['IT2', 'PT7']:
+                if animal.find('IT') == -1 and animal.find('PT') == -1:
+                    continue
+                animal_path = os.path.join(processed, animal)
+                sdays = sorted(os.listdir(animal_path))
+                for day in sdays:
+                    plot_peak_psth(home, animal, day, m, window)
