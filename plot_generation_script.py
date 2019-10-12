@@ -33,13 +33,16 @@ def plot_all_sessions_hpm(sharey=False):
     folder = '/home/user/'
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     out = os.path.join(folder, 'learning/analysis')
-    binsizes = [1, 3, 5]
+    #binsizes = [1, 3, 5]
+    binsizes = [5]
     for b in binsizes:
         print("BIN {}".format(b))
         #allEstimators = {} # TODO: PLOT DAY BY DAY THRESHOLD
         maxHit = 0
         IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
         IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_hits, PT_hits = [], []
+        IT_pcs, PT_pcs = [], []
         for animal in os.listdir(processed):
             animal_path = processed + animal + '/'
             if not os.path.isdir(animal_path):
@@ -52,22 +55,25 @@ def plot_all_sessions_hpm(sharey=False):
                 print(animal, day)
                 _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
                 if animal.startswith('IT'):
-                    IT_hit.handle(hpm)
-                    IT_pc.handle(pc)
+                    t_hit, t_hits, t_pc, t_pcs = IT_hit, IT_hits, IT_pc, IT_pcs
+                    
                 else:
-                    PT_hit.handle(hpm)
-                    PT_pc.handle(pc)
+                    t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
+                t_hit.handle(np.nanmax(hpm))
+                t_hits.append(np.nanmax(hpm))
+                t_pc.handle(np.nanmax(pc))
+                t_pcs.append(np.nanmax(pc))
                 maxHit = max(maxHit, np.nanmax(hpm))
-
+        # HERE COULD GET DISTRIBUTION PLOT OF HPMS OR PCS
         allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
         tHitIT, tHitPT, tHitAll = IT_hit.mean() + IT_hit.std(), PT_hit.mean() + PT_hit.std(), allhitm + allhits
         allPCm, allPCs = OnlineNormalEstimator.join(IT_pc, PT_pc)
         tPCIT, tPCPT, tPCAll = IT_pc.mean() + IT_pc.std(), PT_pc.mean() + PT_pc.std(), allPCm + allPCs
 
         if not sharey:
-            opt = (None, tHitIT, tHitPT, tHitAll, tPCIT, tPCPT, tPCAll)
+            opt = (None, tHitIT, tHitPT, tHitAll, allhitm, tPCIT, tPCPT, tPCAll, allPCm)
         else:
-            opt = (maxHit, tHitIT, tHitPT, tHitAll, tPCIT, tPCPT, tPCAll)
+            opt = (maxHit, tHitIT, tHitPT, tHitAll, allhitm, tPCIT, tPCPT, tPCAll, allPCm)
 
         print("PLOT", maxHit)
         subf = os.path.join(out, 'allDist_1max')
@@ -75,8 +81,10 @@ def plot_all_sessions_hpm(sharey=False):
             os.makedirs(subf)
         cf = open(os.path.join(subf, 'hpm_stats_bin_{}.csv'.format(b)), 'w')
         cwriter = csv.writer(cf)
-        cwriter.writerow(['animal', 'day', 'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
+        cwriter.writerow(['animal', 'day', "learner_pc", "learner_hpm",'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
                           'stdSelfPerc75', 'stdAllPerc75', 'stdSelfPerc90', 'stdAllPerc90'])
+        lhpm_IT, lpc_IT = [0, 0, 0, 0], [0, 0, 0, 0]
+        lhpm_PT, lpc_PT = [0, 0, 0, 0], [0, 0, 0, 0]
         for animal in os.listdir(processed):
             animal_path = processed + animal + '/'
             if not os.path.isdir(animal_path):
@@ -87,9 +95,10 @@ def plot_all_sessions_hpm(sharey=False):
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
-                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt)
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt) #TODO: MARK EACH ANIMAL AS LEARNER TYPE
                 nonnans = hpm[~np.isnan(hpm)]
                 nmax = np.max(nonnans)
+                pcmax = np.nanmax(pc)
                 sixty, svfive, ninety = np.percentile(nonnans, [0.6, 0.75, 0.9])
                 vals = [0.0] * 8
                 if animal.startswith('IT'):
@@ -106,7 +115,29 @@ def plot_all_sessions_hpm(sharey=False):
                 vals[3] = (sixty - allhitm) / allhits
                 vals[5] = (svfive - allhitm) / allhits
                 vals[7] = (ninety - allhitm) / allhits
-                cwriter.writerow([animal, day] + vals)
+                learner_pc = -1 # Good learner: 2, Average Learner: 1, Bad Learner: 0, Non Learner: -1
+                learner_hpm = -1
+                if pcmax >= tPCAll:
+                    learner_pc = 2
+                elif pcmax >= allPCm:
+                    learner_pc = 1
+                elif pcmax >= 0.3:
+                    learner_pc = 0
+
+                if nmax >= tHitAll:
+                    learner_hpm = 2
+                elif nmax >= allhitm:
+                    learner_hpm = 1
+                elif nmax >= 1: # 1 as learning criteria
+                    learner_hpm = 0
+                if animal.startswith("IT"):
+                    lhpm_IT[learner_hpm+1] +=1
+                    lpc_IT[learner_hpm+1] +=1
+                else:
+                    lhpm_PT[learner_hpm+1] +=1
+                    lpc_PT[learner_hpm+1] +=1
+
+                cwriter.writerow([animal, day] + [learner_pc, learner_hpm] + vals)
         cf.close()
 
 
