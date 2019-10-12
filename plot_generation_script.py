@@ -81,10 +81,11 @@ def plot_all_sessions_hpm(sharey=False):
             os.makedirs(subf)
         cf = open(os.path.join(subf, 'hpm_stats_bin_{}.csv'.format(b)), 'w')
         cwriter = csv.writer(cf)
-        cwriter.writerow(['animal', 'day', "learner_pc", "learner_hpm",'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
+        cwriter.writerow(['animal', 'day', "learner_3bin", 'max_pc', 'max_hpm', "learner_pc", "learner_hpm",'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
                           'stdSelfPerc75', 'stdAllPerc75', 'stdSelfPerc90', 'stdAllPerc90'])
         lhpm_IT, lpc_IT = [0, 0, 0, 0], [0, 0, 0, 0]
         lhpm_PT, lpc_PT = [0, 0, 0, 0], [0, 0, 0, 0]
+        l3_IT, l3_PT = [0, 0, 0], [0, 0, 0]
         for animal in os.listdir(processed):
             animal_path = processed + animal + '/'
             if not os.path.isdir(animal_path):
@@ -117,6 +118,8 @@ def plot_all_sessions_hpm(sharey=False):
                 vals[7] = (ninety - allhitm) / allhits
                 learner_pc = -1 # Good learner: 2, Average Learner: 1, Bad Learner: 0, Non Learner: -1
                 learner_hpm = -1
+                learner_3 = (pcmax >= 0.7) + (pcmax >= 0.3)
+
                 if pcmax >= tPCAll:
                     learner_pc = 2
                 elif pcmax >= allPCm:
@@ -133,11 +136,14 @@ def plot_all_sessions_hpm(sharey=False):
                 if animal.startswith("IT"):
                     lhpm_IT[learner_hpm+1] +=1
                     lpc_IT[learner_hpm+1] +=1
+                    l3_IT[learner_3] += 1
                 else:
                     lhpm_PT[learner_hpm+1] +=1
                     lpc_PT[learner_hpm+1] +=1
+                    l3_PT[learner_3] += 1
 
-                cwriter.writerow([animal, day] + [learner_pc, learner_hpm] + vals)
+                cwriter.writerow([animal, day] + [learner_3, pcmax, nmax, learner_pc, learner_hpm] + vals)
+        cwriter.writerow(["All", 'meanHPM', allhitm, 'stdHPM', allhits, 'meanPC', allPCm, 'stdPC', allPCs])
         cf.close()
 
 

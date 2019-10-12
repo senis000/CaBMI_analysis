@@ -404,7 +404,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0 = plt.subplot(gs[0])
             ax1 = plt.subplot(gs[1])
             ax2 = plt.subplot(gs[2])
-
+            plt.subplots_adjust(hspace=0.5)
             ax0.plot(hitsx, hitsy, 'b.', markersize=3)
             ax0.plot(missx, missy, 'k.', markersize=3)
             ax0.plot(array_start-array_end, np.arange(1, len(array_start) + 1), 'r.', markersize=3)
@@ -414,9 +414,9 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0.set_xlabel('Time(fr)')
             ax0.set_ylabel('Trial Number')
             blues, reds = sns.color_palette("Blues", 3), sns.color_palette('Reds', 3)
-            for i, m in enumerate(metrics):
-                ax1.plot(hits, IBI_cv_matrix(ibis_hit_mat, m), c=blues[i], label='hit '+ m)
-                ax1.plot(misses, IBI_cv_matrix(ibis_miss_mat, m), c = reds[i], label = 'miss ' + m)
+            for j, m in enumerate(metrics):
+                ax1.plot(hits, IBI_cv_matrix(ibis_hit_mat, m), c=blues[j], label='hit '+ m)
+                ax1.plot(misses, IBI_cv_matrix(ibis_miss_mat, m), c = reds[j], label = 'miss ' + m)
             ax1.set_title("HM cv evolution")
             ax1.set_xlabel("Trial#")
 
@@ -434,6 +434,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
         if w and not os.path.exists(fnamew):
             fig = plt.figure(figsize=(20, 10))
             wlen = len(D_window[i])
+            print(wlen)
             slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(wlen)])
             slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(wlen)])
             ibis_slide = [np.diff(D_window[i][j]) for j in range(wlen)]
@@ -444,6 +445,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0 = plt.subplot(gs[0])
             ax1 = plt.subplot(gs[1])
             ax2 = plt.subplot(gs[2])
+            plt.subplots_adjust(hspace=0.5)
             ax0.plot(slidex, slidey, 'k.', markersize=3)
             ax0.axvline(0, color='r')
             ax0.set_title("PSTH window")
@@ -454,6 +456,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax1.legend(metrics)
             ax1.set_title("CV evolution")
             ax1.set_xlabel("Window")
+            print(len(ibis_slide))
             ax2.hist(ibis_slide, density=True, color=sns.color_palette("Blues", wlen))
             ax2.legend(np.arange(wlen))
             ax2.set_title("IBI dist evolution")

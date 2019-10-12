@@ -162,3 +162,19 @@ np.nanstd(IT_hits+PT_hits)
         tPCIT, tPCPT, tPCAll = IT_pc.mean() + IT_pc.std(), PT_pc.mean() + PT_pc.std(), allPCm + allPCs
 tPCIT
 IT_pc.mean()
+
+In [5]: from scipy.stats import ks_2samp                                        
+
+In [6]: Dpc, ppc = ks_2samp(IT_hits, PT_hits)                                   
+
+In [7]: ppc                                                                     
+Out[7]: 0.0015890134564000246
+
+In [8]: Dpc                                                                     
+Out[8]: 0.22061544454182486
+
+In [9]: Dhpm, phpm = ks_2samp(IT_pcs, PT_pcs)                                   
+
+In [10]: print(Dhpm, phpm)                                                      
+0.21379881195832118 0.002453190366322193
+
