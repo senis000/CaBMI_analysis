@@ -415,8 +415,8 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0.set_ylabel('Trial Number')
             blues, reds = sns.color_palette("Blues", 3), sns.color_palette('Reds', 3)
             for i, m in enumerate(metrics):
-                ax1.plot(hits, IBI_cv_matrix(hits, m), c=blues[i], label='hit '+ m)
-                ax1.plot(misses, IBI_cv_matrix(misses, m), c = reds[i], label = 'miss ' + m)
+                ax1.plot(hits, IBI_cv_matrix(ibis_hit_mat, m), c=blues[i], label='hit '+ m)
+                ax1.plot(misses, IBI_cv_matrix(ibis_miss_mat, m), c = reds[i], label = 'miss ' + m)
             ax1.set_title("HM cv evolution")
             ax1.set_xlabel("Trial#")
 
