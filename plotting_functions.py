@@ -479,8 +479,8 @@ if __name__ == '__main__':
     processed = os.path.join(home, "CaBMI_analysis/processed/")
     #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
     #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
-    for m in (1, 2, 11, 12):
-        for window in (3000, 6000, 9000):
+    for m in (2, 11):
+        for window in (6000, 9000):
             # for inp in inputs:
                 # plot_peak_psth(*inp, m, window)
             #for animal in os.listdir(processed):
