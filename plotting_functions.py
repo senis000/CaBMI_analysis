@@ -420,8 +420,8 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax1.set_title("HM cv evolution")
             ax1.set_xlabel("Trial#")
 
-            ax2.plot(hits, map(ibis_hit, np.nanmean))
-            ax2.plot(misses, map(ibis_miss, np.nanmean))
+            ax2.plot(hits, [np.nanmean(h) for h in ibis_hit])
+            ax2.plot(misses, [np.nanmean(mi) for mi in ibis_miss])
             ax2.legend(['hit', 'miss'])
             ax2.set_xlabel("Trial#")
             ax2.set_ylabel("No. of Frames")
