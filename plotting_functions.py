@@ -454,7 +454,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax1.legend(metrics)
             ax1.set_title("CV evolution")
             ax1.set_xlabel("Window")
-            ax2.hist(ibis_slide, density=True)
+            ax2.hist(ibis_slide, density=True, color=sns.color_palette("Blues", wlen))
             ax2.legend(np.arange(wlen))
             ax2.set_title("IBI dist evolution")
             fig.savefig(fnamew + '.png')
@@ -480,7 +480,7 @@ if __name__ == '__main__':
     #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
     #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
     for m in (2, 11):
-        for window in (6000, 9000):
+        for window in (9000, 6000):
             # for inp in inputs:
                 # plot_peak_psth(*inp, m, window)
             #for animal in os.listdir(processed):
