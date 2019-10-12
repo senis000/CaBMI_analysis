@@ -140,7 +140,7 @@ def IBI_cv_matrix(ibis, metric='cv_ub'):
         serr_pc = s / (np.sqrt(nn) * m)
         return {'cv': cv, 'cv_ub': cv_ub, 'serr_pc': serr_pc}
     elif metric == 'cv_ub':
-        s *= 1 + 1 / (4 * nn)
+        s *= (1 + 1 / (4 * nn))
     elif metric == 'serr_pc':
         s /= np.sqrt(nn)
     elif metric == 'cv':
@@ -148,3 +148,15 @@ def IBI_cv_matrix(ibis, metric='cv_ub'):
     else:
         raise ValueError("wrong metric")
     return s / m
+
+
+def df_cv_validate(df, n=10, verbose=False):
+    if n == 0:
+        resdf = df.dropna()
+    else:
+        nn = np.around(1 / (df.cv_ub.values / df.cv.values -1) / 4, 0)
+        df['IBI_sample'] = nn
+        resdf = df[df.IBI_sample >= n]
+    if verbose:
+        print("Drop {}% values".format(resdf.shape[0] / df.shape[0]))
+    return resdf
