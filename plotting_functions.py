@@ -17,6 +17,8 @@ from matplotlib import interactive
 from matplotlib.widgets import Slider
 from utils_cabmi import *
 from utils_loading import encode_to_filename, decode_method_ibi
+from utils_bursting import IBI_cv_matrix
+from matplotlib import gridspec
 from preprocessing import get_roi_type, get_peak_times_over_thres
 import seaborn as sns
 
@@ -356,6 +358,7 @@ def plot_reward_histograms(folder, animal, day, sec_var=''):
 
 
 def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
+    # TODO: ADD CV TUNING
     processed = os.path.join(folder, 'CaBMI_analysis/processed/')
     psth = os.path.join(folder, 'bursting/plots/PSTH/')
     windowplot = os.path.join(psth, 'window')
@@ -379,6 +382,8 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         if not os.path.exists((nwfolder)):
             os.makedirs(nwfolder)
         # TRIAL
+        ibis_hit = [np.diff(D_trial[i][j]) for j in hits]
+        ibis_miss = [np.diff(D_trial[i][j]) for j in misses]
         fig = plt.figure(figsize=(20, 10))
         hitsx = np.concatenate([np.array(D_trial[i][j]) - array_end[j] for j in hits])
         hitsy = np.concatenate([np.full(len(D_trial[i][j]), j + 1) for j in hits])
@@ -401,9 +406,13 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True):
         fig = plt.figure(figsize=(20, 10))
         slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(len(D_window[i]))])
         slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(len(D_window[i]))])
-        plt.plot(slidex, slidey, 'k.', markersize=3)
+        ibis_slide = [np.diff(D_window[i][j]) for j in range(len(D_window[i]))]
+        ibis_slide_mat = np.full((len(D_window[i], len(max(ibis_slide, key=len)))), np.nan)
+        gs = gridspec.GridSpec(3, 1, height_ratios=[5, 1, 1])
+        ax0 = plt.subplot(gs[0])
+        ax0.plot(slidex, slidey, 'k.', markersize=3)
         plt.axvline(0, color='r')
-        fig.suptitle("PSTH trial")
+        fig.suptitle("PSTH window")
         plt.xlabel('Time(fr)')
         plt.ylabel('Slide')
         fname = os.path.join(ntfolder, hp)
