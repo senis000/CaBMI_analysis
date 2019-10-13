@@ -118,7 +118,7 @@ def plot_all_sessions_hpm(sharey=False):
                 vals[7] = (ninety - allhitm) / allhits
                 learner_pc = -1 # Good learner: 2, Average Learner: 1, Bad Learner: 0, Non Learner: -1
                 learner_hpm = -1
-                learner_3 = (pcmax >= 0.7) + (pcmax >= 0.3)
+                learner_3 = int(pcmax >= 0.7) + int(pcmax >= 0.3)
 
                 if pcmax >= tPCAll:
                     learner_pc = 2
@@ -143,6 +143,7 @@ def plot_all_sessions_hpm(sharey=False):
                     l3_PT[learner_3] += 1
 
                 cwriter.writerow([animal, day] + [learner_3, pcmax, nmax, learner_pc, learner_hpm] + vals)
+
         cwriter.writerow(["All", 'meanHPM', allhitm, 'stdHPM', allhits, 'meanPC', allPCm, 'stdPC', allPCs])
         cf.close()
 

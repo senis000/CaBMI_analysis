@@ -201,7 +201,7 @@ def learning_params(
             learner_hpm = 0
         # HERE DEFINE LEARNING VALUE [0.7, 0.3]
         fig1.savefig(
-            out + "L_{}_{}_{}_evolution_{}.png".format((pcmax>=0.7)+(pcmax>=0.3),learner_pc, learner_hpm, animal, day, bin_size),
+            out + "L_{}_evolution_{}.png".format(int(pcmax>=0.7)+int(pcmax>=0.3),animal, day, bin_size),
             bbox_inches="tight"
             )
         plt.close('all')
