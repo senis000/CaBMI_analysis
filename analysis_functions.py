@@ -32,6 +32,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from matplotlib import interactive
 import utils_cabmi as ut
+from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
@@ -83,6 +84,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         ax1.yaxis.set_label_position('right')
         fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
+
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
@@ -366,3 +368,124 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
     # Create TD model and compare V(t) and d(T) to activity of neurons
     # IT/PT/REST
+
+
+def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
+    # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
+    """Calculates Peak Timing and Stores them in csvs for all animal sessions in groups located in folder."""
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+
+    if groups == '*':
+        all_files = get_PTIT_over_days(processed)
+    else:
+        all_files = {g: parse_group_dict(processed, groups[g], g) for g in groups.keys()}
+    print(all_files)
+    hp = 'window_{}_zcap'.format(window, zcap)
+    resW = {n: [] for n in ['window', 'roi_type', 'N', 'mZC', 'group', 'animal',
+       'date', 'session']}
+    for group in all_files:
+        group_dict = all_files[group]
+        for animal in group_dict:
+            for i, day in sorted(group_dict[animal]):
+
+                hf = encode_to_filename(processed, animal, day)
+                if not os.path.exists(hf):
+                    print("Not found:, ", hf)
+                print(animal, day)
+                with h5py.File(hf, 'r') as fp:
+                    C = np.array(fp['C'])
+                    # TODO: maybe include trial activity tuning
+                    #array_hit, array_miss = np.array(fp['array_t1']), np.array(fp['array_miss'])
+                    ens_neur = np.array(fp['ens_neur'])
+                    e2_neur = ens_neur[fp['e2_neur']] if 'e2_neur' in fp else None
+                    redlabel, nerden = np.array(fp['redlabel']), np.array(fp['nerden'])
+
+                zscoreC = zscore(C, axis=1)
+                if zcap is not None:
+                    zscoreC = np.minimum(zscoreC, np.full_like(C, zcap))
+                N = C.shape[0]
+                nsessions = C.shape[1] // window
+                remainder = C.shape[1] - nsessions * window
+                Cfirst = (zscoreC[:, :nsessions * window]).reshape((C.shape[0], nsessions, window), order='C')
+                avg_C = np.nanmean(Cfirst, axis=1)
+                if remainder > 0:
+                    Cremain = zscoreC[:, nsessions * window:]
+                    avg_C = np.concatenate((avg_C, np.nanmean(Cremain, axis=1)), axis=1)
+
+                # N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
+                # ROI_type
+                sw = nsessions + remainder
+                rois = np.full(N, "D", dtype="U2")
+                rois[nerden & ~redlabel] = 'IG'
+                rois[nerden & redlabel] = 'IR'
+                if e2_neur is not None:
+                    rois[ens_neur] = 'E1'
+                    rois[e2_neur] = 'E2'
+                else:
+                    rois[ens_neur] = 'E'
+                # DF Window
+
+                resW['window'].append(np.tile(np.arange(sw), N))
+                resW['roi_type'].append(np.repeat(rois, sw))
+                resW['N'].append(np.repeat(np.arange(N), sw))
+                resW['mZC'].append(avg_C.ravel(order=C))
+                resW['group'] = np.full(N * sw, animal[:2])
+                resW['animal'] = np.full(N * sw, animal)
+                resW['day'] = np.full(N * sw, animal)
+                resW['session'] = np.full(N*sw, i+1)
+
+                # # DF TRIAL
+                # trials = np.arange(1, st + 1)
+                # tempm = trials[array_miss]
+                # temph = trials[array_hit]
+                # misses = np.empty_like(tempm)
+                # hits = np.empty_like(temph)
+                # sortedm = np.argsort(tempm)
+                # sortedh = np.argsort(temph)
+                # for i in range(len(sortedm)):
+                #     misses[sortedm[i]] = -i - 1
+                # for i in range(len(sortedh)):
+                #     hits[sortedh[i]] = i + 1
+                # hm_trial = np.empty_like(trials)
+                # hm_trial[array_hit] = hits
+                # hm_trial[array_miss] = misses
+                # # trials[array_miss] = -trials[array_miss]
+                # # awhere = np.where(trials < 0)[0]
+                # # assert np.array_equal(awhere, array_miss), "NOt alligned {} {}".format(awhere, array_miss)
+                # resT['trial'] = np.tile(trials, N)  # 1-indexed
+                # resT['HM_trial'] = np.tile(hm_trial, N)  # 1-indexed
+                # resT['roi_type'] = np.repeat(rois, st)
+                # resT['N'] = np.repeat(np.arange(N), st)
+                # for k in mets_window:
+                #     resW[k] = mets_window[k].ravel(order='C')
+                #     resT[k] = mets_trial[k].ravel(order='C')
+
+                # print(N, sw, st)
+                # def debug_print(res):
+                #     for k in res.keys():
+                #         print(k, res[k].shape)
+                # debug_print(resW)
+                # debug_print(resT)
+                # df_trial = pd.DataFrame(resT)
+    for k in resW:
+        resW[k] = np.concatenate(resW[k])
+    df_window = pd.DataFrame.from_dict(resW)
+    if test:
+        # testing = os.path.join(path, 'test.csv')
+        # if os.path.exists(testing):
+        #     print('Deleting', testing)
+        #     os.remove(testing)
+        df_window.to_csv(os.path.join(processed, 'C_activity_tuning_window_{}.csv'.format(hp)),
+                         index=False)
+        # df_trial.to_csv(os.path.join(path, '{}_{}_trial_test.csv'.format(animal, day)),
+        #                 index=False)
+    # else:
+    #     df_window.to_hdf(fname, 'df_window')
+    #     # df_trial.to_hdf(fname, 'df_trial')
+    return df_window
+
+if __name__ == '__main__':
+    home = "/home/user/"
+    processed = os.path.join(home, "CaBMI_analysis/processed/")
+    C_activity_tuning(home, '*')
+
