@@ -123,6 +123,18 @@ def neuron_fano_norm(sig, W=None, T=100, lingress=False, pre=True):
         return neuron_fano(sig, W, T) / (n)
 
 
+def dict_to_mat(d, event=True):
+    # [N * s * K']
+    if len(d) == 0:
+        return
+    mat = np.full((len(d), len(d[0]), max(d, key=lambda v: len((d[v]-1) if event else d[v]))), np.nan)
+    for i in range(len(d)):
+        for s in range(len(d[0])):
+            slide = np.diff(d[i][s]) if event else d[i][s]
+            mat[i, s, :len(slide)] = slide
+    return mat
+
+
 def IBI_cv_matrix(ibis, metric='cv_ub'):
     ax = len(ibis.shape) - 1
     m = np.nanmean(ibis, axis=ax)

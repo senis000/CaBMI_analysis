@@ -10,6 +10,7 @@ from utils_loading import get_PTIT_over_days, path_prefix_free, file_folder_path
 from utils_cabmi import time_lock_activity
 import matplotlib.pyplot as plt
 from scipy import io
+from preprocessing import get_peak_times_over_thres
 from matplotlib.widgets import Slider
 
 
@@ -247,7 +248,7 @@ def calcium_IBI_all_sessions_windows(folder, window=None, perc=30, ptp=True, IBI
     return mats
 
 
-def calcium_IBI_single_session(inputs, out, window=None, method=0):
+def calcium_IBI_single_session(inputs, out, window=None, method=0, peak_csv=True):
     """Returns a metric matrix and meta data of IBI metric
     Params:
         inputs: str, h5py.File, tuple, or np.ndarray
@@ -299,30 +300,39 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         window = C.shape[1]
         animal, day = None, None
     else:
+        f = None
         if isinstance(inputs, str):
             opts = path_prefix_free(inputs, '/').split('_')
             animal, day = opts[1], opts[2]
-            f = h5py.File(inputs, 'r')
+            hfile = inputs
         elif isinstance(inputs, h5py.File):
             opts = path_prefix_free(inputs.filename, '/').split('_')
             animal, day = opts[1], opts[2]
+            hfile = inputs.filename
             f = inputs
         elif isinstance(inputs, tuple):
             path, animal, day = inputs
             hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
-            f = h5py.File(hfile, 'r')
         else:
             raise RuntimeError("Input Format Unknown!")
-        C = np.array(f['C'])
-        t_locks = time_lock_activity(f, order='N')
-        if window is None:
-            window0 = window
-            window = f.attrs['blen']
+        if peak_csv:
+            if window is None:
+                window0 = window
+                window = f.attrs['blen']
+            D_trial, D_window = get_peak_times_over_thres(hfile, window, method)
         else:
-            window0 = window
-        f.close()
+            if f is None:
+                f = h5py.File(hfile, 'r')
+            C = np.array(f['C'])
+            t_locks = time_lock_activity(f, order='N')
+            if window is None:
+                window0 = window
+                window = f.attrs['blen']
+            else:
+                window0 = window
+            f.close()
+    nsessions = int(np.ceil(C.shape[1] / window))
     ibi_func, hp = decode_method_ibi(method)
-
     if animal is None:
         savepath = os.path.join(out, 'sample_IBI.hdf5')
     else:
@@ -331,43 +341,45 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
         if not os.path.exists(savepath):
             os.makedirs(savepath)
         savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
-    if os.path.exists(savepath):
-        with h5py.File(savepath, 'r') as f:
-            N, nsessions = f['mean'].shape[:2]
-        print("Existed, ", animal, day)
-        return savepath, N, nsessions
-    print("Starting IBI calculation, ", animal, day)
-    nsessions = int(np.ceil(C.shape[1] / window))
-    rawibis_windows = {}
-    maxLenW = -1
-    if t_locks is not None:
-        rawibis_trials = {}
-        maxLenT = -1
-    for i in range(C.shape[0]):
-        print(i)
-        rawibis_windows[i] = {}
-        for s in range(nsessions):
-            slide = C[i, s*window:min(C.shape[1], (s+1) * window)]
-            ibis = ibi_func(slide)
-            rawibis_windows[i][s] = ibis
-            maxLenW = max(len(ibis), maxLenW)
+    if peak_csv:
+        all_ibis_windows, all_ibis_trials = dict_to_mat(D_window), dict_to_mat(D_trial)
+    else:
+        if os.path.exists(savepath):
+            with h5py.File(savepath, 'r') as f:
+                N, nsessions = f['mean'].shape[:2]
+            print("Existed, ", animal, day)
+            return savepath, N, nsessions
+        print("Starting IBI calculation, ", animal, day)
+        rawibis_windows = {}
+        maxLenW = -1
         if t_locks is not None:
-            rawibis_trials[i] = {}  # TODO: Modify IBIs to handle empty trials
-            for s in range(t_locks.shape[1]):
-                slide = t_locks[i, s]
+            rawibis_trials = {}
+            maxLenT = -1
+        for i in range(C.shape[0]):
+            print(i)
+            rawibis_windows[i] = {}
+            for s in range(nsessions):
+                slide = C[i, s*window:min(C.shape[1], (s+1) * window)]
                 ibis = ibi_func(slide)
-                rawibis_trials[i][s] = ibis
-                maxLenT = max(len(ibis), maxLenT)
+                rawibis_windows[i][s] = ibis
+                maxLenW = max(len(ibis), maxLenW)
+            if t_locks is not None:
+                rawibis_trials[i] = {}  # TODO: Modify IBIs to handle empty trials
+                for s in range(t_locks.shape[1]):
+                    slide = t_locks[i, s]
+                    ibis = ibi_func(slide)
+                    rawibis_trials[i][s] = ibis
+                    maxLenT = max(len(ibis), maxLenT)
 
-    all_ibis_windows = np.full((C.shape[0], nsessions, maxLenW), np.nan)
-    if t_locks is not None:
-        all_ibis_trials = np.full((C.shape[0], t_locks.shape[1], maxLenT), np.nan)
-    for i in range(C.shape[0]):
-        for s in range(nsessions):
-            all_ibis_windows[i][s][:len(rawibis_windows[i][s])] = rawibis_windows[i][s]
+        all_ibis_windows = np.full((C.shape[0], nsessions, maxLenW), np.nan)
         if t_locks is not None:
-            for s in range(t_locks.shape[1]):
-                all_ibis_trials[i][s][:len(rawibis_trials[i][s])] = rawibis_trials[i][s]
+            all_ibis_trials = np.full((C.shape[0], t_locks.shape[1], maxLenT), np.nan)
+        for i in range(C.shape[0]):
+            for s in range(nsessions):
+                all_ibis_windows[i][s][:len(rawibis_windows[i][s])] = rawibis_windows[i][s]
+            if t_locks is not None:
+                for s in range(t_locks.shape[1]):
+                    all_ibis_trials[i][s][:len(rawibis_trials[i][s])] = rawibis_trials[i][s]
     outfile = h5py.File(savepath, 'w-')
     outfile['IBIs_window'] = all_ibis_windows
     outfile['IBIs_trial'] = all_ibis_trials
@@ -376,7 +388,8 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0):
     return outname, C.shape[0], nsessions
 
 
-def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('window', 'trial')):
+def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('window', 'trial'),
+                             peak_csv=True):
     # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
     """Returns a metric matrix across all sessions and meta data of IBI metric
         Params:
@@ -555,12 +568,13 @@ def IBI_to_metric_save(folder, processed, animals=None, window=None, method=0, t
 
     if test and os.path.exists(trial_target) and os.path.exists(window_target):
         all_df_trial, all_df_window = pd.read_csv(trial_target), pd.read_csv(window_target)
+
     else:
         all_df_trial, all_df_window = pd.DataFrame(), pd.DataFrame() #TODO: think of ways to speed up
         skipper = open(os.path.join(folder, "skipper.txt"), 'w')
         for animal in animals:
             if animal.startswith('PT') or animal.startswith('IT'):
-                for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(folder, animal))
+                for i, day in enumerate(sorted([d for d in os.listdir(os.path.join(processed, animal))
                                                 if d.isnumeric()])):
                     hf = encode_to_filename(folder, animal, day, hp)
                     if not os.path.exists(hf):
@@ -795,8 +809,8 @@ def displot_comp():
     plt.show()
 
 
-def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', bins=None, same_rank=True, eps=True, \
-                                                                                             eigen=True):
+def plot_IBI_ITPT_contrast_all_sessions(metric_mats, out, metric='all', from_csv=True, bins=None,
+                                        same_rank=True, eps=True, eigen=True):
     """ Takes in DataFrame of trials or windows or both, and save plots in out directory
 
     Params:
@@ -1608,7 +1622,7 @@ def generate_IBI_plots_4animals(root, method=0, eps=True, eigen=True, metric='al
     out = os.path.join(root, 'bursting/plots/IBI_contrast/{}animals'.format(len(animals) // 2))
     hp = decode_method_ibi(method)[1]
     out1 = os.path.join(out, hp)
-    mats = IBI_to_metric_save(IBIs, processed, animals = animals, window=None, method=method, test=True)
+    mats = IBI_to_metric_save(IBIs, processed, animals=animals, window=None, method=method, test=True)
     print("Done with Metrics")
     print("Plotting all contrasts!")
     plot_IBI_ITPT_contrast_all_sessions(mats, out1, eps=eps, eigen=eigen)
