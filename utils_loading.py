@@ -160,3 +160,21 @@ def find_file_regex(folder, regex):
         if re.match(regex, f):
             return os.path.join(folder, f)
 
+
+def get_learners(typhos=None):
+    # 2: LEARNER session, 1: Undefined, 0: Nonlearner Session
+    if typhos is None:
+        learning_file = "/Volumes/DATA_01/NL/layerproject/plots/learning/allDist_1max/hpm_stats_bin_5.csv"
+    else:
+        import os
+        learning_file = os.path.join(typhos, "NL/layerproject/plots/learning/allDist_1max/hpm_stats_bin_5.csv")
+    df0 = pd.read_csv(learning_file)
+    df = df0.iloc[:-1]
+    NL, L = 0.3, 0.7 # Please Adjust
+    df['LT'] = (df['max_pc'].astype(np.float) >=NL).astype(np.int) + (df['max_pc'].astype(np.float) >=L).astype(np.int)
+    df_old = df
+    df = df_old[['animal', 'day', 'LT']]
+    learners = df[df['LT'] == 2]
+    undefined = df[df['LT'] == 1]
+    nonlearners = df[df['LT'] == 1]
+    return learners, undefined, nonlearners
