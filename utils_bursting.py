@@ -127,7 +127,11 @@ def dict_to_mat(d, event=True):
     # [N * s * K']
     if len(d) == 0:
         return
-    mat = np.full((len(d), len(d[0]), max(d, key=lambda v: len((d[v]-1) if event else d[v]))), np.nan)
+    maxlen = 0
+    for i in d:
+        for s in d[i]:
+            maxlen = max(maxlen, (len(d[i][s]) -1) if event else len(d[i][s]))
+    mat = np.full((len(d), len(d[0]), maxlen), np.nan)
     for i in range(len(d)):
         for s in range(len(d[0])):
             slide = np.diff(d[i][s]) if event else d[i][s]

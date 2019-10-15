@@ -315,15 +315,15 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0, peak_csv=True
             hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
         else:
             raise RuntimeError("Input Format Unknown!")
+        if f is None:
+            f = h5py.File(hfile, 'r')
+        C = np.array(f['C'])
         if peak_csv:
             if window is None:
                 window0 = window
                 window = f.attrs['blen']
             D_trial, D_window = get_peak_times_over_thres(hfile, window, method)
         else:
-            if f is None:
-                f = h5py.File(hfile, 'r')
-            C = np.array(f['C'])
             t_locks = time_lock_activity(f, order='N')
             if window is None:
                 window0 = window
@@ -467,15 +467,15 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                 hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
                 if not os.path.exists(hf_burst):
-                    try:
-                        calcium_IBI_single_session(hf, out, window, method)
-                        print('Finished', animal, day)
-                    except Exception as e:
-                        errorFile = True
-                        if animal in skipped:
-                            skipped[animal].append([day])
-                        else:
-                            skipped[animal] = [day]
+                    # try:
+                    calcium_IBI_single_session(hf, out, window, method)
+                    print('Finished', animal, day)
+                    # except Exception as e:
+                    #     errorFile = True
+                    #     if animal in skipped:
+                    #         skipped[animal].append([day])
+                    #     else:
+                    #         skipped[animal] = [day]
                 if not errorFile:
                     temp[animal][day] = {}
                     with h5py.File(hf, 'r') as f:
@@ -1664,4 +1664,5 @@ if __name__ == '__main__':
         os.makedirs(out)
     # for met in ('cv', 'cv_ub', 'serr_pc'):
     #     generate_IBI_plots2(root, out, method=0, metric=met)
-    calcium_IBI_all_sessions(root, '*', method=0)
+    for m in [2]:
+        calcium_IBI_all_sessions(root, '*', method=0)

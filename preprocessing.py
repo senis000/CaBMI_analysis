@@ -111,22 +111,24 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
     if isinstance(inputs, str):
         opts = path_prefix_free(inputs, '/').split('_')
         path = file_folder_path(inputs)
+        session_path = path
         animal, day = opts[1], opts[2]
         f = None
         hfile = inputs
     elif isinstance(inputs, tuple):
         path, animal, day = inputs
-        hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+        session_path = os.path.join(path, animal, day)
+        hfile = os.path.join(session_path, "full_{}_{}__data.hdf5".format(animal, day))
         f = None
     elif isinstance(inputs, h5py.File):
         opts = path_prefix_free(inputs.filename, '/').split('_')
         path = file_folder_path(inputs.filename)
+        session_path = path
         animal, day = opts[1], opts[2]
         f = inputs
     else:
         raise RuntimeError("Input Format Unknown!")
     cwt_pattern = '{}_{}_rawcwt_low_(\d+)_high_(\d+).csv'.format(animal, day)
-    session_path = os.path.join(path, animal, day)
     cwtfile = find_file_regex(session_path, cwt_pattern)
     if cwtfile is None:
         print("({}, {}) requires preprocessing!".format(animal, day))
