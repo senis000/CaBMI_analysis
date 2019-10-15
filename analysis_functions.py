@@ -145,7 +145,7 @@ def learning_params(
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
     
     if to_plot is not None:
-        maxHit, hitIT_salient, hitPT_salient, hit_all_salient, pcIT_salient, pcPT_salient, pc_all_salient= \
+        maxHit, hitIT_salient, hitPT_salient, hit_all_salient, hit_all_average, pcIT_salient, pcPT_salient, pc_all_salient, pc_all_average= \
             to_plot
         out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
@@ -173,17 +173,35 @@ def learning_params(
         ax1.set_ylim((-1.5, 31.5))
         ax1.legend()
         ax2 = fig1.add_subplot(133)
-        ax2.axhline(pcIT_salient, color=PALETTE[0], lw=1.25, label='IT salience')
-        ax2.axhline(pcPT_salient, color=PALETTE[1], lw=1.25, label='PT salience')
-        ax2.axhline(pc_all_salient, color='yellow', lw=1.25, label='All salience')
+        ax2.axhline(pcIT_salient*100, color=PALETTE[0], lw=1.25, label='IT salience')
+        ax2.axhline(pcPT_salient*100, color=PALETTE[1], lw=1.25, label='PT salience')
+        ax2.axhline(pc_all_salient*100, color='yellow', lw=1.25, label='All salience')
         sns.regplot(xx/60, percentage_correct * 100, label='percentage correct')
         ax2.set_xlabel('Minutes')
         ax2.set_ylabel('Percentage Correct (%)')
         ax2.set_title('Percentage Correct Evolution')
         ax2.set_ylim((-5, 105))
         ax2.legend()
+        learner_pc = -1 # Good learner: 2, Average Learner: 1, Bad Learner: 0, Non Learner: -1
+        learner_hpm = -1
+        pcmax = np.nanmax(percentage_correct)
+        nmax = np.nanmax(hpm)
+        if pcmax >= pc_all_salient:
+            learner_pc = 2
+        elif pcmax >= pc_all_average:
+            learner_pc = 1
+        elif pcmax >= 0.3:
+            learner_pc = 0
+
+        if nmax >= hit_all_salient:
+            learner_hpm = 2
+        elif nmax >= hit_all_average:
+            learner_hpm = 1
+        elif nmax >= 1: # 1 as learning criteria
+            learner_hpm = 0
+        # HERE DEFINE LEARNING VALUE [0.7, 0.3]
         fig1.savefig(
-            out + "{}_{}_evolution_{}.png".format(animal, day, bin_size),
+            out + "L_{}_evolution_{}.png".format(int(pcmax>=0.7)+int(pcmax>=0.3),animal, day, bin_size),
             bbox_inches="tight"
             )
         plt.close('all')

@@ -1,0 +1,180 @@
+import numpy as np
+import matplotlib.pyplot as plt
+sharey=False
+from utils_cabmi import *
+from plotting_functions import *
+from analysis_functions import *
+from utils_gte import *
+from utils_clustering import *
+from plot_rewardend import *
+from plot_base_end import *
+import csv
+    folder = '/home/user/'
+    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
+    out = os.path.join(folder, 'learning/analysis')
+    binsizes = [1, 3, 5]
+    for b in binsizes:
+        print("BIN {}".format(b))
+        #allEstimators = {} # TODO: PLOT DAY BY DAY THRESHOLD
+        maxHit = 0
+        IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_hits, PT_hits = [], []
+        IT_pcs, PT_pcs = [], []
+        for animal in os.listdir(processed):
+            animal_path = processed + animal + '/'
+            if not os.path.isdir(animal_path):
+                continue
+            if not (animal.startswith('IT') or animal.startswith('PT')):
+                continue
+            days = [d for d in os.listdir(animal_path) if d.isnumeric()]
+            days.sort()
+            for i, day in enumerate(days):
+                print(animal, day)
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
+                if animal.startswith('IT'):
+                    IT_hit.handle(hpm)
+                    IT_hits.append(hpm)
+                    IT_pc.handle(pc)
+                    IT_pcs.append(pc)
+                else:
+                    PT_hit.handle(hpm)
+                    PT_pc.handle(pc)
+                    PT_hits.append(hpm)
+                    PT_pcs.append(pc)
+                maxHit = max(maxHit, np.nanmax(hpm))
+
+        allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
+        tHitIT, tHitPT, tHitAll = IT_hit.mean() + IT_hit.std(), PT_hit.mean() + PT_hit.std(), allhitm + allhits
+        allPCm, allPCs = OnlineNormalEstimator.join(IT_pc, PT_pc)
+        tPCIT, tPCPT, tPCAll = IT_pc.mean() + IT_pc.std(), PT_pc.mean() + PT_pc.std(), allPCm + allPCs
+plt.hist(IT_hits)
+plt.hist(IT_hits, bins=None)
+plt.hist(IT_hits, bins=10)
+len(IT_hits)
+plt.hist(IT_hits, nbins=10)
+plt.hist(IT_hits, binsize=0.5)
+plt.hist(IT_hits)
+plt.hist(IT_hits, bins=np.arange(8))
+plt.show()
+plt.hist(IT_hits, bins=np.arange(8))
+plt.hist(IT_pcs)
+IT_pcs[0]
+IT_hits=np.concatenate(IT_hits)
+plt.hist(IT_hits)
+IT_pcs=np.concatenate(IT_pcs)
+IT_pcs=np.concatenate(IT_pcs)
+IT_pcs[0]
+len(IT_pcs)
+plt.hist(IT_pcs)
+plt.hist(PT_pcs);plt.title('PT')
+PT_pcs[0]
+PT_pcs = np.concatenate(PT_pcs)
+plt.hist(PT_pcs);plt.title('PT')
+plt.hist(PT_pcs, IT_pcs);plt.legend(IT_pcs, PT_pcs)
+plt.hist([PT_pcs, IT_pcs]);plt.legend(['IT', 'PT'])
+plt.hist(np.concatenate([PT_pcs IT_pcs]));plt.title('all')
+plt.hist(np.concatenate([PT_pcs, IT_pcs]));plt.title('all')
+    folder = '/home/user/'
+    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
+    out = os.path.join(folder, 'learning/analysis')
+print("BIN {}".format(b))
+        #allEstimators = {} # TODO: PLOT DAY BY DAY THRESHOLD
+        maxHit = 0
+        IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_hits, PT_hits = [], []
+        IT_pcs, PT_pcs = [], []
+        for animal in os.listdir(processed):
+            animal_path = processed + animal + '/'
+            if not os.path.isdir(animal_path):
+                continue
+            if not (animal.startswith('IT') or animal.startswith('PT')):
+                continue
+            days = [d for d in os.listdir(animal_path) if d.isnumeric()]
+            days.sort()
+            for i, day in enumerate(days):
+                print(animal, day)
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
+                if animal.startswith('IT'):
+                    t_hit, t_hits, t_pc, t_pcs = IT_hit, IT_hits, IT_pc, IT_pcs
+                    
+                else:
+                    t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
+                t_hit.handle(np.nanmax(hpm))
+                t_hits.append(np.nanmax(hpm))
+                t_pc.handle(np.nanmax(pc))
+                t_pcs.append(np.nanmax(pc))
+                maxHit = max(maxHit, np.nanmax(hpm))
+b = 5
+        maxHit = 0
+        IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
+        IT_hits, PT_hits = [], []
+        IT_pcs, PT_pcs = [], []
+        for animal in os.listdir(processed):
+            animal_path = processed + animal + '/'
+            if not os.path.isdir(animal_path):
+                continue
+            if not (animal.startswith('IT') or animal.startswith('PT')):
+                continue
+            days = [d for d in os.listdir(animal_path) if d.isnumeric()]
+            days.sort()
+            for i, day in enumerate(days):
+                print(animal, day)
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
+                if animal.startswith('IT'):
+                    t_hit, t_hits, t_pc, t_pcs = IT_hit, IT_hits, IT_pc, IT_pcs
+                    
+                else:
+                    t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
+                t_hit.handle(np.nanmax(hpm))
+                t_hits.append(np.nanmax(hpm))
+                t_pc.handle(np.nanmax(pc))
+                t_pcs.append(np.nanmax(pc))
+                maxHit = max(maxHit, np.nanmax(hpm))
+plt.hist([IT_hits, PT_hits]);plt.legend(['IT', 'PT'])
+plt.show()
+plt.hist([IT_hits, PT_hits]);plt.legend(['IT', 'PT'])
+plt.show()
+plt.hist([IT_hits, PT_hits]);plt.legend(['IT', 'PT']);plt.xlabel("hpm(hits/s)");plt.title("Distribution Contrast of Max HPMs");plt.show()
+plt.hist([IT_hits, PT_hits], density=True);plt.legend(['IT', 'PT']);plt.xlabel("hpm(hits/s)");plt.title("Distribution Contrast of Max HPMs");plt.ylabel("frequency");plt.show()
+plt.hist([IT_pcs, PT_pcs], density=True);plt.legend(['IT', 'PT']);plt.xlabel("percentage correct");plt.title("Distribution Contrast of Percentage Correct");plt.ylabel("frequency");plt.show()
+plt.hist(IT_hits+PT_hits);plt.xlabel("hpm(hits/s)");plt.title("Distribution of Max HPMs all animal");plt.show()
+plt.hist(IT_pcs+PT_pcs);plt.xlabel("Percentage Correct");plt.title("Distribution of Percentage Correct all animal");plt.show()
+IT_hit.mean()
+np.nanmean(IT_hits)
+PT_hit.mean()
+np.nanmean(PT_hits)
+PT_hit.std()
+IT_hit.std()
+np.nanstd(PT_hits)
+np.nanstd(IT_hits)
+np.std(IT_hits)
+allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
+allhitm
+allhits
+np.nanmean(IT_hits+PT_hits)
+np.nanmean(IT_pcs+PT_pcs)
+np.nanstd(IT_hits+PT_hits)
+        tHitIT, tHitPT, tHitAll = IT_hit.mean() + IT_hit.std(), PT_hit.mean() + PT_hit.std(), allhitm + allhits
+        allPCm, allPCs = OnlineNormalEstimator.join(IT_pc, PT_pc)
+        tPCIT, tPCPT, tPCAll = IT_pc.mean() + IT_pc.std(), PT_pc.mean() + PT_pc.std(), allPCm + allPCs
+tPCIT
+IT_pc.mean()
+
+In [5]: from scipy.stats import ks_2samp                                        
+
+In [6]: Dpc, ppc = ks_2samp(IT_hits, PT_hits)                                   
+
+In [7]: ppc                                                                     
+Out[7]: 0.0015890134564000246
+
+In [8]: Dpc                                                                     
+Out[8]: 0.22061544454182486
+
+In [9]: Dhpm, phpm = ks_2samp(IT_pcs, PT_pcs)                                   
+
+In [10]: print(Dhpm, phpm)                                                      
+0.21379881195832118 0.002453190366322193
+
