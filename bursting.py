@@ -341,14 +341,14 @@ def calcium_IBI_single_session(inputs, out, window=None, method=0, peak_csv=True
         if not os.path.exists(savepath):
             os.makedirs(savepath)
         savepath = os.path.join(savepath, "IBI_{}_{}_{}.hdf5".format(animal, day, hyperparams))
+    if os.path.exists(savepath):
+        with h5py.File(savepath, 'r') as f:
+            N, nsessions = f['mean'].shape[:2]
+        print("Existed, ", animal, day)
+        return savepath, N, nsessions
     if peak_csv:
         all_ibis_windows, all_ibis_trials = dict_to_mat(D_window), dict_to_mat(D_trial)
     else:
-        if os.path.exists(savepath):
-            with h5py.File(savepath, 'r') as f:
-                N, nsessions = f['mean'].shape[:2]
-            print("Existed, ", animal, day)
-            return savepath, N, nsessions
         print("Starting IBI calculation, ", animal, day)
         rawibis_windows = {}
         maxLenW = -1
@@ -467,15 +467,15 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                 hf_burst = encode_to_filename(out, animal, day, hyperparams=hyperparam)
                 errorFile = False
                 if not os.path.exists(hf_burst):
-                    # try:
-                    calcium_IBI_single_session(hf, out, window, method)
-                    print('Finished', animal, day)
-                    # except Exception as e:
-                    #     errorFile = True
-                    #     if animal in skipped:
-                    #         skipped[animal].append([day])
-                    #     else:
-                    #         skipped[animal] = [day]
+                    try:
+                        calcium_IBI_single_session(hf, out, window, method)
+                        print('Finished', animal, day)
+                    except Exception as e:
+                        errorFile = True
+                        if animal in skipped:
+                            skipped[animal].append([day])
+                        else:
+                            skipped[animal] = [day]
                 if not errorFile:
                     temp[animal][day] = {}
                     with h5py.File(hf, 'r') as f:
@@ -1665,4 +1665,7 @@ if __name__ == '__main__':
     # for met in ('cv', 'cv_ub', 'serr_pc'):
     #     generate_IBI_plots2(root, out, method=0, metric=met)
     for m in [2]:
-        calcium_IBI_all_sessions(root, '*', method=0)
+        processed = os.path.join(root, 'CaBMI_analysis/processed')
+        IBIs = os.path.join(root, 'bursting/IBI')
+        calcium_IBI_all_sessions(root, '*', method=m)
+        IBI_to_metric_save(IBIs, processed, animals=None, window=None, method=m, test=True)
