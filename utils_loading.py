@@ -3,6 +3,7 @@ import numpy as np
 import json
 import h5py
 import re
+import pandas as pd
 from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
@@ -162,7 +163,12 @@ def find_file_regex(folder, regex):
 
 
 def get_learners(typhos=None):
-    # 2: LEARNER session, 1: Undefined, 0: Nonlearner Session
+    """
+        2: LEARNER session, 1: Undefined, 0: Nonlearner Session
+        Returns:
+            learners, undefined, nonlearners: each is one different category of learning session.
+    """
+
     if typhos is None:
         learning_file = "/Volumes/DATA_01/NL/layerproject/plots/learning/allDist_1max/hpm_stats_bin_5.csv"
     else:
