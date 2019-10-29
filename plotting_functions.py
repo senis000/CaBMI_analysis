@@ -8,6 +8,8 @@ import os
 import math
 import random
 import copy
+import csv
+import pandas as pd
 from scipy.stats import zscore, iqr
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -466,6 +468,112 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             plt.close("all")
 
 
+def dff_sanity_check(rawbase, processed, animals=None, days=None, out=None, csvout=None,
+                     nonstop=True, PROBELEN=1000):
+    if csvout is not None:
+        csvf = open(os.path.join(csvout, "corr_{}_plen{}.csv"
+                                 .format('all' if animals is None else "_".join(animals), PROBELEN)), 'w')
+        cwriter = csv.writer(csvf)
+        cwriter.writerow(['animal', 'day', 'chanceC'] + ['Cens' + str(i) for i in range(4)] + ['chanceO']
+                      + ['online_ens' + str(i) for i in range(4)])
+    if animals is None:
+        animals = [a for a in os.listdir(processed) if (a.startswith('IT') or a.startswith('PT')) and
+                   os.path.isdir(os.path.join(processed, a))]
+    print(animals)
+    for animal in animals:
+        if days is None:
+            days = [d for d in os.listdir(os.path.join(rawbase, animal))
+                    if d.isnumeric() and os.path.isdir(os.path.join(rawbase, animal, d))]
+        print(animal, days)
+        for day in days: #TODO: fix this with dictionary
+            print(animal, day)
+            # animal = 'PT19'
+            # day = '190719'
+            rawpath = os.path.join(rawbase, animal, day)
+
+            online_data = pd.read_csv(os.path.join(rawpath, "bmi_IntegrationRois_00001.csv"))
+            f1 = os.path.join(processed, animal, "full_{}_{}__data.hdf5".format(animal, day))
+            f2 = encode_to_filename(processed, animal, day)
+            if os.path.exists(f1):
+                hfname = f1
+            elif os.path.exists(f2):
+                hfname = f2
+            else:
+                if nonstop:
+                    print("File {} or {} not found".format(f1, f2))
+                    if csvout is not None:
+                        cwriter.writerow([animal, day] + [np.nan] * 10)
+                    continue
+                else:
+                    raise FileNotFoundError("File {} or {} not found".format(f1, f2))
+            with h5py.File(hfname, 'r') as hf:
+                dff = np.array(hf['dff'])
+                dff[np.isnan(dff)] = 0
+                C = np.array(hf['C'])
+                ens_neur = np.array(hf['ens_neur'])
+
+            # Calculating correlation and record in csv
+            if csvout is not None:
+                def helper(vars):
+                    R = np.corrcoef(vars)
+                    corrs_pair = np.diagonal(R, units)
+                    chance_corr = (np.sum(R) / 2 - units - np.sum(corrs_pair)) * 2 / (N**2 - 2*N)
+                    return corrs_pair, chance_corr
+                dff_ens = dff[ens_neur]
+                C_ens = C[ens_neur]
+                units = len(ens_neur)
+                N = 2 * units
+                corrs_pair1, chance1 = helper(np.vstack([dff_ens, C_ens]))
+
+                online = online_data.iloc[:, 2:2+units].values.T
+                online[np.isnan(online)] = 0
+                slice_stack = np.vstack([dff_ens[:, -online.shape[1]:], online])
+                corrs_pair2, chance2 = helper(slice_stack)
+                b = [np.nan] * 4
+                csvrow = [animal, day, chance1] + b + [chance2] + b
+                for i in range(units):
+                    csvrow[i+3] = corrs_pair1[i]
+                    csvrow[i+8] = corrs_pair2[i]
+                cwriter.writerow(csvrow)
+
+            if out is not None:
+                CAIMANONLY = False
+                OFFSET=4
+                fig, axes = plt.subplots(2, 2, figsize=(20, 15))
+                axflat = axes.ravel()
+                for i, ens in enumerate(ens_neur):
+                    if CAIMANONLY:
+                        axflat[i].plot(zscore(dff[ens]))
+                        axflat[i].plot(zscore(C[ens])+OFFSET)
+                        axflat[i].legend(['CaImAnDFF', 'C'])
+                        axflat[i].set_title('Ens #{}'.format(ens))
+                    else:
+                        #s = online_data.iloc[:, 2+i].values
+                        s = online[i]
+                        nmean = np.nanmean(s)
+                        auxonline = (s - nmean) / nmean
+                        onlinedff = auxonline[-PROBELEN:]
+                        onlineraw = auxonline[-PROBELEN:]
+                        axflat[i].plot(zscore(dff[ens, -PROBELEN:]))
+                        axflat[i].plot(zscore(C[ens, -PROBELEN:])+OFFSET*1)
+                        axflat[i].plot(zscore(onlinedff[-PROBELEN:])+OFFSET*2)
+                        axflat[i].plot(zscore(onlineraw[-PROBELEN:])+OFFSET*3)
+                        axflat[i].legend(['CaImAnDFF', 'C', 'greedyDFF(f0=mean)', 'online raw'])
+                        axflat[i].set_title('Ens #{}'.format(ens))
+                fig.suptitle("CaImAn DFF Sanity Check {} {}{}".format(animal, day,
+                                                                      " With Offset {}".format(OFFSET) if OFFSET else ""))
+                basename = "dff_check_{}_{}{}{}".format(animal, day,
+                                                        "" if CAIMANONLY else "_with_raw_online",
+                                                        "_offset_{}".format(OFFSET) if OFFSET else "")
+                outname = os.path.join(out, basename)
+                fig.savefig(outname + '.png')
+                fig.savefig(outname + '.eps')
+                plt.show()
+    if csvout is not None:
+        csvf.close()
+
+
+
 
 def best_nbins(data):
     try:
@@ -479,18 +587,24 @@ def best_nbins(data):
 
 if __name__ == '__main__':
     home = "/home/user/"
-    processed = os.path.join(home, "CaBMI_analysis/processed/")
+    #processed = os.path.join(home, "CaBMI_analysis/processed/")
     #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
     #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
-    for m in (2, 11):
-        for window in (9000, 6000):
-            # for inp in inputs:
-                # plot_peak_psth(*inp, m, window)
-            #for animal in os.listdir(processed):
-            for animal in ['IT2', 'PT7']:
-                if animal.find('IT') == -1 and animal.find('PT') == -1:
-                    continue
-                animal_path = os.path.join(processed, animal)
-                sdays = sorted(os.listdir(animal_path))
-                for day in sdays:
-                    plot_peak_psth(home, animal, day, m, window)
+    # PSTH PLOTS EXPR
+    # for m in (2, 11):
+    #     for window in (9000, 6000):
+    #         # for inp in inputs:
+    #             # plot_peak_psth(*inp, m, window)
+    #         #for animal in os.listdir(processed):
+    #         for animal in ['IT2', 'PT7']:
+    #             if animal.find('IT') == -1 and animal.find('PT') == -1:
+    #                 continue
+    #             animal_path = os.path.join(processed, animal)
+    #             sdays = sorted(os.listdir(animal_path))
+    #             for day in sdays:
+    #                 plot_peak_psth(home, animal, day, m, window)
+    rawbase = "/Volumes/DATA_01/NL/layerproject/raw/"
+    processed = "/Volumes/DATA_01/NL/layerproject/processed/"
+    out = None
+    csvout = '/Users/albertqu/Documents/7.Research/BMI/plots/caiman_test'
+    dff_sanity_check(rawbase, processed, out=out, csvout=csvout)

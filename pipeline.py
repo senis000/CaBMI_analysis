@@ -408,8 +408,8 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
         g.create_dataset('indptr', data = Asparse.indptr)
         g.create_dataset('indices', data = Asparse.indices)
         g.attrs['shape'] = Asparse.shape
-        f.create_dataset('neuron_act', data =  cnm2.estimates.S)          #spikes
-        f.create_dataset('C', data =  cnm2.estimates.C)                   #temporal activity
+        f.create_dataset('neuron_act', data = cnm2.estimates.S)          #spikes
+        f.create_dataset('C', data = cnm2.estimates.C)                   #temporal activity
         f.create_dataset('base_im', data = cnm2.estimates.b)                 #baseline image
         f.create_dataset('tot_des', data = totdes)                      #total displacement during motion correction
         f.create_dataset('SNR', data = SNR)                             #SNR of neurons
