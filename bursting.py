@@ -454,6 +454,7 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
     print(all_files)
     hyperparam = 'theta_{}_window{}'.format(decode_method_ibi(method)[1], window)
     mats = {'meta': hyperparam}
+    skipper=open("../skipperB.txt", 'a+')
     for group in all_files:
         group_dict = all_files[group]
         maxA, maxD, maxN = len(group_dict), max([len(group_dict[a]) for a in group_dict]), 0
@@ -476,55 +477,59 @@ def calcium_IBI_all_sessions(folder, groups, window=None, method=0, options=('wi
                             skipped[animal].append([day])
                         else:
                             skipped[animal] = [day]
-                if not errorFile:
-                    temp[animal][day] = {}
-                    with h5py.File(hf, 'r') as f:
-                        temp[animal][day]['redlabel'] = np.array(f['redlabel'])
-                        if 'trial' in options:
-                            array_t1, array_miss = np.array(f['array_t1']), np.array(f['array_miss'])
-                            a_t1, a_miss = np.full(len(f['trial_start']), False), np.full(len(f['trial_start']), False)
-                            a_t1[array_t1] = True
-                            a_miss[array_miss] = True
-                            temp[animal][day]['array_t1'] = a_t1
-                            temp[animal][day]['array_miss'] = a_miss
-                    
-                    with h5py.File(hf_burst, 'r') as f:
-                        for i, o in enumerate(options):
-                            arg = 'IBIs_{}'.format(o)
-                            ibi = f[arg]
-                            if i == 0:
-                                maxN = max(ibi.shape[0], maxN)
-                            
-                            temp[animal][day][o] = np.array(ibi)
-                            res_mat[arg][0] = max(ibi.shape[1], res_mat[arg][0])
-                            res_mat[arg][1] = max(ibi.shape[-1], res_mat[arg][1])
-        maxA, maxD = len(temp), len(temp[max(temp.keys(), key=lambda k: len(temp[k]))])
-        animal_maps = {}
-        for k in res_mat:
-            maxS, maxK = res_mat[k][0], res_mat[k][1]
-            res_mat[k] = np.full((maxA, maxD, maxN, maxS, maxK), np.nan)
-        res_mat['redlabel'] = np.full((maxA, maxD, maxN), False)
-        if 'trial' in options:
-            res_mat['array_t1'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
-            res_mat['array_miss'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
-        for i, animal in enumerate(temp):
-            animal_maps[i] = animal
-            for j, d in enumerate(sorted([k for k in temp[animal].keys()])):
-                res_mat['redlabel'][i, j,:len(temp[animal][d]['redlabel'])] = temp[animal][d]['redlabel']
-                del temp[animal][d]['redlabel']
-                if 'trial' in options:
-                    at1 = temp[animal][d]['array_t1']
-                    am1 = temp[animal][d]['array_miss']
-                    res_mat['array_t1'][i, j, :, :len(at1)] = at1
-                    del temp[animal][d]['array_t1']
-                    del temp[animal][d]['array_miss']
-                    res_mat['array_miss'][i, j, :, :len(am1)] = am1
-                for o in options:
-                    tIBI = temp[animal][d][o]
-                    res_mat['IBIs_{}'.format(o)][i, j, :tIBI.shape[0], :tIBI.shape[1], :tIBI.shape[2]] = tIBI
-                    del temp[animal][d][o]
-        res_mat['animal_map'] = animal_maps
-        mats[group] = res_mat
+                        skipper.write(animal+', '+day)
+                if not peak_csv:
+                    if not errorFile:
+                        temp[animal][day] = {}
+                        with h5py.File(hf, 'r') as f:
+                            temp[animal][day]['redlabel'] = np.array(f['redlabel'])
+                            if 'trial' in options:
+                                array_t1, array_miss = np.array(f['array_t1']), np.array(f['array_miss'])
+                                a_t1, a_miss = np.full(len(f['trial_start']), False), np.full(len(f['trial_start']), False)
+                                a_t1[array_t1] = True
+                                a_miss[array_miss] = True
+                                temp[animal][day]['array_t1'] = a_t1
+                                temp[animal][day]['array_miss'] = a_miss
+                        
+                        with h5py.File(hf_burst, 'r') as f:
+                            for i, o in enumerate(options):
+                                arg = 'IBIs_{}'.format(o)
+                                ibi = f[arg]
+                                if i == 0:
+                                    maxN = max(ibi.shape[0], maxN)
+                                
+                                temp[animal][day][o] = np.array(ibi)
+                                res_mat[arg][0] = max(ibi.shape[1], res_mat[arg][0])
+                                res_mat[arg][1] = max(ibi.shape[-1], res_mat[arg][1])
+        if not peak_csv:
+            maxA, maxD = len(temp), len(temp[max(temp.keys(), key=lambda k: len(temp[k]))])
+            animal_maps = {}
+            for k in res_mat:
+                maxS, maxK = res_mat[k][0], res_mat[k][1]
+                res_mat[k] = np.full((maxA, maxD, maxN, maxS, maxK), np.nan)
+            res_mat['redlabel'] = np.full((maxA, maxD, maxN), False)
+            if 'trial' in options:
+                res_mat['array_t1'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
+                res_mat['array_miss'] = np.full((maxA, maxD, maxN, res_mat['IBIs_trial'].shape[-2]), False)
+            for i, animal in enumerate(temp):
+                animal_maps[i] = animal
+                for j, d in enumerate(sorted([k for k in temp[animal].keys()])):
+                    res_mat['redlabel'][i, j,:len(temp[animal][d]['redlabel'])] = temp[animal][d]['redlabel']
+                    del temp[animal][d]['redlabel']
+                    if 'trial' in options:
+                        at1 = temp[animal][d]['array_t1']
+                        am1 = temp[animal][d]['array_miss']
+                        res_mat['array_t1'][i, j, :, :len(at1)] = at1
+                        del temp[animal][d]['array_t1']
+                        del temp[animal][d]['array_miss']
+                        res_mat['array_miss'][i, j, :, :len(am1)] = am1
+                    for o in options:
+                        tIBI = temp[animal][d][o]
+                        res_mat['IBIs_{}'.format(o)][i, j, :tIBI.shape[0], :tIBI.shape[1], :tIBI.shape[2]] = tIBI
+                        del temp[animal][d][o]
+            res_mat['animal_map'] = animal_maps
+            mats[group] = res_mat
+    skipper.close()
     return mats
 
 
