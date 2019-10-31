@@ -179,7 +179,7 @@ def get_learners(typhos=None):
         learning_file = os.path.join(typhos, "NL/layerproject/plots/learning/allDist_1max/hpm_stats_bin_5.csv")
     df0 = pd.read_csv(learning_file)
     df = df0.iloc[:-1]
-    NL, L = 0.3, 0.7 # Please Adjust
+    NL, L = 0.4, 0.6 # Please Adjust
     df['LT'] = (df['max_pc'].astype(np.float) >=NL).astype(np.int) + (df['max_pc'].astype(np.float) >=L).astype(np.int)
     df_old = df
     df = df_old[['animal', 'day', 'LT']]

@@ -380,13 +380,13 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
     else:
         all_files = {g: parse_group_dict(processed, groups[g], g) for g in groups.keys()}
     print(all_files)
-    hp = 'window_{}_zcap'.format(window, zcap)
+    hp = 'window{}_zcap{}'.format(window, zcap)
     resW = {n: [] for n in ['window', 'roi_type', 'N', 'mZC', 'group', 'animal',
        'date', 'session']}
     for group in all_files:
         group_dict = all_files[group]
         for animal in group_dict:
-            for i, day in sorted(group_dict[animal]):
+            for i, day in enumerate(sorted(group_dict[animal])):
 
                 hf = encode_to_filename(processed, animal, day)
                 if not os.path.exists(hf):
@@ -407,14 +407,14 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
                 nsessions = C.shape[1] // window
                 remainder = C.shape[1] - nsessions * window
                 Cfirst = (zscoreC[:, :nsessions * window]).reshape((C.shape[0], nsessions, window), order='C')
-                avg_C = np.nanmean(Cfirst, axis=1)
+                avg_C = np.nanmean(Cfirst, axis=2)
                 if remainder > 0:
                     Cremain = zscoreC[:, nsessions * window:]
-                    avg_C = np.concatenate((avg_C, np.nanmean(Cremain, axis=1)), axis=1)
+                    avg_C = np.concatenate((avg_C, np.nanmean(Cremain, keepdims=True, axis=1)), axis=1)
 
                 # N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
                 # ROI_type
-                sw = nsessions + remainder
+                sw = nsessions + (1 if remainder else 0)
                 rois = np.full(N, "D", dtype="U2")
                 rois[nerden & ~redlabel] = 'IG'
                 rois[nerden & redlabel] = 'IR'
@@ -428,11 +428,11 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
                 resW['window'].append(np.tile(np.arange(sw), N))
                 resW['roi_type'].append(np.repeat(rois, sw))
                 resW['N'].append(np.repeat(np.arange(N), sw))
-                resW['mZC'].append(avg_C.ravel(order=C))
-                resW['group'] = np.full(N * sw, animal[:2])
-                resW['animal'] = np.full(N * sw, animal)
-                resW['day'] = np.full(N * sw, animal)
-                resW['session'] = np.full(N*sw, i+1)
+                resW['mZC'].append(avg_C.ravel(order='C'))
+                resW['group'].append(np.full(N * sw, animal[:2]))
+                resW['animal'].append(np.full(N * sw, animal))
+                resW['date'].append(np.full(N * sw, animal))
+                resW['session'].append(np.full(N*sw, i+1))
 
                 # # DF TRIAL
                 # trials = np.arange(1, st + 1)
@@ -468,7 +468,9 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
                 # debug_print(resT)
                 # df_trial = pd.DataFrame(resT)
     for k in resW:
+        print(k, len(resW[k]))
         resW[k] = np.concatenate(resW[k])
+        print(resW[k].shape)
     df_window = pd.DataFrame.from_dict(resW)
     if test:
         # testing = os.path.join(path, 'test.csv')
@@ -488,4 +490,5 @@ if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
     C_activity_tuning(home, '*')
+    #C_activity_tuning(home, {'IT':{'IT2': ['181002', '181003']}})
 

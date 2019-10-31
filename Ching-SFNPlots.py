@@ -14,14 +14,13 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.patches as mpatches
 from itertools import combinations
 from plot_generation_script import *
+from utils_loading import *
 from scipy.stats import ttest_ind
 
 datadir = "/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/processed/"
+typhosdir = "/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/"
 pattern = 'full_(IT|PT)(\d+)_(\d+)_.*\.hdf5'
 
-# # Within-Session HPM Learning Plots, IT vs PT
-
-# ## Analysing the first ten minutes of all experiments
 
 def learning_params(
     animal, day, sec_var='', bin_size=1, end_bin=None):
@@ -70,6 +69,124 @@ def learning_params(
     xx_axis = np.expand_dims(xx_axis, axis=1)
     reg = LinearRegression().fit(xx_axis, hpm)
     return xx_axis, hpm, percentage_correct, reg
+
+def check_in_df(df, animal, day):
+    if (df['animal'] == animal).any():
+        if (df[df['animal'] == animal]['day'] == day).any():
+            return True
+    return False
+
+# How many of each type of neuron??
+def plot_itpt_hpm():
+    """
+    Aggregates hits per minute across all IT and PT animals. 
+    Looks at max hpm in 10 minute windows.
+    """
+
+    num_it = 0
+    num_pt = 0
+    
+    for animaldir in os.listdir(datadir):
+        animal_path = datadir + animaldir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        animal_path_files = os.listdir(animal_path)
+        animal_path_files.sort()
+        for file_name in animal_path_files:
+            result = re.search(pattern, file_name)
+            if not result:
+                continue
+            experiment_type = result.group(1)
+            experiment_animal = result.group(2)
+            experiment_date = result.group(3)
+            f = h5py.File(animal_path + file_name, 'r')
+            redlabel = np.array(f['redlabel'])
+            num_neur = np.sum(redlabel) 
+            if experiment_type == 'IT':
+                num_it += num_neur 
+            else:
+                num_pt += num_neur 
+    print('ITs: ' + str(num_it))
+    print('PTs: ' + str(num_pt))
+plot_itpt_hpm()
+
+# # Comparing Hits per minute for IT and PT
+def plot_itpt_hpm():
+    """
+    Aggregates hits per minute across all IT and PT animals. 
+    Looks at max hpm in 10 minute windows.
+    """
+
+    vals = []
+    ids = []
+    num_it = 0
+    num_pt = 0
+    learners, undefined, nonlearners = get_learners(typhos=typhosdir)
+    
+    for animaldir in os.listdir(datadir):
+        animal_path = datadir + animaldir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        animal_path_files = os.listdir(animal_path)
+        animal_path_files.sort()
+        for file_name in animal_path_files:
+            result = re.search(pattern, file_name)
+            if not result:
+                continue
+            experiment_type = result.group(1)
+            experiment_animal = result.group(2)
+            experiment_date = result.group(3)
+            if not check_in_df(learners, animaldir, experiment_date):
+                continue
+            f = h5py.File(animal_path + file_name, 'r')
+            com_cm = np.array(f['com_cm'])
+            _, hpm, _, _ =\
+                learning_params(
+                    experiment_type + experiment_animal,
+                    experiment_date,
+                    bin_size=1
+                    )
+            hpm_3min = np.convolve(hpm, np.ones((3,))/3, mode='valid')
+            max_hpm = np.max(hpm_3min)
+            hpm_gain = max_hpm - np.mean(hpm[:3])
+            hpm_gain = np.mean(hpm)
+            if experiment_type == 'IT':
+                vals.append(hpm_gain)
+                ids.append("IT")
+                num_it += 1
+            else:
+                vals.append(hpm_gain)
+                ids.append("PT")
+                num_pt += 1 
+
+    # Plot some rectangles
+    df = pd.DataFrame({
+        'Values': vals, "Neuron Identity": ids
+        })
+    plt.figure()
+    sns.barplot(
+        x='Neuron Identity', y='Values', data=df
+        )
+    plt.title('Gain in HPM from Experiment Beginning')
+    plt.savefig('hpm_learners.eps')
+    plt.show(block=True)
+    with open("hpmgain.p", "wb") as f:
+        pickle.dump(df, f)
+    
+    # T-Test
+    its = df.loc[df['Neuron Identity'] == 'IT']['Values']
+    pts = df.loc[df['Neuron Identity'] == 'PT']['Values']
+    tstat, pval = ttest_ind(its, pts)
+    print("T Test Results:")
+    print("T-statistic = %d"%tstat)
+    print("P-values = " + str(pval))
+
+#plot_itpt_hpm()
+
+# # Within-Session HPM Learning Plots, IT vs PT
+
+# ## Analysing the first ten minutes of all experiments
+
 
 ## Within-session HPM for IT vs PT
 
@@ -137,22 +254,22 @@ def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200, first_N_exp
     ax = fig.add_subplot(111)
     
     # Simpl plot
-    sns.pointplot(
-        y="HPM", x="Session Time", hue="Neuron Type", data=df,
-        scale=0.75, errwidth=1.5
+    sns.lineplot(
+        y="HPM", x="Session Time", hue="Neuron Type", data=df
         )
     ax.set_ylabel('Number of Hits')
     ax.set_xlabel('Minutes into the Experiment')
     plt.title('Hits/min of All Experiments')
     plt.xticks(np.arange(0,65,5), np.arange(0,65,5))
+    plt.yticks(np.arange(0.0, 1.8, 0.2), np.arange(0.0, 1.8, 0.2))
     plt.savefig('sfn_itptsession_scaled.eps')
     plt.show(block=True)
 
-plot_itpt_hpm(
-    bin_size=5, plotting_bin_size=10, num_minutes=55,
-    first_N_experiments=20
-    )
-
+#plot_itpt_hpm(
+#    bin_size=5, plotting_bin_size=10, num_minutes=55,
+#    first_N_experiments=20
+#    )
+#sys.exit(0)
 
 # # Across-Session HPM Learning Plots
 # ## Analysing max HPM across sessions for IT vs PT mice
@@ -225,11 +342,11 @@ def plot_itpt_hpm():
 
     # Some options:
     # Order 1, Order 2, Logx True
-    sns.pointplot(
+    sns.lineplot(
         IT_train, IT_target,
         color='lightseagreen', label='IT (%d Animals)'%num_it
         )
-    sns.pointplot(
+    sns.lineplot(
         PT_train, PT_target,
         color='coral', label='PT (%d Animals)'%num_pt
         )
@@ -245,9 +362,6 @@ def plot_itpt_hpm():
 #plot_itpt_hpm()
 
 # ## Analysing % Correct across sessions for IT vs PT mice
-
-# In[73]:
-
 
 def plot_itpt_hpm(bin_size=1, plotting_bin_size=10):
     """
@@ -313,12 +427,12 @@ def plot_itpt_hpm(bin_size=1, plotting_bin_size=10):
 
     # Some options:
     # Order 1, Order 2, Logx True
-    sns.pointplot(
+    sns.lineplot(
         IT_train, IT_target,
         x_bins=plotting_bin_size,
         color='lightseagreen', label='IT (%d Animals)'%num_it
         )
-    sns.pointplot(
+    sns.lineplot(
         PT_train, PT_target,
         x_bins=plotting_bin_size,
         color='coral', label='PT (%d Animals)'%num_pt
@@ -333,6 +447,262 @@ def plot_itpt_hpm(bin_size=1, plotting_bin_size=10):
 
 # In[74]:
 
+
+#plot_itpt_hpm(
+#    bin_size=1, plotting_bin_size=10
+#    )
+
+
+## Within-session HPM for IT Learners vs Non-Learners
+def plot_it_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200, first_N_experiments=5):
+    """
+    Aggregates hits per minute across all IT and PT animals. Performs regression
+    on the resulting data, and returns the p-value of how different linear
+    regression between the two animals are.
+    """
+
+    # Getting all hits per minute arrays
+    learner_type = []
+    hits = []
+    session_time = []
+    num_learners = 0
+    num_nonlearners = 0
+    learners, undefined, nonlearners = get_learners(typhos=typhosdir)
+    
+    for animaldir in os.listdir(datadir):
+        if animaldir.startswith('PT'):
+            continue
+        animal_path = datadir + animaldir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        animal_path_files = os.listdir(animal_path)
+        animal_path_files.sort()
+        animal_path_files = animal_path_files[:first_N_experiments]
+        for file_name in animal_path_files:
+            result = re.search(pattern, file_name)
+            if not result:
+                continue
+            experiment_type = result.group(1)
+            experiment_animal = result.group(2)
+            experiment_date = result.group(3)
+            f = h5py.File(animal_path + file_name, 'r')
+            com_cm = np.array(f['com_cm'])
+            xs, hpm, _, _ = learning_params(
+                    experiment_type + experiment_animal,
+                    experiment_date,
+                    bin_size=1
+                    )
+            hpm = np.convolve(hpm, np.ones((3,))/3)
+
+            # Get the learning type
+            if check_in_df(learners, animaldir, experiment_date):
+                for idx, x_val in enumerate(xs):
+                    if x_val <= num_minutes:
+                        learner_type.append("Learner")
+                        session_time.append(x_val[0])
+                        hits.append(hpm[idx])
+                num_learners += 1
+            elif check_in_df(nonlearners, animaldir, experiment_date):
+                for idx, x_val in enumerate(xs):
+                    if x_val <= num_minutes:
+                        learner_type.append("Non-Learner")
+                        session_time.append(x_val[0])
+                        hits.append(hpm[idx])
+                num_nonlearners += 1
+
+    # Collect data
+    print(num_learners)
+    print(num_nonlearners)
+    df = pd.DataFrame({
+        'Learner Type': learner_type,
+        'HPM': hits,
+        'Session Time': session_time
+        })
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    # Simpl plot
+    sns.lineplot(
+        y="HPM", x="Session Time", hue="Learner Type", data=df
+        )
+    ax.set_ylabel('Number of Hits')
+    ax.set_xlabel('Minutes into the Experiment')
+    plt.title('Hits/min of All Experiments')
+    plt.xticks(np.arange(0,65,5), np.arange(0,65,5))
+    plt.yticks(np.arange(0,1.8,0.2), np.arange(0,1.8,0.2))
+    plt.savefig('sfn_itlearner.eps')
+    plt.show(block=True)
+
+#plot_it_hpm(
+#    bin_size=5, plotting_bin_size=10, num_minutes=55,
+#    first_N_experiments=20
+#    )
+
+def plot_pt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200, first_N_experiments=5):
+    """
+    Aggregates hits per minute across all IT and PT animals. Performs regression
+    on the resulting data, and returns the p-value of how different linear
+    regression between the two animals are.
+    """
+
+    # Getting all hits per minute arrays
+    learner_type = []
+    hits = []
+    session_time = []
+    num_learners = 0
+    num_nonlearners = 0
+    learners, undefined, nonlearners = get_learners(typhos=typhosdir)
+    
+    for animaldir in os.listdir(datadir):
+        if animaldir.startswith('IT'):
+            continue
+        animal_path = datadir + animaldir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        animal_path_files = os.listdir(animal_path)
+        animal_path_files.sort()
+        animal_path_files = animal_path_files[:first_N_experiments]
+        for file_name in animal_path_files:
+            result = re.search(pattern, file_name)
+            if not result:
+                continue
+            experiment_type = result.group(1)
+            experiment_animal = result.group(2)
+            experiment_date = result.group(3)
+            f = h5py.File(animal_path + file_name, 'r')
+            com_cm = np.array(f['com_cm'])
+            xs, hpm, _, _ = learning_params(
+                    experiment_type + experiment_animal,
+                    experiment_date,
+                    bin_size=1
+                    )
+            hpm = np.convolve(hpm, np.ones((3,))/3)
+
+            # Get the learning type
+            if check_in_df(learners, animaldir, experiment_date):
+                for idx, x_val in enumerate(xs):
+                    if x_val <= num_minutes:
+                        learner_type.append("Learner")
+                        session_time.append(x_val[0])
+                        hits.append(hpm[idx])
+                num_learners += 1
+            elif check_in_df(nonlearners, animaldir, experiment_date):
+                for idx, x_val in enumerate(xs):
+                    if x_val <= num_minutes:
+                        learner_type.append("Non-Learner")
+                        session_time.append(x_val[0])
+                        hits.append(hpm[idx])
+                num_nonlearners += 1
+
+    # Collect data
+    print(num_learners)
+    print(num_nonlearners)
+    df = pd.DataFrame({
+        'Learner Type': learner_type,
+        'HPM': hits,
+        'Session Time': session_time
+        })
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    # Simpl plot
+    sns.lineplot(
+        y="HPM", x="Session Time", hue="Learner Type", data=df
+        )
+    ax.set_ylabel('Number of Hits')
+    ax.set_xlabel('Minutes into the Experiment')
+    plt.title('Hits/min of All Experiments')
+    plt.xticks(np.arange(0,65,5), np.arange(0,65,5))
+    plt.yticks(np.arange(0,1.8,0.2), np.arange(0,1.8,0.2))
+    plt.savefig('sfn_ptlearner.eps')
+    plt.show(block=True)
+
+#plot_pt_hpm(
+#    bin_size=5, plotting_bin_size=10, num_minutes=55,
+#    first_N_experiments=20
+#    )
+
+# ## Analysing % Correct across sessions for IT learners vs PT learners
+def plot_itpt_hpm(bin_size=1, plotting_bin_size=10):
+    """
+    Aggregates hits per minute across all IT and PT animals. Performs regression
+    on the resulting data, and returns the p-value of how different linear
+    regression between the two animals are.
+    """
+
+    # Getting all hits per minute arrays
+    animal_type = []
+    percent_correct = []
+    session_number = []
+    num_it = 0
+    num_pt = 0
+    learners, undefined, nonlearners = get_learners(typhos=typhosdir)
+    
+    for animaldir in os.listdir(datadir):
+        animal_path = datadir + animaldir + '/'
+        if not os.path.isdir(animal_path):
+            continue
+        animal_path_files = os.listdir(animal_path)
+        animal_path_files.sort()
+        session_idx = 0
+        
+        for file_name in animal_path_files:
+            session_idx += 1
+            result = re.search(pattern, file_name)
+            if not result or session_idx > 15:
+                continue
+            experiment_type = result.group(1)
+            experiment_animal = result.group(2)
+            experiment_date = result.group(3)
+#            if not check_in_df(learners, animaldir, experiment_date):
+#                continue
+            f = h5py.File(animal_path + file_name, 'r')
+            com_cm = np.array(f['com_cm'])
+            _, _, perc, _ = learning_params(
+                    experiment_type + experiment_animal,
+                    experiment_date,
+                    bin_size=bin_size
+                    )
+#            xs, hpm, _, _ = learning_params(
+#                    experiment_type + experiment_animal,
+#                    experiment_date,
+#                    bin_size=1
+#                    )
+            #hpm = np.convolve(hpm, np.ones((3,))/3)
+#            perc = np.mean(hpm)
+            if experiment_type == 'IT':
+                percent_correct.append(perc)
+                session_number.append(session_idx)
+                animal_type.append('IT')
+            else:
+                percent_correct.append(perc)
+                session_number.append(session_idx)
+                animal_type.append('PT')
+
+    # Collect data
+    print("Collecting DataFrame")
+    print(num_it)
+    print(num_pt)
+    df = pd.DataFrame({
+        'Animal Type': animal_type,
+        'Percent Correct': percent_correct,
+        'Session Number': session_number
+        })
+    
+    # Simpl plot
+    print("Plotting")
+    plt.figure()
+    sns.lineplot(
+        y="Percent Correct", x="Session Number", hue="Animal Type", data=df
+        )
+    plt.ylabel('Number of Hits')
+    plt.xlabel('Day')
+    #plt.title('Percentage Correct Across Sessions')
+    plt.title('Mean Hits per Minute Across Sessions')
+    plt.xticks(np.arange(0,16,5), np.arange(0,16,5))
+    plt.yticks(np.arange(0,1.2,0.2), np.arange(0,1.2,0.2))
+    plt.savefig('sfn_why.eps')
+    plt.show(block=True)
 
 #plot_itpt_hpm(
 #    bin_size=1, plotting_bin_size=10
