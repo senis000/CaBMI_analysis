@@ -10,12 +10,12 @@ from utils_loading import encode_to_filename, parse_group_dict
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
                                     number_planes_total=6, mproc=False):
     rawpath = os.path.join(rawbase, animal, day)
-    end = 0
+    end = 10
     onlinef = None
     for f in os.listdir(rawpath):
         if f.find('bmi_IntegrationRois') != -1:
             tend = int(f[-5])
-            if tend > end:
+            if tend < end:
                 end = tend
                 onlinef = f
     if onlinef is None:
@@ -113,12 +113,13 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
     if nproc == 0:
         nproc = mp.cpu_count()
 
+    opt = 'all' if group == '*' else "_".join(animals)
     group = parse_group_dict(rawbase, group, 'all')
     animals = list(group.keys())
     pastfiles = {}
     if csvout is not None:
         csvname = os.path.join(csvout, "corr_{}_plen{}.csv"
-                                 .format('all' if animals is None else "_".join(animals), PROBELEN))
+                                 .format(opt, PROBELEN))
         if os.path.exists(csvname):
             csvdf = pd.read_csv(csvname)
             for i in range(csvdf.shape[0]):
@@ -177,10 +178,14 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
 
 
 if __name__ == '__main__':
-    rawbase = "/Volumes/DATA_01/NL/layerproject/raw/"
-    processed = "/Volumes/DATA_01/NL/layerproject/processed/"
+    root = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
+    rawbase = os.path.join(root, 'raw')
+    processed = "/home/user/CaBMI_analysis/processed/"
     out = None
-    csvout = '/Users/albertqu/Documents/7.Research/BMI/plots/caiman_test'
+    csvout = '/home/user/caiman_test'
+    if not os.path.exists(csvout):
+        os.makedirs(csvout)
+
     # dff_sanity_check(rawbase, processed, nproc=4, group=GROUPS, out=out,
     #                  csvout=csvout)
     nproc = 4
