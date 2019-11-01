@@ -113,9 +113,11 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
     if nproc == 0:
         nproc = mp.cpu_count()
 
-    opt = 'all' if group == '*' else "_".join(animals)
+    opt = 'all' if group == '*' else None
     group = parse_group_dict(rawbase, group, 'all')
     animals = list(group.keys())
+    if opt is None:
+        opt = "_".join(animals)
     pastfiles = {}
     if csvout is not None:
         csvname = os.path.join(csvout, "corr_{}_plen{}.csv"
@@ -195,12 +197,15 @@ if __name__ == '__main__':
     if nproc == 0:
         nproc = mp.cpu_count()
 
+    opt = 'all' if group == '*' else None
     group = parse_group_dict(rawbase, group, 'all')
     animals = list(group.keys())
+    if opt is None:
+        opt = "_".join(animals)
     pastfiles = {}
     if csvout is not None:
         csvname = os.path.join(csvout, "corr_{}_plen{}.csv"
-                                 .format('all' if animals is None else "_".join(animals), PROBELEN))
+                                 .format(opt, PROBELEN))
         if os.path.exists(csvname):
             csvdf = pd.read_csv(csvname)
             for i in range(csvdf.shape[0]):
@@ -237,20 +242,20 @@ if __name__ == '__main__':
                     results.append(result)
                 except Exception as e:
                     print(e.args)
-                    results.append(['animal', 'day'] + [np.nan] * 15)
+                    results.append([animal, day] + [np.nan] * 15)
             return results
         if nproc == 1:
             for animal in animals:
                 results = helper(animal)
                 if csvout is not None:
                     for r in results:
-                        cwriter.writerow(r)
+                        csvf.writerow(r)
         else:
             p = mp.Pool(nproc)
             allresults = p.map_async(helper, animals).get()
             for rs in allresults:
                 for r in rs:
-                    cwriter.writerow(r)
+                    csvf.writerow(r)
         if csvout is not None:
             csvf.close()
     except (KeyboardInterrupt, FileNotFoundError) as e:
