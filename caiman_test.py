@@ -155,7 +155,7 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
                     results.append(result)
                 except Exception as e:
                     print(e.args)
-                    results.append(['animal', 'day'] + [np.nan] * 15)
+                    results.append([animal, day] + [np.nan] * 15)
             return results
         if nproc == 1:
             for animal in animals:
