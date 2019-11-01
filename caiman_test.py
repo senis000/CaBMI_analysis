@@ -10,12 +10,12 @@ from utils_loading import encode_to_filename, parse_group_dict
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
                                     number_planes_total=6, mproc=False):
     rawpath = os.path.join(rawbase, animal, day)
-    end = 0
+    end = 10
     onlinef = None
     for f in os.listdir(rawpath):
         if f.find('bmi_IntegrationRois') != -1:
             tend = int(f[-5])
-            if tend > end:
+            if tend < end:
                 end = tend
                 onlinef = f
     if onlinef is None:
@@ -113,12 +113,13 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
     if nproc == 0:
         nproc = mp.cpu_count()
 
+    opt = 'all' if group == '*' else "_".join(animals)
     group = parse_group_dict(rawbase, group, 'all')
     animals = list(group.keys())
     pastfiles = {}
     if csvout is not None:
         csvname = os.path.join(csvout, "corr_{}_plen{}.csv"
-                                 .format('all' if animals is None else "_".join(animals), PROBELEN))
+                                 .format(, PROBELEN))
         if os.path.exists(csvname):
             csvdf = pd.read_csv(csvname)
             for i in range(csvdf.shape[0]):
