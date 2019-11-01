@@ -119,7 +119,7 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
     pastfiles = {}
     if csvout is not None:
         csvname = os.path.join(csvout, "corr_{}_plen{}.csv"
-                                 .format(, PROBELEN))
+                                 .format(opt, PROBELEN))
         if os.path.exists(csvname):
             csvdf = pd.read_csv(csvname)
             for i in range(csvdf.shape[0]):
