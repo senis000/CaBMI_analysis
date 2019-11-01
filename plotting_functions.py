@@ -417,9 +417,12 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0.set_ylabel('Trial Number')
             blues, reds = sns.color_palette("Blues", 3), sns.color_palette('Reds', 3)
             for j, m in enumerate(metrics):
-                ax1.plot(hits, IBI_cv_matrix(ibis_hit_mat, m), c=blues[j], label='hit '+ m)
-                ax1.plot(misses, IBI_cv_matrix(ibis_miss_mat, m), c = reds[j], label = 'miss ' + m)
+                t1 = IBI_cv_matrix(ibis_hit_mat, m)
+                t2 = IBI_cv_matrix(ibis_miss_mat, m)
+                ax1.plot(hits, (t1-np.nanmin(t1)) / (np.nanmax(t1)-np.nanmin(t1)), c=blues[j], label='hit '+ m)
+                ax1.plot(misses, (t2-np.nanmin(t2))/ (np.nanmax(t2)-np.nanmin(t2)), c = reds[j], label = 'miss ' + m)
             ax1.set_title("HM cv evolution")
+            ax1.set_ylabel('minmax scale')
             ax1.set_xlabel("Trial#")
 
             ax2.plot(hits, [np.nanmean(h) for h in ibis_hit])
@@ -436,7 +439,6 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
         if w and not os.path.exists(fnamew):
             fig = plt.figure(figsize=(20, 10))
             wlen = len(D_window[i])
-            print(wlen)
             slidex = np.concatenate([np.array(D_window[i][j]) - window * j for j in range(wlen)])
             slidey = np.concatenate([np.full(len(D_window[i][j]), j + 1) for j in range(wlen)])
             ibis_slide = [np.diff(D_window[i][j]) for j in range(wlen)]
@@ -454,12 +456,17 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             ax0.set_xlabel('Time(fr)')
             ax0.set_ylabel('Slide')
             for m in metrics:
-                ax1.plot(np.arange(wlen), IBI_cv_matrix(ibis_slide_mat, m))
+                temp = IBI_cv_matrix(ibis_slide_mat, m)
+                ax1.plot(np.arange(wlen), (temp-np.nanmin(temp)) / (np.nanmax(temp)-np.nanmin(temp)))
             ax1.legend(metrics)
             ax1.set_title("CV evolution")
+            ax1.set_ylabel('minmax scale')
             ax1.set_xlabel("Window")
-            print(len(ibis_slide))
-            ax2.hist(ibis_slide, density=True, color=sns.color_palette("Blues", wlen))
+            print(i, len(ibis_slide))
+            try:
+                ax2.hist(ibis_slide, density=True, color=sns.color_palette("Blues", wlen))
+            except:
+            	print(ibis_slide)
             ax2.legend(np.arange(wlen))
             ax2.set_title("IBI dist evolution")
             fig.savefig(fnamew + '.png')
@@ -587,24 +594,24 @@ def best_nbins(data):
 
 if __name__ == '__main__':
     home = "/home/user/"
-    #processed = os.path.join(home, "CaBMI_analysis/processed/")
+    processed = os.path.join(home, "CaBMI_analysis/processed/")
     #inputs = [(home, "IT2", "181002"), (home, "IT2", "190115"), (home, "IT5", "190206"), (home, "PT7", "190114")]
     #inputs = [(home, "IT2", "181002"), (home, "PT7", "190114")]
     # PSTH PLOTS EXPR
-    # for m in (2, 11):
-    #     for window in (9000, 6000):
-    #         # for inp in inputs:
-    #             # plot_peak_psth(*inp, m, window)
-    #         #for animal in os.listdir(processed):
-    #         for animal in ['IT2', 'PT7']:
-    #             if animal.find('IT') == -1 and animal.find('PT') == -1:
-    #                 continue
-    #             animal_path = os.path.join(processed, animal)
-    #             sdays = sorted(os.listdir(animal_path))
-    #             for day in sdays:
-    #                 plot_peak_psth(home, animal, day, m, window)
-    rawbase = "/Volumes/DATA_01/NL/layerproject/raw/"
-    processed = "/Volumes/DATA_01/NL/layerproject/processed/"
-    out = None
-    csvout = '/Users/albertqu/Documents/7.Research/BMI/plots/caiman_test'
-    dff_sanity_check(rawbase, processed, out=out, csvout=csvout)
+    for m in (2, 11):
+        for window in (9000, 6000):
+            # for inp in inputs:
+                # plot_peak_psth(*inp, m, window)
+            #for animal in os.listdir(processed):
+            for animal in ['IT2', 'PT7']:
+                if animal.find('IT') == -1 and animal.find('PT') == -1:
+                    continue
+                animal_path = os.path.join(processed, animal)
+                sdays = sorted(os.listdir(animal_path))
+                for day in sdays:
+                    plot_peak_psth(home, animal, day, m, window)
+    # rawbase = "/Volumes/DATA_01/NL/layerproject/raw/"
+    # processed = "/Volumes/DATA_01/NL/layerproject/processed/"
+    # out = None
+    # csvout = '/Users/albertqu/Documents/7.Research/BMI/plots/caiman_test'
+    # dff_sanity_check(rawbase, processed, out=out, csvout=csvout)
