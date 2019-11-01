@@ -255,7 +255,7 @@ if __name__ == '__main__':
             allresults = p.map_async(helper, animals).get()
             for rs in allresults:
                 for r in rs:
-                    csvf.writerow(r)
+                    cwriter.writerow(r)
         if csvout is not None:
             csvf.close()
     except (KeyboardInterrupt, FileNotFoundError) as e:
