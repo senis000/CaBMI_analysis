@@ -79,10 +79,13 @@ def file_folder_path(f, symbol='/'):
 
 def parse_group_dict(folder, group_dict, opt):
     if "*" in group_dict:
-        group_dict = {k: '*' for k in os.listdir(folder) if k.find(opt) != -1}
+        if opt == 'all':
+            group_dict = {k: '*' for k in os.listdir(folder) if k.startswith('PT') or k.startswith('IT')}
+        else:
+            group_dict = {k: '*' for k in os.listdir(folder) if k.find(opt) != -1}
     for animal in group_dict:
         if group_dict[animal] == '*':
-            group_dict[animal] = [v for v in os.listdir(os.path.join(folder, animal)) if v.isnumeric()]
+            group_dict[animal] = {v for v in os.listdir(os.path.join(folder, animal)) if v.isnumeric()}
     return group_dict
 
 
