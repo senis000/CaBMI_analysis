@@ -165,13 +165,13 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
                 results = helper(animal)
                 if csvout is not None:
                     for r in results:
-                        csvf.writerow(r)
+                        cwriter.writerow(r)
         else:
             p = mp.Pool(nproc)
             allresults = p.map_async(helper, animals).get()
             for rs in allresults:
                 for r in rs:
-                    csvf.writerow(r)
+                    cwriter.writerow(r)
         if csvout is not None:
             csvf.close()
     except (KeyboardInterrupt, FileNotFoundError) as e:
@@ -249,7 +249,7 @@ if __name__ == '__main__':
                 results = helper(animal)
                 if csvout is not None:
                     for r in results:
-                        csvf.writerow(r)
+                        cwriter.writerow(r)
         else:
             p = mp.Pool(nproc)
             allresults = p.map_async(helper, animals).get()
