@@ -77,8 +77,8 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
                 s = online[i]
                 nmean = np.nanmean(s)
                 auxonline = (s - nmean) / nmean
-                onlinedff = auxonline[-PROBELEN:]
-                onlineraw = auxonline[-PROBELEN:]
+                onlinedff = auxonline
+                onlineraw = s
                 # TODO: get back to Nuria for the sample analysis plots in harddrive of the
                 #  ensemble vs C plots
                 axflat[i].plot(zscore(dff[ens, frames[-PROBELEN:]]))
