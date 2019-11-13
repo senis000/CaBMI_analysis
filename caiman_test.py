@@ -63,7 +63,7 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
 
     if out is not None:
         CAIMANONLY = False
-        OFFSET = 4
+        OFFSET = 0
         fig, axes = plt.subplots(2, 2, figsize=(20, 15))
         axflat = axes.ravel()
         for i, ens in enumerate(ens_neur):
@@ -83,9 +83,10 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
                 #  ensemble vs C plots
                 axflat[i].plot(zscore(dff[ens, frames[-PROBELEN:]]))
                 axflat[i].plot(zscore(C[ens, frames[-PROBELEN:]]) + OFFSET * 1)
-                axflat[i].plot(zscore(onlinedff[-PROBELEN:]) + OFFSET * 2)
-                axflat[i].plot(zscore(onlineraw[-PROBELEN:]) + OFFSET * 3)
-                axflat[i].legend(['CaImAnDFF', 'C', 'greedyDFF(f0=mean)', 'online raw'])
+                # axflat[i].plot(zscore(onlinedff[-PROBELEN:]) + OFFSET * 2)
+                axflat[i].plot(zscore(onlineraw[-PROBELEN:]) + OFFSET * 2)
+                # axflat[i].legend(['CaImAnDFF', 'C', 'greedyDFF(f0=mean)', 'online raw'])
+                axflat[i].legend(['CaImAnDFF', 'C', 'online raw'])
                 axflat[i].set_title('Ens #{}'.format(ens))
         fig.suptitle("CaImAn DFF Sanity Check {} {}{}".format(animal, day,
                                                               " With Offset {}".format(
@@ -93,7 +94,10 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
         basename = "dff_check_{}_{}{}{}".format(animal, day,
                                                 "" if CAIMANONLY else "_with_raw_online",
                                                 "_offset_{}".format(OFFSET) if OFFSET else "")
-        outname = os.path.join(out, basename)
+        tpath = os.path.join(out, "OFFSET{}".format(OFFSET))
+        if not os.path.exists(tpath):
+            os.makedirs(tpath)
+        outname = os.path.join(out, "OFFSET{}".format(OFFSET), basename)
         fig.savefig(outname + '.png')
         fig.savefig(outname + '.eps')
         if not mproc:
@@ -183,10 +187,12 @@ if __name__ == '__main__':
     root = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
     rawbase = os.path.join(root, 'raw')
     processed = "/home/user/CaBMI_analysis/processed/"
-    out = None
     csvout = '/home/user/caiman_test'
+    out = os.path.join(csvout, 'dff_corr')
     if not os.path.exists(csvout):
         os.makedirs(csvout)
+    if not os.path.exists(out):
+        os.makedirs(out)
 
     # dff_sanity_check(rawbase, processed, nproc=4, group=GROUPS, out=out,
     #                  csvout=csvout)

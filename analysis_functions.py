@@ -33,6 +33,8 @@ from sklearn.linear_model import LinearRegression
 from matplotlib import interactive
 import utils_cabmi as ut
 from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename
+from preprocessing import get_roi_type
+import multiprocessing as mp
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
@@ -369,70 +371,79 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
     # Create TD model and compare V(t) and d(T) to activity of neurons
     # IT/PT/REST
 
+def raw_activity_tuning_single_session(folder, animal, day, i, window=3000, itype='dff', metric='raw', zcap=None):
+    hf = encode_to_filename(processed, animal, day)
+    if not os.path.exists(hf):
+        print("Not found:, ", hf)
+    with h5py.File(hf, 'r') as fp:
+        S = np.array(fp[itype])
+        # TODO: maybe include trial activity tuning
+        #array_hit, array_miss = np.array(fp['array_t1']), np.array(fp['array_miss'])
+        ens_neur = np.array(fp['ens_neur'])
+        e2_neur = ens_neur[fp['e2_neur']] if 'e2_neur' in fp else None
+        redlabel, nerden = np.array(fp['redlabel']), np.array(fp['nerden'])
+        rois = get_roi_type(fp, animal, day)
+    if metric == 'mean' and zcap is not None:
+        zscoreS = zscore(S, axis=1)
+        if zcap != -1:
+            zscoreS = np.minimum(zscoreS, np.full_like(S, zcap))
+    else:
+    	zscoreS = S
+    N = S.shape[0]
+    nsessions = S.shape[1] // window
+    remainder = S.shape[1] - nsessions * window
+    Sfirst = (zscoreS[:, :nsessions * window]).reshape((S.shape[0], nsessions, window), order='C')
+    avg_S = np.nanmean(Sfirst, axis=2)
+    if remainder > 0:
+        Sremain = zscoreS[:, nsessions * window:]
+        avg_S = np.concatenate((avg_S, np.nanmean(Sremain, keepdims=True, axis=1)), axis=1)
 
-def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
+    # N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
+    # ROI_type
+    sw = nsessions + (1 if remainder else 0)
+    
+    # DF Window
+    results = [np.tile(np.arange(sw), N), np.repeat(rois, sw), np.repeat(np.arange(N), sw), avg_S.ravel(order='C'),
+    np.full(N * sw, animal[:2]), np.full(N * sw, animal), np.full(N * sw, day), np.full(N*sw, i+1)]
+    print(animal, day, 'done')
+    return results
+
+
+def raw_activity_tuning(folder, groups, window=3000, itype='dff', metric='mean', zcap=None, test=True, nproc=1):
     # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
     """Calculates Peak Timing and Stores them in csvs for all animal sessions in groups located in folder."""
+    if nproc == 0:
+        nproc = mp.cpu_count()
     processed = os.path.join(folder, 'CaBMI_analysis/processed')
-
     if groups == '*':
         all_files = get_PTIT_over_days(processed)
     else:
         all_files = {g: parse_group_dict(processed, groups[g], g) for g in groups.keys()}
     print(all_files)
     hp = 'window{}_zcap{}'.format(window, zcap)
-    resW = {n: [] for n in ['window', 'roi_type', 'N', 'mZC', 'group', 'animal',
+    S_OPT = metric + 'Z' if zcap is not None else '' + itype
+    Z_OPT = S_OPT + 'zcap{}'.format(zcap) if zcap != -1 else ''
+    resW = {n: [] for n in ['window', 'roi_type', 'N', S_OPT, 'group', 'animal',
        'date', 'session']}
-    for group in all_files:
-        group_dict = all_files[group]
-        for animal in group_dict:
-            for i, day in enumerate(sorted(group_dict[animal])):
-
-                hf = encode_to_filename(processed, animal, day)
-                if not os.path.exists(hf):
-                    print("Not found:, ", hf)
-                print(animal, day)
-                with h5py.File(hf, 'r') as fp:
-                    C = np.array(fp['C'])
-                    # TODO: maybe include trial activity tuning
-                    #array_hit, array_miss = np.array(fp['array_t1']), np.array(fp['array_miss'])
-                    ens_neur = np.array(fp['ens_neur'])
-                    e2_neur = ens_neur[fp['e2_neur']] if 'e2_neur' in fp else None
-                    redlabel, nerden = np.array(fp['redlabel']), np.array(fp['nerden'])
-
-                zscoreC = zscore(C, axis=1)
-                if zcap is not None:
-                    zscoreC = np.minimum(zscoreC, np.full_like(C, zcap))
-                N = C.shape[0]
-                nsessions = C.shape[1] // window
-                remainder = C.shape[1] - nsessions * window
-                Cfirst = (zscoreC[:, :nsessions * window]).reshape((C.shape[0], nsessions, window), order='C')
-                avg_C = np.nanmean(Cfirst, axis=2)
-                if remainder > 0:
-                    Cremain = zscoreC[:, nsessions * window:]
-                    avg_C = np.concatenate((avg_C, np.nanmean(Cremain, keepdims=True, axis=1)), axis=1)
-
-                # N, sw, st = probeW.shape[0], probeW.shape[1], probeT.shape[1]
-                # ROI_type
-                sw = nsessions + (1 if remainder else 0)
-                rois = np.full(N, "D", dtype="U2")
-                rois[nerden & ~redlabel] = 'IG'
-                rois[nerden & redlabel] = 'IR'
-                if e2_neur is not None:
-                    rois[ens_neur] = 'E1'
-                    rois[e2_neur] = 'E2'
-                else:
-                    rois[ens_neur] = 'E'
-                # DF Window
-
-                resW['window'].append(np.tile(np.arange(sw), N))
-                resW['roi_type'].append(np.repeat(rois, sw))
-                resW['N'].append(np.repeat(np.arange(N), sw))
-                resW['mZC'].append(avg_C.ravel(order='C'))
-                resW['group'].append(np.full(N * sw, animal[:2]))
-                resW['animal'].append(np.full(N * sw, animal))
-                resW['date'].append(np.full(N * sw, animal))
-                resW['session'].append(np.full(N*sw, i+1))
+    def helper(animal):
+        ress = []
+        for i, day in enumerate(sorted(group_dict[animal])):
+            ress.append(raw_activity_tuning_single_session(folder, animal, day, i, window, itype, metric, zcap))
+        return ress
+    if nproc == 1:
+        for group in all_files:
+            group_dict = all_files[group]
+            for animal in group_dict:
+                results = helper(animal)
+                for result in results:
+                    resW['window'].append(result[0])
+                    resW['roi_type'].append(result[1])
+                    resW['N'].append(result[2])
+                    resW[S_OPT].append(result[3])
+                    resW['group'].append(result[4])
+                    resW['animal'].append(result[5])
+                    resW['date'].append(result[6])
+                    resW['session'].append(result[7])
 
                 # # DF TRIAL
                 # trials = np.arange(1, st + 1)
@@ -467,6 +478,21 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
                 # debug_print(resW)
                 # debug_print(resT)
                 # df_trial = pd.DataFrame(resT)
+    else:
+        p = mp.Pool(nproc)
+        series = [(folder, animal, day, i, window, itype, metric, zcap) 
+        for group in all_files for animal in all_files[group] for i, day in enumerate(sorted(all_files[group][animal]))]
+        results = p.starmap_async(raw_activity_tuning_single_session, series).get()
+        for result in results:
+            resW['window'].append(result[0])
+            resW['roi_type'].append(result[1])
+            resW['N'].append(result[2])
+            resW[S_OPT].append(result[3])
+            resW['group'].append(result[4])
+            resW['animal'].append(result[5])
+            resW['date'].append(result[6])
+            resW['session'].append(result[7])
+
     for k in resW:
         print(k, len(resW[k]))
         resW[k] = np.concatenate(resW[k])
@@ -477,7 +503,7 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
         # if os.path.exists(testing):
         #     print('Deleting', testing)
         #     os.remove(testing)
-        df_window.to_csv(os.path.join(processed, 'C_activity_tuning_window_{}.csv'.format(hp)),
+        df_window.to_csv(os.path.join(processed, '{}_activity_tuning_{}_window_{}.csv'.format(Z_OPT, metric, hp)),
                          index=False)
         # df_trial.to_csv(os.path.join(path, '{}_{}_trial_test.csv'.format(animal, day)),
         #                 index=False)
@@ -489,6 +515,7 @@ def C_activity_tuning(folder, groups, window=3000, zcap=None, test=True):
 if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
-    C_activity_tuning(home, '*')
+    #raw_activity_tuning(home, {'IT': {'IT2': '*'}, 'PT': {'PT19': "*"}}, nproc=4)
+    raw_activity_tuning(home, '*', nproc=4)
     #C_activity_tuning(home, {'IT':{'IT2': ['181002', '181003']}})
 

@@ -87,21 +87,26 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
 
 def get_roi_type(processed, animal, day):
     rois = None
-    with h5py.File(os.path.join(processed, animal, day, "full_{}_{}__data.hdf5".format(animal, day)),
-                   'r') as hfile:
-        N = hfile['C'].shape[0]
-        rois = np.full(N, "D", dtype="U2")
-        nerden = np.array(hfile['nerden'])
-        redlabel = np.array(hfile['redlabel'])
-        ens_neur = np.array(hfile['ens_neur'])
-        e2_neur = ens_neur[hfile['e2_neur']] if 'e2_neur' in hfile else None
-        rois[nerden & ~redlabel] = 'IG'
-        rois[nerden & redlabel] = 'IR'
-        if e2_neur is not None:
-            rois[ens_neur] = 'E1'
-            rois[e2_neur] = 'E2'
-        else:
-            rois[ens_neur] = 'E'
+    if isinstance(processed, str):
+        hfile = h5py.File(os.path.join(processed, animal, day, "full_{}_{}__data.hdf5".format(animal, day)),
+                   'r')
+    else:
+        hfile = processed
+    N = hfile['C'].shape[0]
+    rois = np.full(N, "D", dtype="U2")
+    nerden = np.array(hfile['nerden'])
+    redlabel = np.array(hfile['redlabel'])
+    ens_neur = np.array(hfile['ens_neur'])
+    e2_neur = ens_neur[hfile['e2_neur']] if 'e2_neur' in hfile else None
+    if isinstance(processed, str):
+        hfile.close()
+    rois[nerden & ~redlabel] = 'IG'
+    rois[nerden & redlabel] = 'IR'
+    if e2_neur is not None:
+        rois[ens_neur] = 'E1'
+        rois[e2_neur] = 'E2'
+    else:
+        rois[ens_neur] = 'E'
     return rois
 
 
