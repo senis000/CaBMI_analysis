@@ -6,6 +6,7 @@ from utils_loading import path_prefix_free, file_folder_path, get_PTIT_over_days
     parse_group_dict, encode_to_filename, find_file_regex
 from utils_cabmi import median_absolute_deviation
 import csv
+import multiprocessing as mp
 
 
 def calcium_to_peak_times(inputs, low=1, high=20):
@@ -200,6 +201,115 @@ def get_peak_times_over_thres(inputs, window, method, tlock=30):
 
     return D_trial, D_window
 
+
+
+def digitize_signal(sigs, ns, axis=None, minbias=True):
+    mins = np.nanmin(sigs, axis=axis, keepdims=True)
+    maxes = np.nanmax(sigs, axis=axis, keepdims=True)
+    ranges = maxes - mins
+    def segment(n):
+        steps = ranges / n
+        if minbias:
+            res = np.ceil((sigs - mins) / steps).astype(np.int)
+            res[res > 0] -= 1
+        else:
+            res = np.floor((sigs - mins) / steps).astype(np.int)
+            res[res == n] = n-1
+        assert np.max(res) == n-1
+        return res
+
+    if hasattr(ns, '__iter__'):
+        return [segment(n) for n in ns]
+    else:
+        return segment(ns)
+
+
+def digitize_calcium(inputs, source, n):
+    """Returns a pd.DataFrame with peak timing for calcium events
+    Params:
+        inputs: str, h5py.File, tuple, or np.ndarray
+            if str/h5py.File: string that represents the filename of hdf5 file
+            if tuple: (path, animal, day), that describes the file location
+            if np.ndarray: array C of calcium traces
+        out: str
+            Output path for saving the metrics in a hdf5 file
+            outfile: Animal_Day.csv
+                columns: neuron number
+    """
+
+    if isinstance(inputs, np.ndarray):
+        S = inputs
+        animal, day = None, None
+        path = './'
+        savepath = os.path.join(path, 'sample_IBI_{}.csv')
+    else:
+        if isinstance(inputs, str):
+            opts = path_prefix_free(inputs, '/').split('_')
+            path = file_folder_path(inputs)
+            animal, day = opts[1], opts[2]
+            f = None
+            hfile = inputs
+        elif isinstance(inputs, tuple):
+            path, animal, day = inputs
+            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+            f = None
+        elif isinstance(inputs, h5py.File):
+            opts = path_prefix_free(inputs.filename, '/').split('_')
+            path = file_folder_path(inputs.filename)
+            animal, day = opts[1], opts[2]
+            f = inputs
+        else:
+            raise RuntimeError("Input Format Unknown!")
+        savepath = os.path.join(path, '%s_%s_rawcwt_{}.csv' % (animal, day))
+        if os.path.exists(savepath):
+            return
+        if f is None:
+            f = h5py.File(hfile, 'r')
+        S = np.array(f[source])
+        f.close()
+    dgs = digitize_signal(S, n)
+    hyperparams = "n_{}".format(n)
+    savepath = savepath.format(hyperparams)
+    with open(savepath, 'w') as fh:
+        cwriter = csv.writer(fh, delimiter=',')
+        for i in range(S.shape[0]):
+            print(i)
+            cwriter.writerow(dgs[i])
+    return savepath
+
+
+def digitize_calcium_by_animal(folder, animal, days, source, n):
+    for day in days:
+        if day.isnumeric():
+            hf = encode_to_filename(folder, animal, day)
+            digitize_calcium(hf, source, n)
+
+
+def digitize_calcium_all(folder, groups, source, ns, nproc=1):
+    # TODO: ADD OPTION TO PASS IN A LIST OF METHODS FOR COMPARING THE PLOTS!
+    """Calculates Peak Timing and Stores them in csvs for all animal sessions in groups located in folder."""
+    processed = os.path.join(folder, 'CaBMI_analysis/processed')
+    logfolder = os.path.join(processed, 'log')
+    if not os.path.exists(logfolder):
+        os.makedirs(logfolder)
+    all_files = parse_group_dict(processed, groups, 'all')
+    print(all_files)
+
+    for n in ns:
+        if nproc == 0:
+            nproc = mp.cpu_count()
+        if nproc == 1:
+            for animal in all_files:
+                for day in (all_files[animal]):
+                    print(animal, day)
+                    hf = encode_to_filename(processed, animal, day)
+                    digitize_calcium(hf, source, n)
+        else:
+            p = mp.Pool(nproc)
+            p.starmap_async(digitize_calcium_by_animal,
+                            [(processed, animal, all_files[animal], source, n) for animal in all_files])
+        with open("dCalcium_n_{}.txt".format(n)) as f:
+            f.write("done")
 
 if __name__ == '__main__':
     home = "/home/user/"

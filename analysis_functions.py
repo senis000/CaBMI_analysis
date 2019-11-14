@@ -388,7 +388,7 @@ def raw_activity_tuning_single_session(folder, animal, day, i, window=3000, ityp
         if zcap != -1:
             zscoreS = np.minimum(zscoreS, np.full_like(S, zcap))
     else:
-    	zscoreS = S
+        zscoreS = S
     N = S.shape[0]
     nsessions = S.shape[1] // window
     remainder = S.shape[1] - nsessions * window

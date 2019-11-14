@@ -466,7 +466,7 @@ def plot_peak_psth(folder, animal, day, method, window, tlock=30, eps=True, t=Tr
             try:
                 ax2.hist(ibis_slide, density=True, color=sns.color_palette("Blues", wlen))
             except:
-            	print(ibis_slide)
+                print(ibis_slide)
             ax2.legend(np.arange(wlen))
             ax2.set_title("IBI dist evolution")
             fig.savefig(fnamew + '.png')
