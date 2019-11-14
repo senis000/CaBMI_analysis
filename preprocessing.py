@@ -251,7 +251,14 @@ def digitize_calcium(inputs, source, n):
             hfile = inputs
         elif isinstance(inputs, tuple):
             path, animal, day = inputs
-            hfile = os.path.join(path, animal, day, "full_{}_{}__data.hdf5".format(animal, day))
+            f1 = os.path.join(path, animal, "full_{}_{}__data.hdf5".format(animal, day))
+            f2 = encode_to_filename(path, animal, day)
+            if os.path.exists(f1):
+                hfile = f1
+            elif os.path.exists(f2):
+                hfile = f2
+            else:
+                raise FileNotFoundError("File {} or {} not found".format(f1, f2))
             f = None
         elif isinstance(inputs, h5py.File):
             opts = path_prefix_free(inputs.filename, '/').split('_')
@@ -313,4 +320,4 @@ def digitize_calcium_all(folder, groups, source, ns, nproc=1):
 
 if __name__ == '__main__':
     home = "/home/user/"
-    calcium_to_peak_times_all(home, "*")
+    digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])
