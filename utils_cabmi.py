@@ -94,13 +94,6 @@ def shuffle_peaks(data_array, sf, ef, ipi_proc, axis=0):
     #  appended in accordance
 
 
-
-
-
-
-
-
-
 def time_lock_activity(f, t_size=[300,30]):
     '''
     Creates a 3d matrix time-locking activity to trial end.

@@ -618,8 +618,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
 
 
 def check_trials(matinfo, vars, fr, trial_time=30):
-    trial_end = (matinfo['trialEnd'][0] + vars.len_base).astype('int')
-    trial_start = (matinfo['trialStart'][0] + vars.len_base).astype('int')
+    trial_end = (np.unique(matinfo['trialEnd'][0]) + vars.len_base).astype('int')
+    trial_start = (np.unique(matinfo['trialStart'][0]) + vars.len_base).astype('int')
     if len(matinfo['hits']) > 0 : 
         hits = (matinfo['hits'][0] + vars.len_base).astype('float')
     else:
@@ -756,7 +756,6 @@ def red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_
         aux_nc = np.zeros(neur_plane)
         aux_nc = new_com[ind_neur:neur_plane+ind_neur, :2]
         aux_nerden = nerden[ind_neur:neur_plane+ind_neur]
-        redlabel = np.zeros(neuron_plane.shape[0]).astype('bool')
         dists = np.zeros((neur_plane,maskred.shape[0]))
         dists = scipy.spatial.distance.cdist(aux_nc, maskred)
         
@@ -1077,6 +1076,8 @@ def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits,
     all_neuron_act = all_neuron_act [:,:len_experiment]
     trial_end = trial_end[:np.where(trial_end>len_experiment)[0][0]]
     trial_start = trial_start[:np.where(trial_start>len_experiment)[0][0]]
+    if trial_start.shape[0] > trial_end.shape[0]:
+        trial_start = trial_start[:-1]
     auxhit = np.where(hits>len_experiment)[0]
     auxmiss = np.where(miss>len_experiment)[0]
     if len(auxhit) != 0:
