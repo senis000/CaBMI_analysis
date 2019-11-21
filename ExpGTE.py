@@ -26,6 +26,37 @@ class ExpGTE:
             folder_path + 'full_' + animal + '_' + day + '_' +
             sec_var + '_data.hdf5', 'r'
             )
+        self.blen = self.exp_file.attrs['blen']
+
+    def baseline(self, parameters=None, pickle_results = True):
+        '''
+        Run GTE over all neurons, over the baseline.
+        Inputs:
+            PARAMETERS: Dictionary; parameters for GTE
+            PICKLE_RESULTS: Boolean; whether or not to save the results matrix
+        Outputs:
+            RESULTS: An array of numpy matrices (GTE connectivity matrices)
+        '''
+        exp_name = self.animal + '_' + self.day + '_' + 'baseline'
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,:self.blen] # Isolate the baseline
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, exp_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        if pickle_results:
+            with open(self.folder_path + 'baseline.p', 'wb') as p_file:
+                pickle.dump(results, p_file)
+        return results
 
     def whole_experiment(self, parameters=None, pickle_results = True):
         '''
@@ -38,6 +69,7 @@ class ExpGTE:
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'whole'
         exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,self.blen:] # Isolate the experiment
         exp_data = exp_data[np.array(self.exp_file['nerden']),:]
         exp_data = zscore(exp_data, axis=1)
         exp_data = np.nan_to_num(exp_data)
@@ -53,6 +85,45 @@ class ExpGTE:
             output_file_names)
         if pickle_results:
             with open(self.folder_path + 'whole_experiment.p', 'wb') as p_file:
+                pickle.dump(results, p_file)
+        return results
+
+    def experiment_end(self, end_frame=0, length=0,
+            parameters=None, pickle_results = True):
+        '''
+        Run GTE over all neurons, over the end of the experiment.
+        Inputs:
+            END_FRAME: The frame to consider as the 'end' of the experiment.
+                By default this is the last frame in the matrix C. However,
+                you may wish to define another frame as the 'end' (for instance,
+                if you are selecting for the optimal performance).
+            LENGTH: This is the number of frames to process, up to END_FRAME.
+                If not overwritten, SELF.BLEN will be used by default.
+            PARAMETERS: Dictionary; parameters for GTE
+            PICKLE_RESULTS: Boolean; whether or not to save the results matrix
+        Outputs:
+            RESULTS: An array of numpy matrices (GTE connectivity matrices)
+        '''
+        if length == 0:
+            length = self.blen
+        exp_name = self.animal + '_' + self.day + '_' + 'expend'
+        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = exp_data[:,end_frame-length:] # Isolate the experiment
+        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = zscore(exp_data, axis=1)
+        exp_data = np.nan_to_num(exp_data)
+        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+        exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
+        neuron_locations = np.array(self.exp_file['com_cm'])
+        if parameters is None:
+            parameters = self.parameters
+        control_file_names, exclude_file_names, output_file_names = \
+            create_gte_input_files(exp_name, exp_data, parameters)
+        results = run_gte(control_file_names, exclude_file_names,
+            output_file_names)
+        if pickle_results:
+            with open(self.folder_path + 'experiment_end.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
     
@@ -167,42 +238,6 @@ class ExpGTE:
                 reward_idx, frame_size, frame_step,
                 parameters=parameters, pickle_results=True
                 )
-
-    def group_results(self, results, grouping):
-        '''
-        Groups an existing GTE connectivity matrix by averaging scores
-        over user-defined groupings of neurons. Here it is assumed that GTE
-        is already run; otherwise, an exception is thrown.
-        Inputs:
-            RESULTS_TYPE: An array of numpy matrices (GTE connectivity matrices)
-            GROUPING: Numpy array of NUM_NEURONS size; an integer ID is given
-                to each neuron, defining their group. This array is 0-indexed.
-        Outputs:
-            GROUPED_RESULTS: An array of numpy matrices (GTE connectivity matrices) 
-        '''
-        num_neurons = results[0].shape[0]
-        num_groups = np.unique(grouping).size
-        if grouping.size != num_neurons:
-            raise RuntimeError('Wrong dimensions for GROUPING')
-
-        grouped_results = []
-        for result in results:
-            grouped_result = np.zeros((num_groups, num_groups))
-            for i in range(num_groups):
-                for j in range(num_groups):
-                    if i == j:
-                        continue
-                    relevant_vals = []
-                    for k in range(num_neurons):
-                        if grouping[k] != i:
-                            continue
-                        for l in range(num_neurons):
-                            if grouping[l] != j:
-                                continue
-                            relevant_vals.append(result[k, l])
-                    grouped_result[i, j] = np.mean(relevant_vals)
-            grouped_results.append(grouped_result)
-        return grouped_results
 
     def shuffled_results(self, frame_size, parameters=None,
         iters=100, pickle_results=True):

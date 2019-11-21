@@ -8,7 +8,8 @@ __author__ = 'Nuria & Ching & Albert'
 
 
 import numpy as np
-import pdb       
+import pdb, os, h5py
+from math import sqrt   
 
 def calc_pvalue(p_value):
     if p_value < 0.0005:
@@ -37,64 +38,12 @@ def sliding_mean(data_array, window=5):
     return np.array(new_list)
 
 
-def shuffle_peaks(data_array, sf, ef, ipi_proc, axis=0):
-    """
-    Takes in data_array of calcium peaks and shuffle with respect to axis.
-
-    Input:
-        data_array: ndarray
-            Numpy array with peak data and inter-peak intervals
-        sf: function
-            start function that takes in (data_array, i) where i is the
-            index that signifies the start of a peak region (inclusive)
-        ef: function
-            end function that takes in (data_array, j) where j the index
-            that signifies the end of a peak region (exclusive),
-            therefore, data_array[i:j] would represent one peak region
-        ipi_proc: function
-            randomizing procedure for ipi data shuffling
-        axis: int
-            axis for shuffling
-
-    Returns:
-        shuffled: ndarray
-            shuffled version of peak array with respect to axis
-    """
-    peak_regions = []
-    prev_end = 0
-    IPI = np.array(np.empty(data_array.shape[:axis]+(0,)+data_array.shape[
-        axis+1:]))
-    pk_start = None
-    # TODO: PROCEDURE ONLY APPLIES TO 1D NOW
-    for i in range(len(data_array)):
-        if pk_start is None:
-            # Outside of peak regions, wait for criterion sf to be met
-            if sf(data_array, i):
-                pk_start = i
-                IPI = np.concatenate((IPI,
-                    np.take(data_array, range(prev_end, pk_start),
-                            axis=axis)), axis=axis)
-        else:
-            # Within peak_regions, record the peak if ef criterion is met
-            if ef(data_array, i):
-                peak_regions.append((pk_start, i))
-                prev_end = i
-                pk_start = None
-
-    IPI = np.concatenate((IPI,
-        np.take(data_array, range(prev_end, data_array.shape[axis]),
-                axis=axis)), axis=axis)
-
-    # TODO: USE NUMPY Parallelization later to expedite the process, so far
-    #  use naive method
-    np.random.shuffle(peak_regions)
-    newIPI = ipi_proc(IPI)
-    s_inds = np.random.choice(len(IPI)+1, len(peak_regions))
-    # TODO: RETURN SEQUENCE SUCH THAT all peak region sequences will be
-    #  appended in accordance
+def median_absolute_deviation(a, axis=None):
+    med = np.nanmedian(a, axis=axis, keepdims=True)
+    return np.nanmedian(np.abs(a - med), axis=axis)
 
 
-def time_lock_activity(f, t_size=[300,30]):
+def time_lock_activity_old(f, t_size=(300,30)):
     '''
     Creates a 3d matrix time-locking activity to trial end.
     Input:
@@ -116,6 +65,130 @@ def time_lock_activity(f, t_size=[300,30]):
         )*np.nan # (num_trials x num_neurons x num_frames)
     for ind, trial in enumerate(trial_end):
         start_idx = max(trial - t_size[0], trial_start[ind])
+        print(trial, t_size[1], start_idx, trial + 1 + t_size[1])
         aux_act = C[:, start_idx:trial + 1 + t_size[1]]
         neuron_activity[ind, :, -aux_act.shape[1]:] = aux_act
     return neuron_activity
+
+
+def time_lock_activity(f, t_size=(300,30), order='T'):
+    """
+    Creates a 3d matrix time-locking activity to trial end.
+    Input:
+        F: a File object; the experiment HDF5 file
+        T_SIZE: an array; the first value is the number of
+            frames before the hit we want to keep. The second value
+            is the number of frames after the trial end to keep.
+        order: char
+            order of returned matrix
+    Output:
+        NEURON_ACTIVITY: a numpy matrix; (neurons x trials x frames)
+        in size if order == 'N' else (trials x neurons x frames) .
+    """
+    trial_start = np.asarray(f['trial_start']).astype('int')
+    trial_end = np.asarray(f['trial_end']).astype('int')
+    C = f['C']
+    assert(np.sum(np.isnan(C)) == 0)
+    if order == 'T':
+        neuron_activity = np.full(
+            (trial_end.shape[0], C.shape[0], np.sum(t_size) + 1),
+            np.nan)
+    else:
+        neuron_activity = np.full(
+            (C.shape[0], trial_end.shape[0], np.sum(t_size) + 1),
+            np.nan)
+    for ind, trial in enumerate(trial_end):
+        start_idx = max(trial - t_size[0], trial_start[ind])
+        aux_act = C[:, start_idx:trial + 1 + t_size[1]]
+        if order == 'T':
+            neuron_activity[ind, :, np.sum(t_size) + 1-aux_act.shape[1]:] = aux_act
+        else:
+            neuron_activity[:, ind, np.sum(t_size) + 1-aux_act.shape[1]:] = aux_act
+    return neuron_activity
+
+
+class OnlineNormalEstimator(object):
+    """
+    A class to allow rolling calculation of mean and standard deviation.
+    Useful especially when processing many GTE matrices. Thanks to:
+    http://alias-i.com/lingpipe/docs/api/com/aliasi/stats/
+    """
+
+    def __init__(self, algor='welford'):
+        # Constructs an instance that has seen no data
+        self.mN = 0 # Number of samples
+        self.mM = 0.0 # Mean
+        self.mS = 0.0 # Sum of squared differences from mean
+        if algor == 'welford':
+            self.handle = self.handle_welford
+            self.unHandle = self.unHandle_welford
+            self.mean = self.mean_welford
+            self.std = self.std_welford
+        elif algor == 'moment':
+            self.handle = self.handle_moment
+            self.unHandle = self.unHandle_moment
+            self.mean = self.mean_moment
+            self.std = self.std_moment
+        else:
+            raise ValueError("Unknown Algorithm: {}".format(algor))
+
+    def handle_welford(self, x):
+        # Adds X to the collection of samples for this estimator
+        self.mN += 1
+        nextM = self.mM + (x - self.mM)/self.mN
+        self.mS += (x - self.mM)*(x - nextM)
+        self.mM = nextM
+
+    def unHandle_welford(self, x):
+        # Removes the specified value from the sample set
+        assert(self.mN != 0)
+        if (self.mN ==1):
+            self.mN = 0
+            self.mM = 0.0
+            self.mS = 0.0
+        mOld = (self.mN*self.mM - x)/(self.mN - 1)
+        self.mS -= (x - self.mM)*(x - mOld)
+        self.mM = mOld
+        self.mN -= 1
+
+    def mean_welford(self):
+        return self.mM
+
+    def std_welford(self):
+        if self.mN > 1:
+            return sqrt(self.mS/self.mN)
+        else:
+            return 0.0
+
+    def handle_moment(self, x):
+        # Adds X to the collection of samples for this estimator
+        if isinstance(x, np.ndarray):
+            self.mN += len(x[~np.isnan(x)])
+            self.mS += np.nansum(np.square(x))
+            self.mM += np.nansum(x)
+        else:
+            self.mN += 1
+            self.mS += x ** 2
+            self.mM += x
+
+    def unHandle_moment(self, x):
+        # TODO: FIX THIS
+        raise NotImplementedError("Not Implemented Yet")
+
+    def mean_moment(self):
+        return self.mM / self.mN
+
+    def std_moment(self):
+        if self.mN > 1:
+            return sqrt(self.mS / self.mN - self.mean_moment() ** 2)
+        else:
+            return 0.0
+
+    @staticmethod
+    def join(o1, o2):
+        # Return joint mean, standard deviation
+        mN = o1.mN + o2.mN
+        mS = o1.mS + o2.mS
+        mM = o1.mM + o2.mM
+        m = mM / mN
+        return m, sqrt(mS / mN - m ** 2)
