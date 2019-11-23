@@ -1398,6 +1398,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
         
     return F_dff, com, cnm2, totdes, SNR_comp[idx_components]
 
+
 def get_best_e2_combo(
 	ens_neur, online_data, cursor, trial_start, trial_end
 	):
