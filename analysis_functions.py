@@ -1,4 +1,3 @@
-
 # 2p to record the neuronal data
 # Scanimage defines the format of data
 
@@ -593,4 +592,3 @@ if __name__ == '__main__':
     #raw_activity_tuning(home, {'IT': {'IT2': '*'}, 'PT': {'PT19': "*"}}, nproc=4)
     #raw_activity_tuning(home, '*', nproc=4)
     #C_activity_tuning(home, {'IT':{'IT2': ['181002', '181003']}})
-
