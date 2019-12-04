@@ -30,9 +30,10 @@ sns.palplot(sns.color_palette("Set2"))
 
 
 def plot_all_sessions_hpm(sharey=False):
-    folder = '/home/user/'
-    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
-    out = os.path.join(folder, 'learning/analysis')
+    folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
+    processed = os.path.join(folder, 'processed/')
+    out = "/home/user/"
+    out = os.path.join(out, 'learning/analysis')
     #binsizes = [1, 3, 5]
     binsizes = [5]
     for b in binsizes:
