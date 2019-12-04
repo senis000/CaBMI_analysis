@@ -49,8 +49,7 @@ def plot_all_sessions_hpm(sharey=False):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
-            days = [d for d in os.listdir(animal_path) if d[:4] == 'full' or d.isnumeric()]
-            print(animal, animal_path, os.listdir(animal_path), os.path.exists(animal_path), days)
+            days = [ for d in os.listdir(animal_path) if d[:4] == 'full' or d.isnumeric()]
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
