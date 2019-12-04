@@ -22,14 +22,7 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
         raise FileNotFoundError('bmi_IntegrationRois')
 
     online_data = pd.read_csv(os.path.join(rawpath, onlinef))
-    f1 = os.path.join(processed, animal, "full_{}_{}__data.hdf5".format(animal, day))
-    f2 = encode_to_filename(processed, animal, day)
-    if os.path.exists(f1):
-        hfname = f1
-    elif os.path.exists(f2):
-        hfname = f2
-    else:
-        raise FileNotFoundError("File {} or {} not found".format(f1, f2))
+    hfname = encode_to_filename(processed, animal, day)
     with h5py.File(hfname, 'r') as hf:
         dff = np.array(hf['dff'])
         C = np.array(hf['C'])
