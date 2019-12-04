@@ -66,14 +66,17 @@ def plot_all_sessions_hpm(sharey=False):
                 t_pcs.append(pc)
                 maxHit = max(maxHit, np.nanmax(hpm))
         tPC_PTs, tPC_ITs = [np.nanmean(s) for s in PT_pcs], [np.nanmean(s) for s in IT_pcs]
+        tPC_alldist = tPC_PTs+tPC_ITs
         PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:] - s[0]) for s in PT_pcs], [np.nanmean(s[1:] - s[0]) for s in IT_pcs]
+        PCgain_alldist = PCgain_PTs+PCgain_ITs
+
         fig, axes = plt.subplots(nrows=1, ncols=2)
-        axes[0].hist([PCgain_ITs, PCgain_PTs])
+        axes[0].hist([tPC_PTs, tPC_ITs])
         axes[0].legend(['IT', 'PT'])
-        axes[0].title("Percentage Correct Gain Distribution Contrast")
+        axes[0].set_title(" Total Percentage Correct Distribution Contrast")
         axes[1].hist([PCgain_ITs, PCgain_PTs])
         axes[1].legend(['IT', 'PT'])
-        axes[1].title("Total Percentage Correct Distribution Contrast")
+        axes[1].set_title("Percentage Correct Gain Distribution Contrast")
 
         # HERE COULD GET DISTRIBUTION PLOT OF HPMS OR PCS
         allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
