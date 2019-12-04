@@ -39,7 +39,7 @@ from utils_loading import path_prefix_free, file_folder_path
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
-def learning(folder, animal, day, sec_var='', to_plot=True):
+def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
     '''
     Obtain the learning rate over time.
     Inputs:
@@ -52,14 +52,9 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         TTH: Numpy array; time to hit (in frames)
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
     '''
-    folder_path = folder +  'processed/' + animal + '/' + day + '/'
-    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
-    f = h5py.File(
-        folder_path + 'full_' + animal + '_' + day + '_' +
-        sec_var + '_data.hdf5', 'r'
-        ) 
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    if out is not None:
+        out_analysis = folder +  'analysis/learning/' + animal + '/' + day + '/'
+    f = h5py.File(encode_to_filename(folder, animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     hits = np.asarray(f['hits'])
@@ -85,7 +80,10 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         ax1.set_xlabel('Reward Trial')
         ax1.set_ylabel('Number of Frames')
         ax1.yaxis.set_label_position('right')
-        fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
+        if out is not None:
+            if not os.path.exists(out_analysis):
+                os.makedirs(out_analysis)
+            fig1.savefig(out_analysis + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
 
@@ -535,14 +533,7 @@ def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False
             hfile = inputs
         elif isinstance(inputs, tuple):
             path, animal, day = inputs
-            f1 = os.path.join(path, animal, "full_{}_{}__data.hdf5".format(animal, day))
-            f2 = encode_to_filename(path, animal, day)
-            if os.path.exists(f1):
-                hfile = f1
-            elif os.path.exists(f2):
-                hfile = f2
-            else:
-                raise FileNotFoundError("File {} or {} not found".format(f1, f2))
+            hfile = encode_to_filename(path, animal, day)
             f = None
         elif isinstance(inputs, h5py.File):
             opts = path_prefix_free(inputs.filename, '/').split('_')
