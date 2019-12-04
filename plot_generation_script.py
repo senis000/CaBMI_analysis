@@ -29,7 +29,6 @@ from sklearn.linear_model import LinearRegression
 
 sns.palplot(sns.color_palette("Set2"))
 
-
 def plot_all_sessions_hpm(sharey=False):
     folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
     processed = os.path.join(folder, 'processed/')
@@ -70,14 +69,20 @@ def plot_all_sessions_hpm(sharey=False):
         tPC_alldist = tPC_PTs+tPC_ITs
         PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:] - s[0]) for s in PT_pcs], [np.nanmean(s[1:] - s[0]) for s in IT_pcs]
         PCgain_alldist = PCgain_PTs+PCgain_ITs
-
+        allGbins = np.histogram_bin_edges(PCgain_alldist)
+        binsTPC = np.linspace(0, 1, 11)
         fig, axes = plt.subplots(nrows=1, ncols=2)
-        
-        axes[0].hist([tPC_PTs, tPC_ITs])
-        axes[0].legend(['IT', 'PT'])
-        axes[0].set_title(" Total Percentage Correct Distribution Contrast")
-        axes[1].hist([PCgain_ITs, PCgain_PTs])
-        axes[1].legend(['IT', 'PT'])
+        sns.distplot(tPC_ITs, hist=True, bins=binsTPC, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
+                     ax=axes[0])
+        sns.distplot(tPC_PTs, hist=True, bins=binsTPC, color=PALETTE[1], hist_kws={"alpha": 0.1}, label='PT',
+                     ax=axes[0])
+        axes[0].legend()
+        axes[0].set_title("Total Percentage Correct Distribution Contrast")
+        sns.distplot(PCgain_ITs, hist=True, bins=allGbins, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
+                     ax=axes[1])
+        sns.distplot(PCgain_PTs, hist=True, bins=allGbins, color=PALETTE[1], hist_kws={"alpha": 0.1}, label='PT',
+                     ax=axes[1])
+        axes[1].legend()
         axes[1].set_title("Percentage Correct Gain Distribution Contrast")
 
         # HERE COULD GET DISTRIBUTION PLOT OF HPMS OR PCS
