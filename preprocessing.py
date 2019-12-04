@@ -224,7 +224,7 @@ def digitize_signal(sigs, ns, axis=None, minbias=True):
         return segment(ns)
 
 
-def digitize_calcium(inputs, source, n):
+def digitize_calcium(inputs, source, n, out):
     """Returns a pd.DataFrame with peak timing for calcium events
     Params:
         inputs: str, h5py.File, tuple, or np.ndarray

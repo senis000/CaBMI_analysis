@@ -27,6 +27,7 @@ from mpl_toolkits.axes_grid1 import host_subplot
 from matplotlib.ticker import MultipleLocator
 from scipy import stats
 from scipy.stats.mstats import zscore
+from scipy.signal import correlate
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
@@ -35,6 +36,7 @@ import utils_cabmi as ut
 from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename
 from preprocessing import get_roi_type
 import multiprocessing as mp
+from utils_loading import path_prefix_free, file_folder_path
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
@@ -136,11 +138,13 @@ def learning_params(
     mpm = mpm[blen_min//bin_size:]
     percentage_correct = hpm / (hpm+mpm)
     # TODO: CONSIDER SETTING THRESHOLD USING ONLY THE WHOLE WINDOWS
+    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
+    xx = xx[1:]
     if not dropend:
         last_binsize = (trial_end[-1] / fr - bins[-2])
         hpm[-1] *= bigbin / last_binsize
-    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
-    xx = xx[1:]
+        xx[-1] = last_binsize + xx[-2]
+    # TODO: ADD BACK THE LAST BIN
     hpm = hpm / bin_size
     if end_bin is not None:
         end_frame = end_bin//bin_size + 1
@@ -512,10 +516,81 @@ def raw_activity_tuning(folder, groups, window=3000, itype='dff', metric='mean',
     #     # df_trial.to_hdf(fname, 'df_trial')
     return df_window
 
+
+def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False, source='dff', out=None):
+    # N * N * w * d
+    if isinstance(inputs, np.ndarray):
+        S = inputs
+        animal, day = None, None
+        path = './'
+        savename = 'sample_{}_coactivation_w{}.dat'.format(source, window)
+        if out is None:
+            out = path
+        savepath = os.path.join(out, savename)
+    else:
+        if isinstance(inputs, str):
+            opts = path_prefix_free(inputs, '/').split('_')
+            path = file_folder_path(inputs)
+            animal, day = opts[1], opts[2]
+            f = None
+            hfile = inputs
+        elif isinstance(inputs, tuple):
+            path, animal, day = inputs
+            f1 = os.path.join(path, animal, "full_{}_{}__data.hdf5".format(animal, day))
+            f2 = encode_to_filename(path, animal, day)
+            if os.path.exists(f1):
+                hfile = f1
+            elif os.path.exists(f2):
+                hfile = f2
+            else:
+                raise FileNotFoundError("File {} or {} not found".format(f1, f2))
+            f = None
+        elif isinstance(inputs, h5py.File):
+            opts = path_prefix_free(inputs.filename, '/').split('_')
+            path = file_folder_path(inputs.filename)
+            animal, day = opts[1], opts[2]
+            f = inputs
+        else:
+            raise RuntimeError("Input Format Unknown!")
+        savename = '{}_{}_{}_coactivation_w{}{}.dat'\
+            .format(animal, day, source, window, '_nerden' if include_dend else '')
+        if out is None:
+            out = path
+        savepath = os.path.join(out, savename)
+        if os.path.exists(savepath):
+            return
+        if f is None:
+            f = h5py.File(hfile, 'r')
+
+        S = np.array(f[source])
+        if not include_dend:
+            S = S[f['nerden']]
+        f.close()
+    if not os.path.exists(out):
+        os.makedirs(out)
+    N, T = S.shape
+    nW = int(np.ceil(T/window))
+    neurcorr = np.memmap(savepath, mode='w+', shape=(N, N, nW, T))
+    for i in range(N):
+        for j in range(N):
+            for w in range(nW):
+                b = window*w
+                l = T-b if w == nW-1 else window
+                neurcorr[i, j, w, :l] = correlate(S[i, b: b + l], S[j, b: b + l], mode='same')
+    del neurcorr
+    return savepath
+
+
+
+
 if __name__ == '__main__':
     home = "/home/user/"
-    processed = os.path.join(home, "CaBMI_analysis/processed/")
+    #processed = os.path.join(home, "CaBMI_analysis/processed/")
+    processed = '/Volumes/DATA_01/NL/layerproject/processed'
+    out = '/Users/albertqu/Documents/7.Research/BMI/analysis_data'
+    coactivation_single_session((processed, 'IT2', '181003'), window=3000, include_dend=False, source='dff',
+                                out=out)
     #raw_activity_tuning(home, {'IT': {'IT2': '*'}, 'PT': {'PT19': "*"}}, nproc=4)
-    raw_activity_tuning(home, '*', nproc=4)
+    #raw_activity_tuning(home, '*', nproc=4)
     #C_activity_tuning(home, {'IT':{'IT2': ['181002', '181003']}})
 
