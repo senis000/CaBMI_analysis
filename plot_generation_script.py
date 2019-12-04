@@ -33,7 +33,6 @@ def plot_all_sessions_hpm(sharey=False):
     folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
     processed = os.path.join(folder, 'processed/')
     out = "/home/user/"
-    out = os.path.join(out, 'learning/analysis')
     #binsizes = [1, 3, 5]
     binsizes = [5]
     for b in binsizes:
@@ -45,12 +44,13 @@ def plot_all_sessions_hpm(sharey=False):
         IT_hits, PT_hits = [], []
         IT_pcs, PT_pcs = [], []
         for animal in os.listdir(processed):
-            animal_path = processed + animal + '/'
+            animal_path = os.path.join(processed, animal)
             if not os.path.isdir(animal_path):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
-            days = [d for d in os.listdir(animal_path) if d.isnumeric()]
+            days = [d for d in os.listdir(animal_path) if d[:4] == 'full' or d.isnumeric()]
+            print(animal, animal_path, os.listdir(animal_path), os.path.exists(animal_path), days)
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
@@ -108,7 +108,7 @@ def plot_all_sessions_hpm(sharey=False):
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
-                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt) #TODO: MARK EACH ANIMAL AS LEARNER TYPE
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt, out = out) #TODO: MARK EACH ANIMAL AS LEARNER TYPE
                 nonnans = hpm[~np.isnan(hpm)]
                 nmax = np.max(nonnans)
                 pcmax = np.nanmax(pc)

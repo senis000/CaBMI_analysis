@@ -108,7 +108,7 @@ def learning_params(
     '''
     if out is None:
         out = folder
-    f = h5py.File(encode_to_filename(os.path.join(folder, processed), animal, day), 'r')
+    f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
