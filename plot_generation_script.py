@@ -29,7 +29,6 @@ from sklearn.linear_model import LinearRegression
 
 sns.palplot(sns.color_palette("Set2"))
 
-
 def plot_all_sessions_hpm(sharey=False):
     folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
     processed = os.path.join(folder, 'processed/')
