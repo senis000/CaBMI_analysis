@@ -52,9 +52,10 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
         TTH: Numpy array; time to hit (in frames)
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
     '''
-    if out is not None:
-        out_analysis = folder +  'analysis/learning/' + animal + '/' + day + '/'
-    f = h5py.File(encode_to_filename(folder, animal, day), 'r')
+    if out is None:
+        out = folder
+    out_analysis = os.path.join(out, 'analysis/learning/', animal, day)
+    f = h5py.File(encode_to_filename(os.path.join(folder, processed), animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     hits = np.asarray(f['hits'])
@@ -80,7 +81,8 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
         ax1.set_xlabel('Reward Trial')
         ax1.set_ylabel('Number of Frames')
         ax1.yaxis.set_label_position('right')
-        if out is not None:
+        if out is None:
+            out=folder
             if not os.path.exists(out_analysis):
                 os.makedirs(out_analysis)
             fig1.savefig(out_analysis + 'hpm.png', bbox_inches="tight")
@@ -89,7 +91,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False, dropend=True):
+    to_plot=None, end_bin=None, reg=False, dropend=True, out=None):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -104,15 +106,9 @@ def learning_params(
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
         REG: The fitted linear regression model
     '''
-    
-    folder_path = folder +  'CaBMI_analysis/processed/' + animal + '/' + day + '/'
-    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
-    f = h5py.File(
-        folder_path + 'full_' + animal + '_' + day + '_' +
-        sec_var + '_data.hdf5', 'r'
-        ) 
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    if out is None:
+        out = folder
+    f = h5py.File(encode_to_filename(os.path.join(folder, processed), animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
@@ -152,7 +148,7 @@ def learning_params(
     if to_plot is not None:
         maxHit, hitIT_salient, hitPT_salient, hit_all_salient, hit_all_average, pcIT_salient, pcPT_salient, pc_all_salient, pc_all_average= \
             to_plot
-        out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
+        out = os.path.join(out, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
         fig1 = plt.figure(figsize=(15, 5))
