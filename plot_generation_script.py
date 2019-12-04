@@ -23,6 +23,7 @@ from analysis_functions import *
 from utils_gte import *
 from utils_clustering import *
 from plot_rewardend import *
+from utils_loading import decode_from_filename
 from plot_base_end import *
 from sklearn.linear_model import LinearRegression
 
@@ -49,7 +50,8 @@ def plot_all_sessions_hpm(sharey=False):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
-            days = [ for d in os.listdir(animal_path) if d[:4] == 'full' or d.isnumeric()]
+            days = [decode_from_filename(d)[1] for d in os.listdir(animal_path) if d[:4] == 'full' or
+                    d.isnumeric()]
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
