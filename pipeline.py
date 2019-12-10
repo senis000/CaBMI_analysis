@@ -535,10 +535,11 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     print('finding ensemble neurons')
     
-    ens_neur = detect_ensemble_neurons(fanal, all_C, online_data, len(online_data.keys())-2,
+    ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
                                              new_com, metadata, neuron_plane, number_planes_total, vars.len_base)
     
-    nerden[ens_neur.astype('int')] = True     
+    auxens_neur = ens_neur[~np.isnan(ens_neur)]
+    nerden[auxens_neur.astype('int')] = True     
     
     
     # obtain trials hits and miss
@@ -551,7 +552,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # obtain the neurons label as red (controlling for dendrites)
     redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes, toplot=toplot)
-    redlabel[ens_neur.astype('int')] = True   
+    redlabel[auxens_neur.astype('int')] = True   
     
     
     # obtain the frequency
@@ -575,6 +576,12 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
         plt.savefig(fanal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
+        plt.figure()
+        plt.plot(np.nanmean(all_dff,0))
+        plt.title('dFFs')
+        plt.savefig(fanal + animal + '_' + day + '_dffs.png', bbox_inches="tight")
+
+ 
     
     plt.close('all')
 
@@ -962,7 +969,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     return new_com
         
                 
-def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.6):
+def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.6):
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -1004,8 +1011,8 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
             ens = (online_data.keys())[2+un]
             frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
             auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
-            auxC = all_C[npro,frames]/10000
-            neurcor[un, npro] = pd.DataFrame(np.transpose([auxC[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
+            auxdd = all_dff[npro,frames]
+            neurcor[un, npro] = pd.DataFrame(np.transpose([auxdd[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
     
         neurcor[neurcor<tempcormin] = np.nan    
         auxneur = copy.deepcopy(neurcor)
@@ -1090,12 +1097,10 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
         auxonline[np.isnan(auxonline)] = 0
         ax.plot(zscore(auxonline[-5000:]))
         if ~np.isnan(finalneur[un]):
-            auxC = all_C[finalneur[un].astype('int'), frames] 
-            ax.plot(zscore(auxC[-5000:]))
+            auxdd = all_dff[finalneur[un].astype('int'), frames] 
+            ax.plot(zscore(auxdd[-5000:]))
         
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
-    
-    finalneur = finalneur[~np.isnan(finalneur)]
 
     return finalneur.astype('int')
  
