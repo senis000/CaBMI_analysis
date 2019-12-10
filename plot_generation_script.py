@@ -23,16 +23,16 @@ from analysis_functions import *
 from utils_gte import *
 from utils_clustering import *
 from plot_rewardend import *
+from utils_loading import decode_from_filename
 from plot_base_end import *
 from sklearn.linear_model import LinearRegression
 
 sns.palplot(sns.color_palette("Set2"))
 
-
 def plot_all_sessions_hpm(sharey=False):
-    folder = '/home/user/'
-    processed = os.path.join(folder, 'CaBMI_analysis/processed/')
-    out = os.path.join(folder, 'learning/analysis')
+    folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
+    processed = os.path.join(folder, 'processed/')
+    out = "/home/user/"
     #binsizes = [1, 3, 5]
     binsizes = [5]
     for b in binsizes:
@@ -44,12 +44,13 @@ def plot_all_sessions_hpm(sharey=False):
         IT_hits, PT_hits = [], []
         IT_pcs, PT_pcs = [], []
         for animal in os.listdir(processed):
-            animal_path = processed + animal + '/'
+            animal_path = os.path.join(processed, animal)
             if not os.path.isdir(animal_path):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
-            days = [d for d in os.listdir(animal_path) if d.isnumeric()]
+            days = [decode_from_filename(d)[1] for d in os.listdir(animal_path) if d[:4] == 'full' or
+                    d.isnumeric()]
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
@@ -60,10 +61,30 @@ def plot_all_sessions_hpm(sharey=False):
                 else:
                     t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
                 t_hit.handle(np.nanmax(hpm))
-                t_hits.append(np.nanmax(hpm))
+                t_hits.append(hpm)
                 t_pc.handle(np.nanmax(pc))
-                t_pcs.append(np.nanmax(pc))
+                t_pcs.append(pc)
                 maxHit = max(maxHit, np.nanmax(hpm))
+        tPC_PTs, tPC_ITs = [np.nanmean(s) for s in PT_pcs], [np.nanmean(s) for s in IT_pcs]
+        tPC_alldist = tPC_PTs+tPC_ITs
+        PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:] - s[0]) for s in PT_pcs], [np.nanmean(s[1:] - s[0]) for s in IT_pcs]
+        PCgain_alldist = PCgain_PTs+PCgain_ITs
+        allGbins = np.histogram_bin_edges(PCgain_alldist)
+        binsTPC = np.linspace(0, 1, 11)
+        fig, axes = plt.subplots(nrows=1, ncols=2)
+        sns.distplot(tPC_ITs, hist=True, bins=binsTPC, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
+                     ax=axes[0])
+        sns.distplot(tPC_PTs, hist=True, bins=binsTPC, color=PALETTE[1], hist_kws={"alpha": 0.1}, label='PT',
+                     ax=axes[0])
+        axes[0].legend()
+        axes[0].set_title("Total Percentage Correct Distribution Contrast")
+        sns.distplot(PCgain_ITs, hist=True, bins=allGbins, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
+                     ax=axes[1])
+        sns.distplot(PCgain_PTs, hist=True, bins=allGbins, color=PALETTE[1], hist_kws={"alpha": 0.1}, label='PT',
+                     ax=axes[1])
+        axes[1].legend()
+        axes[1].set_title("Percentage Correct Gain Distribution Contrast")
+
         # HERE COULD GET DISTRIBUTION PLOT OF HPMS OR PCS
         allhitm, allhits = OnlineNormalEstimator.join(IT_hit, PT_hit)
         tHitIT, tHitPT, tHitAll = IT_hit.mean() + IT_hit.std(), PT_hit.mean() + PT_hit.std(), allhitm + allhits
@@ -81,7 +102,8 @@ def plot_all_sessions_hpm(sharey=False):
             os.makedirs(subf)
         cf = open(os.path.join(subf, 'hpm_stats_bin_{}.csv'.format(b)), 'w')
         cwriter = csv.writer(cf)
-        cwriter.writerow(['animal', 'day', "learner_3bin", 'max_pc', 'max_hpm', "learner_pc", "learner_hpm",'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
+        cwriter.writerow(['animal', 'day', "learner_3bin", 'total_pc', 'max_pc', 'max_hpm', "learner_pc",
+                          "learner_hpm",'stdSelfMax', 'stdAllMax', 'stdSelfPerc60', 'stdAllPerc60',
                           'stdSelfPerc75', 'stdAllPerc75', 'stdSelfPerc90', 'stdAllPerc90'])
         lhpm_IT, lpc_IT = [0, 0, 0, 0], [0, 0, 0, 0]
         lhpm_PT, lpc_PT = [0, 0, 0, 0], [0, 0, 0, 0]
@@ -96,10 +118,11 @@ def plot_all_sessions_hpm(sharey=False):
             days.sort()
             for i, day in enumerate(days):
                 print(animal, day)
-                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt) #TODO: MARK EACH ANIMAL AS LEARNER TYPE
+                _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b, to_plot=opt, out = out) #TODO: MARK EACH ANIMAL AS LEARNER TYPE
                 nonnans = hpm[~np.isnan(hpm)]
                 nmax = np.max(nonnans)
                 pcmax = np.nanmax(pc)
+                pc_total = np.mean(pc)
                 sixty, svfive, ninety = np.percentile(nonnans, [0.6, 0.75, 0.9])
                 vals = [0.0] * 8
                 if animal.startswith('IT'):
@@ -142,7 +165,9 @@ def plot_all_sessions_hpm(sharey=False):
                     lpc_PT[learner_hpm+1] +=1
                     l3_PT[learner_3] += 1
 
-                cwriter.writerow([animal, day] + [learner_3, pcmax, nmax, learner_pc, learner_hpm] + vals)
+                cwriter.writerow([animal, day] + [learner_3, pc_total, pcmax, nmax, learner_pc,
+                                                  learner_hpm] +
+                                 vals)
 
         cwriter.writerow(["All", 'meanHPM', allhitm, 'stdHPM', allhits, 'meanPC', allPCm, 'stdPC', allPCs])
         cf.close()

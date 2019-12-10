@@ -108,7 +108,7 @@ def plot_itpt_hpm():
                 num_pt += num_neur 
     print('ITs: ' + str(num_it))
     print('PTs: ' + str(num_pt))
-plot_itpt_hpm()
+#plot_itpt_hpm()
 
 # # Comparing Hits per minute for IT and PT
 def plot_itpt_hpm():
@@ -228,20 +228,19 @@ def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200, first_N_exp
                         )
             except:
                 print("Binning error with " + f.filename)
-            hpm = np.convolve(hpm, np.ones((3,))/3)
+            hpm = np.convolve(hpm, np.ones((3,))/3, mode="valid")
+            idx_offset = xs.size - hpm.size
             if experiment_type == 'IT':
-                for idx, x_val in enumerate(xs):
-                    if x_val <= num_minutes:
-                        neuron_type.append("IT")
-                        session_time.append(x_val[0])
-                        hits.append(hpm[idx])
+                for idx, hpm_val in enumerate(hpm):
+                    neuron_type.append("IT")
+                    session_time.append(xs[idx+idx_offset][0])
+                    hits.append(hpm_val)
                 num_it += 1
             else:
-                for idx, x_val in enumerate(xs):
-                    if x_val <= num_minutes:
-                        neuron_type.append("PT")
-                        session_time.append(x_val[0])
-                        hits.append(hpm[idx])
+                for idx, hpm_val in enumerate(hpm):
+                    neuron_type.append("PT")
+                    session_time.append(xs[idx+idx_offset][0])
+                    hits.append(hpm_val)
                 num_pt += 1
 
     # Collect data
@@ -265,11 +264,11 @@ def plot_itpt_hpm(bin_size=1, plotting_bin_size=10, num_minutes=200, first_N_exp
     plt.savefig('sfn_itptsession_scaled.eps')
     plt.show(block=True)
 
-#plot_itpt_hpm(
-#    bin_size=5, plotting_bin_size=10, num_minutes=55,
-#    first_N_experiments=20
-#    )
-#sys.exit(0)
+plot_itpt_hpm(
+    bin_size=5, plotting_bin_size=10, num_minutes=55,
+    first_N_experiments=20
+    )
+sys.exit(0)
 
 # # Across-Session HPM Learning Plots
 # ## Analysing max HPM across sessions for IT vs PT mice

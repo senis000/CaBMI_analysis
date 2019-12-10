@@ -29,8 +29,7 @@ import time
 import scipy
 import h5py
 import pandas as pd
-
-
+from itertools import combinations
 
 import cv2
 try:
@@ -585,6 +584,11 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     plt.close('all')
 
+    # finding the correct E2 neurons
+    e2_neur = get_best_e2_combo(
+        ens_neur, online_data, cursor, trial_start, trial_end
+        )
+
     #fill the file with all the correct data!
     try:
         fall = h5py.File(folder_dest + 'full_' + animal + '_' + day + '_' + sec_var + '_data.hdf5', 'w-')
@@ -605,6 +609,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('red_im', data = all_red_im) # (array) matrix with all the imagesfrom the red chanel for each plane
         fall.create_dataset('online_data', data = online_data) # (array) Online recordings of the BMI
         fall.create_dataset('ens_neur', data = ens_neur) # (array) Index of the ensemble neurons among the rest of components
+        fall.create_dataset('e2_neur', data = e2_neur) # (array) Index of the E2 neurons among the rest of components
         fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
         fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
         fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
@@ -1398,3 +1403,65 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
         
     return F_dff, com, cnm2, totdes, SNR_comp[idx_components]
 
+
+def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
+    """
+	Finds the most likely E2 pairing by simulating the cursor with different
+	ensemble neuron pairings and finding the pairing with the highest correlation
+	with the real cursor
+
+	Args
+		ens_neur: A (4,) numpy array containing the indices of the ensemble neurons.
+			For instance, this array may look like [100, 452, 78, 94]
+		online_data: A Pandas dataframe containing the neural activity of
+			each activity over time. ENS_NEUR will index into this matrix.
+		cursor: A (time,) numpy array containing the cursor activity. Assumed to be
+			the same length in time as EXP_DATA
+	Returns
+		A (2,) numpy array containing the indices of the ensemble neurons of the
+			most likely E2 pair. For instance, if ENS_NEUR is [100, 452, 78, 94],
+			this function may return something like [78, 94]
+	Raises
+		ValueError: if cursor and exp_data are mismatched in time.
+	"""
+
+    # Contains the keys for each ens_neur to index into the online data
+    ens = (online_data.keys())[2:]
+    online_data = online_data[cols].to_numpy().T
+    if online_data.shape[1] != cursor.size:
+        raise ValueError("Data and cursor appear to be mismatched in time.")
+
+    # Generate all possible pairwise combinations. We will find the combination
+	# with the maximal correlation value
+    e2_possibilities = list(combinations(np.arange(ens.size), 2))
+    best_e2_combo = None
+    best_e2_combo_val = 0.0
+    all_corrs = []
+    # Loop over each possible E2 combination. Simulate a cursor using the
+    # data matrix, with the current combination as the simulated E2 neurons
+    # The correlation of this simulated cursor with the real cursor will be the
+    # score assigned to this particular E2 combination.
+    for e2 in e2_possibilities:
+        e1 = [i for i in range(ens.size) if i not in e2]
+        correlation = 0
+        for i in range(trial_end.size):
+            start_idx = trial_start[i]
+            end_idx = trial_end[i]
+            simulated_cursor = \
+                np.sum(online_data[e2,start_idx:end_idx], axis=0) - \
+                np.sum(online_data[e1,start_idx:end_idx], axis=0)
+        trial_corr = np.nansum(
+            cursor[start_idx:end_idx]*simulated_cursor
+        )
+        correlation += trial_corr
+        # If this is the best E2 combo so far, record it
+        all_corrs.append(correlation)
+        if correlation > best_e2_combo_val:
+            best_e2_combo_val = correlation
+            best_e2_combo = e2
+
+    # Sometimes we only get negative correlations, so we should return None
+    if best_e2_combo is None:
+        return None
+    best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
+    return np.array(best_e2_neurons)

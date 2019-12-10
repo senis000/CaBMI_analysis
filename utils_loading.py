@@ -106,7 +106,14 @@ def encode_to_filename(path, animal, day, hyperparams=None):
         template = "IBI_{}_{}_" + hyperparams + ".hdf5"
     else:
         raise ValueError("Category Undefined")
-    return os.path.join(path, animal, day, template.format(animal, day))
+    temp = os.path.join(path, animal, day, template.format(animal, day))
+    if os.path.exists(temp):
+        return temp
+    else:
+        f = os.path.join(path, animal, template.format(animal, day))
+        if not os.path.exists(f):
+            raise FileNotFoundError("File {} or {} not found".format(temp, f))
+        return f
 
 
 def decode_from_filename(filename):

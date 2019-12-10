@@ -26,6 +26,7 @@ from mpl_toolkits.axes_grid1 import host_subplot
 from matplotlib.ticker import MultipleLocator
 from scipy import stats
 from scipy.stats.mstats import zscore
+from scipy.signal import correlate
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
@@ -34,10 +35,11 @@ import utils_cabmi as ut
 from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename
 from preprocessing import get_roi_type
 import multiprocessing as mp
+from utils_loading import path_prefix_free, file_folder_path
 PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
 
-def learning(folder, animal, day, sec_var='', to_plot=True):
+def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
     '''
     Obtain the learning rate over time.
     Inputs:
@@ -50,14 +52,10 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         TTH: Numpy array; time to hit (in frames)
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
     '''
-    folder_path = folder +  'processed/' + animal + '/' + day + '/'
-    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
-    f = h5py.File(
-        folder_path + 'full_' + animal + '_' + day + '_' +
-        sec_var + '_data.hdf5', 'r'
-        ) 
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    if out is None:
+        out = folder
+    out_analysis = os.path.join(out, 'analysis/learning/', animal, day)
+    f = h5py.File(encode_to_filename(os.path.join(folder, processed), animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     hits = np.asarray(f['hits'])
@@ -83,13 +81,17 @@ def learning(folder, animal, day, sec_var='', to_plot=True):
         ax1.set_xlabel('Reward Trial')
         ax1.set_ylabel('Number of Frames')
         ax1.yaxis.set_label_position('right')
-        fig1.savefig(folder_path + 'hpm.png', bbox_inches="tight")
+        if out is None:
+            out=folder
+            if not os.path.exists(out_analysis):
+                os.makedirs(out_analysis)
+            fig1.savefig(out_analysis + 'hpm.png', bbox_inches="tight")
     return hpm, tth, percentage_correct
 
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False, dropend=True):
+    to_plot=None, end_bin=None, reg=False, dropend=True, out=None):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -104,15 +106,9 @@ def learning_params(
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
         REG: The fitted linear regression model
     '''
-    
-    folder_path = folder +  'CaBMI_analysis/processed/' + animal + '/' + day + '/'
-    folder_anal = folder +  'analysis/learning/' + animal + '/' + day + '/'
-    f = h5py.File(
-        folder_path + 'full_' + animal + '_' + day + '_' +
-        sec_var + '_data.hdf5', 'r'
-        ) 
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    if out is None:
+        out = folder
+    f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
@@ -135,11 +131,13 @@ def learning_params(
     mpm = mpm[blen_min//bin_size:]
     percentage_correct = hpm / (hpm+mpm)
     # TODO: CONSIDER SETTING THRESHOLD USING ONLY THE WHOLE WINDOWS
+    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
+    xx = xx[1:]
     if not dropend:
         last_binsize = (trial_end[-1] / fr - bins[-2])
         hpm[-1] *= bigbin / last_binsize
-    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
-    xx = xx[1:]
+        xx[-1] = last_binsize + xx[-2]
+    # TODO: ADD BACK THE LAST BIN
     hpm = hpm / bin_size
     if end_bin is not None:
         end_frame = end_bin//bin_size + 1
@@ -150,7 +148,7 @@ def learning_params(
     if to_plot is not None:
         maxHit, hitIT_salient, hitPT_salient, hit_all_salient, hit_all_average, pcIT_salient, pcPT_salient, pc_all_salient, pc_all_average= \
             to_plot
-        out = os.path.join(folder, 'learning/plots/evolution_{}/'.format(bin_size))
+        out = os.path.join(out, 'learning/plots/evolution_{}/'.format(bin_size))
         if not os.path.exists(out):
             os.makedirs(out)
         fig1 = plt.figure(figsize=(15, 5))
@@ -511,9 +509,73 @@ def raw_activity_tuning(folder, groups, window=3000, itype='dff', metric='mean',
     #     # df_trial.to_hdf(fname, 'df_trial')
     return df_window
 
+
+def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False, source='dff', out=None):
+    # N * N * w * d
+    if isinstance(inputs, np.ndarray):
+        S = inputs
+        animal, day = None, None
+        path = './'
+        savename = 'sample_{}_coactivation_w{}.dat'.format(source, window)
+        if out is None:
+            out = path
+        savepath = os.path.join(out, savename)
+    else:
+        if isinstance(inputs, str):
+            opts = path_prefix_free(inputs, '/').split('_')
+            path = file_folder_path(inputs)
+            animal, day = opts[1], opts[2]
+            f = None
+            hfile = inputs
+        elif isinstance(inputs, tuple):
+            path, animal, day = inputs
+            hfile = encode_to_filename(path, animal, day)
+            f = None
+        elif isinstance(inputs, h5py.File):
+            opts = path_prefix_free(inputs.filename, '/').split('_')
+            path = file_folder_path(inputs.filename)
+            animal, day = opts[1], opts[2]
+            f = inputs
+        else:
+            raise RuntimeError("Input Format Unknown!")
+        savename = '{}_{}_{}_coactivation_w{}{}.dat'\
+            .format(animal, day, source, window, '_nerden' if include_dend else '')
+        if out is None:
+            out = path
+        savepath = os.path.join(out, savename)
+        if os.path.exists(savepath):
+            return
+        if f is None:
+            f = h5py.File(hfile, 'r')
+
+        S = np.array(f[source])
+        if not include_dend:
+            S = S[f['nerden']]
+        f.close()
+    if not os.path.exists(out):
+        os.makedirs(out)
+    N, T = S.shape
+    nW = int(np.ceil(T/window))
+    neurcorr = np.memmap(savepath, mode='w+', shape=(N, N, nW, T))
+    for i in range(N):
+        for j in range(N):
+            for w in range(nW):
+                b = window*w
+                l = T-b if w == nW-1 else window
+                neurcorr[i, j, w, :l] = correlate(S[i, b: b + l], S[j, b: b + l], mode='same')
+    del neurcorr
+    return savepath
+
+
+
+
 if __name__ == '__main__':
     home = "/home/user/"
-    processed = os.path.join(home, "CaBMI_analysis/processed/")
+    #processed = os.path.join(home, "CaBMI_analysis/processed/")
+    processed = '/Volumes/DATA_01/NL/layerproject/processed'
+    out = '/Users/albertqu/Documents/7.Research/BMI/analysis_data'
+    coactivation_single_session((processed, 'IT2', '181003'), window=3000, include_dend=False, source='dff',
+                                out=out)
     #raw_activity_tuning(home, {'IT': {'IT2': '*'}, 'PT': {'PT19': "*"}}, nproc=4)
-    raw_activity_tuning(home, '*', nproc=4)
+    #raw_activity_tuning(home, '*', nproc=4)
     #C_activity_tuning(home, {'IT':{'IT2': ['181002', '181003']}})
