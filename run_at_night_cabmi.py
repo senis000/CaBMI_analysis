@@ -10,7 +10,10 @@ import sys, traceback
 
 
 def tonight():
-    put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1','IT2', 'IT8','PT7'))
+    put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
+    put_together_tonight(folder = 'H:/Nuria_data/CaBMI/Layer_project/', animals = ('IT3','IT4', 'PT6','PT9'))
+    put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1','IT2', 'PT7'))
+    put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8','IT9', 'IT10','PT19','PT20'))
 
 
 #     folder = 'G:/Nuria_data/CaBMI/Layer_project/'

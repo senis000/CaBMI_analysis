@@ -586,7 +586,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
 
     # finding the correct E2 neurons
     e2_neur = get_best_e2_combo(
-        ens_neur, online_data, cursor, trial_start, trial_end
+        ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base
         )
 
     #fill the file with all the correct data!
@@ -991,7 +991,7 @@ def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, n
     final_neur(array): index of the ensemble neurons"""
     
     # initialize vars
-    neurcor = np.ones((units, all_C.shape[0])) * np.nan
+    neurcor = np.ones((units, all_dff.shape[0])) * np.nan
     finalcorr = np.zeros(units)
     finalneur = np.zeros(units)
     finaldist = np.zeros(units)
@@ -1012,7 +1012,7 @@ def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, n
         tol = copy.deepcopy(auxtol)
         tempcormin = copy.deepcopy(cormin)
         
-        for npro in np.arange(all_C.shape[0]):
+        for npro in np.arange(all_dff.shape[0]):
             ens = (online_data.keys())[2+un]
             frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
             auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
@@ -1404,7 +1404,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     return F_dff, com, cnm2, totdes, SNR_comp[idx_components]
 
 
-def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
+def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len_base, number_planes_total=6):
     """
 	Finds the most likely E2 pairing by simulating the cursor with different
 	ensemble neuron pairings and finding the pairing with the highest correlation
@@ -1427,7 +1427,10 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
 
     # Contains the keys for each ens_neur to index into the online data
     ens = (online_data.keys())[2:]
-    online_data = online_data[cols].to_numpy().T
+    frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int')
+    online_data = online_data[ens].to_numpy().T
+    cursor = cursor[frames]
+    
     if online_data.shape[1] != cursor.size:
         raise ValueError("Data and cursor appear to be mismatched in time.")
 
@@ -1445,8 +1448,8 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
         e1 = [i for i in range(ens.size) if i not in e2]
         correlation = 0
         for i in range(trial_end.size):
-            start_idx = trial_start[i]
-            end_idx = trial_end[i]
+            start_idx = np.where(frames>(trial_start[i] - len_base))[0][0]
+            end_idx = np.where(frames>(trial_end[i] - len_base))[0][0]
             simulated_cursor = \
                 np.sum(online_data[e2,start_idx:end_idx], axis=0) - \
                 np.sum(online_data[e1,start_idx:end_idx], axis=0)
