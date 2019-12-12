@@ -974,7 +974,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     return new_com
         
                 
-def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.6):
+def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.5):
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -1019,8 +1019,9 @@ def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, n
             auxdd = all_dff[npro,frames]
             neurcor[un, npro] = pd.DataFrame(np.transpose([auxdd[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
     
-        neurcor[neurcor<tempcormin] = np.nan    
         auxneur = copy.deepcopy(neurcor)
+        neurcor[neurcor<tempcormin] = np.nan    
+        
         
         # extract position from metadata
         relativepos = metadata['RoiGroups']['integrationRoiGroup']['rois'][un]['scanfields']['centerXY']
@@ -1048,38 +1049,40 @@ def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, n
                     finaldist[un] = dist
                     neurcor[un, indx] = np.nan
                 else:
-                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Reducing tolerance')
+                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Increasing tolerance')
                     if iter > 0:
                         neurcor = auxneur
-                        tol *= 1.5
+                        tol *= 1.1
                         iter -= 1
                     else:
-                        print ('where are my neurons??')
-                        break
-            else:
-                print('trying new thresholds')
-                if tempcormin > 0:
+                        print ('wtf??')
+#                         break
+            elif tempcormin > 0:
+                    print('Error couldnt find neuron' + str(un) + ' reducing minimum correlation')
+                    neurcor = auxneur
                     tempcormin-= 0.1
-                    tol-= 2
+                    neurcor[neurcor<tempcormin] = np.nan    
+                    tol-= 2  #If reduced correlation reduce distance
                     not_good_enough = True
+            else:
+                print('No luck, finding neurons by distance')
+                auxcom = com[:,:2]
+                dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
+                if plane == 0:
+                    dist[ind_neuron_plane[0]:] = np.nan
                 else:
-                    print('No luck, finding neurons by distance')
-                    auxcom = com[:,:2]
-                    dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
-                    if plane == 0:
-                        dist[ind_neuron_plane[0]:] = np.nan
-                    else:
-                        dist[:ind_neuron_plane[plane-1]] = np.nan
-                        dist[ind_neuron_plane[plane]:] = np.nan
-                    indx = np.where(dist==np.nanmin(dist))[0][0]
-                    finalcorr[un] = np.nan
-                    if np.nanmin(dist) < auxtol:
-                        finaldist[un] = np.nanmin(dist)
-                        finalneur[un] = indx
-                    else:
-                        finalneur[un] = np.nan
-                        finaldist[un] = np.nan
-                    not_good_enough = False
+                    dist[:ind_neuron_plane[plane-1]] = np.nan
+                    dist[ind_neuron_plane[plane]:] = np.nan
+                indx = np.where(dist==np.nanmin(dist))[0][0]
+                finalcorr[un] = np.nan
+                if np.nanmin(dist) < auxtol:
+                    finaldist[un] = np.nanmin(dist)
+                    finalneur[un] = indx
+                else:
+                    print ('where are my neurons??')
+                    finalneur[un] = np.nan
+                    finaldist[un] = np.nan
+                not_good_enough = False
         print('tol value at: ', str(tol), 'correlation thres at: ', str(tempcormin))
         print('Correlated with value: ', str(finalcorr[un]), ' with a distance: ', str(finaldist[un]))
 
