@@ -417,7 +417,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     print('... done') 
      
     
-def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True, trial_time=30, tocut=False, len_experiment=30000):       
+def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=False, trial_time=30, tocut=False, len_experiment=30000, bmi2=False):       
     """
     Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
     it requires somo files in the original folder
@@ -516,16 +516,31 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     nerden[np.where(pred[:,1]>0.75)] = True
     
     # obtain the real position of components A
-    new_com = obtain_real_com(fanal, Afull, all_com, nerden, not tocut)
+    new_com = obtain_real_com(fanal, Afull, all_com, nerden, toplot)
     
     # sanity check of the neuron's quality
-    if not tocut:
+    if toplot:
         plot_Cs(fanal, all_C, nerden)
     
     print('success!!')
     
     # identify ens_neur (it already plots sanity check in raw/analysis
-    online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
+    
+    
+    # for those experiments which had 2 BMIs files and didn't get attached correctly
+    if bmi2:
+        online_data0 = pd.read_csv(folder_path + 'bmi_IntegrationRois_00000.csv')
+        online_data1 = pd.read_csv(folder_path + matinfo['fcsv'][0])
+        last_ts = np.asarray(online_data0['timestamp'])[-1]
+        last_frame = np.asarray(online_data0['frameNumber'])[-1]
+        online_data1['timestamp'] += last_ts
+        online_data1['frameNumber'] += last_frame
+        online_data = pd.concat([online_data0, online_data1])
+        vars.len_base = 9000
+        vars.len_bmi += np.round(last_frame/number_planes_total).astype(int)
+    else:
+        online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
+        
     try:
         mask = matinfo['allmask']
     except KeyError:
@@ -561,6 +576,10 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         frequency = np.nan
     
     cursor = matinfo['cursor'][0]
+    
+    # finding the correct E2 neurons
+    e2_neur = get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base)
+    
     if tocut:
         all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency = \
         cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment)
@@ -575,19 +594,14 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
         plt.savefig(fanal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
-        plt.figure()
-        plt.plot(np.nanmean(all_dff,0))
-        plt.title('dFFs')
-        plt.savefig(fanal + animal + '_' + day + '_dffs.png', bbox_inches="tight")
-
- 
-    
+    plt.figure()
+    plt.plot(np.nanmean(all_dff,0))
+    plt.title('dFFs')
+    plt.savefig(fanal + animal + '_' + day + '_dffs.png', bbox_inches="tight")
+   
     plt.close('all')
 
-    # finding the correct E2 neurons
-    e2_neur = get_best_e2_combo(
-        ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base
-        )
+
 
     #fill the file with all the correct data!
     try:
@@ -1110,7 +1124,7 @@ def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, n
         
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
 
-    return finalneur.astype('int')
+    return finalneur
  
 
 def calculate_zvalues(folder, plane):
@@ -1468,6 +1482,7 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
 
     # Sometimes we only get negative correlations, so we should return None
     if best_e2_combo is None:
-        return None
-    best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
+        best_e2_neurons = [np.nan, np.nan]
+    else:
+        best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)

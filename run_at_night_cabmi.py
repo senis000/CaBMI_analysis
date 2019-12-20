@@ -10,11 +10,10 @@ import sys, traceback
 
 
 def tonight():
-    put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
+#     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
     put_together_tonight(folder = 'H:/Nuria_data/CaBMI/Layer_project/', animals = ('IT3','IT4', 'PT6','PT9'))
-    put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1','IT2', 'PT7'))
+#     put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1','IT2', 'PT7'))
     put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8','IT9', 'IT10','PT19','PT20'))
-
 
 #     folder = 'G:/Nuria_data/CaBMI/Layer_project/'
 #     animal = 'PT18'
@@ -35,54 +34,44 @@ def tonight():
     
 
 def cut_tonight():
-    folder = 'G:/Nuria_data/CaBMI/Layer_project/'
-    animal = 'PT18'
-    days = ['190723', '190801']
-    lens = [34000, 34000]
-     
-    for ind, day in enumerate(days):
-        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-    
-
+    print ('CUTTTTTIIIIIIIIIIIIIIIIIIIING')
     folder = 'J:/Nuria_data/CaBMI/Layer_project/'
-    
-
     animal = 'PT19'
-    days = ['190717', '190718', '190720']
-    lens = [21000, 21000, 20000]
+    days = ['190718']
+    lens = [21000]
      
     for ind, day in enumerate(days):
-        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-        
-    animal = 'IT8'
-    days = ['190207', '190205']
-    lens = [34000, 31000]
-     
-    for ind, day in enumerate(days):
-        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-
-
-    animal = 'IT9'
-    days = ['190301']
-    lens = [36000]
-     
-    for ind, day in enumerate(days):
-        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-        
-        
-    animal = 'IT10'
-    days = ['190314']
-    lens = [24000]
-     
-    for ind, day in enumerate(days):
+        print('runing animal: ' + str(animal) + "and day: " + str(day))
         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
     
-#     animal = 'PT13'
-#     days = ['190121', '190123']
-#     lens = [24000, 18000]
-#     
+ 
+#     folder = 'H:/Nuria_data/CaBMI/Layer_project/'
+#      
+#  
+#     animal = 'IT3'
+#     days = ['181004', '181017', '181018', '181031']
+#     lens = [48000, 40000, 40000, 40000]
+#       
 #     for ind, day in enumerate(days):
+#         print('runing animal: ' + str(animal) + "and day: " + str(day))
 #         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+#          
+#     animal = 'IT4'
+#     days = ['181001', '181203']
+#     lens = [24000, 28000]
+#       
+#     for ind, day in enumerate(days):
+#         print('runing animal: ' + str(animal) + "and day: " + str(day))
+#         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+#  
+#     animal = 'PT9'
+#     days = ['181219']
+#     lens = [28000]
+#       
+#     for ind, day in enumerate(days):
+#         print('runing animal: ' + str(animal) + "and day: " + str(day))
+#         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+
 
 def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10')):
     
