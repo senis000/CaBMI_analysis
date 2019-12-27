@@ -417,7 +417,7 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     print('... done') 
      
     
-def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=True, trial_time=30, tocut=False, len_experiment=30000):       
+def put_together(folder, animal, day, number_planes=4, number_planes_total=6, sec_var='', toplot=False, trial_time=30, tocut=False, len_experiment=30000, bmi2=False):       
     """
     Function to put together the different hdf5 files obtain for each plane and convey all the information in one and only hdf5
     it requires somo files in the original folder
@@ -516,16 +516,31 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     nerden[np.where(pred[:,1]>0.75)] = True
     
     # obtain the real position of components A
-    new_com = obtain_real_com(fanal, Afull, all_com, nerden, not tocut)
+    new_com = obtain_real_com(fanal, Afull, all_com, nerden, toplot)
     
     # sanity check of the neuron's quality
-    if not tocut:
+    if toplot:
         plot_Cs(fanal, all_C, nerden)
     
     print('success!!')
     
     # identify ens_neur (it already plots sanity check in raw/analysis
-    online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
+    
+    
+    # for those experiments which had 2 BMIs files and didn't get attached correctly
+    if bmi2:
+        online_data0 = pd.read_csv(folder_path + 'bmi_IntegrationRois_00000.csv')
+        online_data1 = pd.read_csv(folder_path + matinfo['fcsv'][0])
+        last_ts = np.asarray(online_data0['timestamp'])[-1]
+        last_frame = np.asarray(online_data0['frameNumber'])[-1]
+        online_data1['timestamp'] += last_ts
+        online_data1['frameNumber'] += last_frame
+        online_data = pd.concat([online_data0, online_data1])
+        vars.len_base = 9000
+        vars.len_bmi += np.round(last_frame/number_planes_total).astype(int)
+    else:
+        online_data = pd.read_csv(folder_path + matinfo['fcsv'][0])
+        
     try:
         mask = matinfo['allmask']
     except KeyError:
@@ -534,10 +549,11 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     print('finding ensemble neurons')
     
-    ens_neur = detect_ensemble_neurons(fanal, all_C, online_data, len(online_data.keys())-2,
+    ens_neur = detect_ensemble_neurons(fanal, all_dff, online_data, len(online_data.keys())-2,
                                              new_com, metadata, neuron_plane, number_planes_total, vars.len_base)
     
-    nerden[ens_neur.astype('int')] = True     
+    auxens_neur = ens_neur[~np.isnan(ens_neur)]
+    nerden[auxens_neur.astype('int')] = True     
     
     
     # obtain trials hits and miss
@@ -550,7 +566,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     
     # obtain the neurons label as red (controlling for dendrites)
     redlabel = red_channel(red, neuron_plane, nerden, Afull, new_com, all_red_im, all_base_im, fanal, number_planes, toplot=toplot)
-    redlabel[ens_neur.astype('int')] = True   
+    redlabel[auxens_neur.astype('int')] = True   
     
     
     # obtain the frequency
@@ -560,6 +576,10 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         frequency = np.nan
     
     cursor = matinfo['cursor'][0]
+    
+    # finding the correct E2 neurons
+    e2_neur = get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base)
+    
     if tocut:
         all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency = \
         cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment)
@@ -574,13 +594,14 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         plt.plot(matinfo['cursor'][0])
         plt.title('cursor')
         plt.savefig(fanal + animal + '_' + day + '_cursor.png', bbox_inches="tight")
-    
+    plt.figure()
+    plt.plot(np.nanmean(all_dff,0))
+    plt.title('dFFs')
+    plt.savefig(fanal + animal + '_' + day + '_dffs.png', bbox_inches="tight")
+   
     plt.close('all')
 
-    # finding the correct E2 neurons
-    e2_neur = get_best_e2_combo(
-        ens_neur, online_data, cursor, trial_start, trial_end
-        )
+
 
     #fill the file with all the correct data!
     try:
@@ -967,7 +988,7 @@ def obtain_real_com(fanal, Afull, all_com, nerden, toplot=True, img_size = 20, t
     return new_com
         
                 
-def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.6):
+def detect_ensemble_neurons(fanal, all_dff, online_data, units, com, metadata, neuron_plane, number_planes_total, len_base, auxtol=10, cormin=0.5):
     """
     Function to identify the ensemble neurons across all components
     fanal(str): folder where the plots will be stored
@@ -984,7 +1005,7 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
     final_neur(array): index of the ensemble neurons"""
     
     # initialize vars
-    neurcor = np.ones((units, all_C.shape[0])) * np.nan
+    neurcor = np.ones((units, all_dff.shape[0])) * np.nan
     finalcorr = np.zeros(units)
     finalneur = np.zeros(units)
     finaldist = np.zeros(units)
@@ -1005,15 +1026,16 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
         tol = copy.deepcopy(auxtol)
         tempcormin = copy.deepcopy(cormin)
         
-        for npro in np.arange(all_C.shape[0]):
+        for npro in np.arange(all_dff.shape[0]):
             ens = (online_data.keys())[2+un]
             frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int') + len_base 
             auxonline = (np.asarray(online_data[ens]) - np.nanmean(online_data[ens]))/np.nanmean(online_data[ens]) 
-            auxC = all_C[npro,frames]/10000
-            neurcor[un, npro] = pd.DataFrame(np.transpose([auxC[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
+            auxdd = all_dff[npro,frames]
+            neurcor[un, npro] = pd.DataFrame(np.transpose([auxdd[~np.isnan(auxonline)], auxonline[~np.isnan(auxonline)]])).corr()[0][1]
     
-        neurcor[neurcor<tempcormin] = np.nan    
         auxneur = copy.deepcopy(neurcor)
+        neurcor[neurcor<tempcormin] = np.nan    
+        
         
         # extract position from metadata
         relativepos = metadata['RoiGroups']['integrationRoiGroup']['rois'][un]['scanfields']['centerXY']
@@ -1041,38 +1063,40 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
                     finaldist[un] = dist
                     neurcor[un, indx] = np.nan
                 else:
-                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Reducing tolerance')
+                    print('Error couldnt find neuron' + str(un) + ' with this tolerance. Increasing tolerance')
                     if iter > 0:
                         neurcor = auxneur
-                        tol *= 1.5
+                        tol *= 1.1
                         iter -= 1
                     else:
-                        print ('where are my neurons??')
-                        break
-            else:
-                print('trying new thresholds')
-                if tempcormin > 0:
+                        print ('wtf??')
+#                         break
+            elif tempcormin > 0:
+                    print('Error couldnt find neuron' + str(un) + ' reducing minimum correlation')
+                    neurcor = auxneur
                     tempcormin-= 0.1
-                    tol-= 2
+                    neurcor[neurcor<tempcormin] = np.nan    
+                    tol-= 2  #If reduced correlation reduce distance
                     not_good_enough = True
+            else:
+                print('No luck, finding neurons by distance')
+                auxcom = com[:,:2]
+                dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
+                if plane == 0:
+                    dist[ind_neuron_plane[0]:] = np.nan
                 else:
-                    print('No luck, finding neurons by distance')
-                    auxcom = com[:,:2]
-                    dist = scipy.spatial.distance.cdist(centermass, auxcom)[0]
-                    if plane == 0:
-                        dist[ind_neuron_plane[0]:] = np.nan
-                    else:
-                        dist[:ind_neuron_plane[plane-1]] = np.nan
-                        dist[ind_neuron_plane[plane]:] = np.nan
-                    indx = np.where(dist==np.nanmin(dist))[0][0]
-                    finalcorr[un] = np.nan
-                    if np.nanmin(dist) < auxtol:
-                        finaldist[un] = np.nanmin(dist)
-                        finalneur[un] = indx
-                    else:
-                        finalneur[un] = np.nan
-                        finaldist[un] = np.nan
-                    not_good_enough = False
+                    dist[:ind_neuron_plane[plane-1]] = np.nan
+                    dist[ind_neuron_plane[plane]:] = np.nan
+                indx = np.where(dist==np.nanmin(dist))[0][0]
+                finalcorr[un] = np.nan
+                if np.nanmin(dist) < auxtol:
+                    finaldist[un] = np.nanmin(dist)
+                    finalneur[un] = indx
+                else:
+                    print ('where are my neurons??')
+                    finalneur[un] = np.nan
+                    finaldist[un] = np.nan
+                not_good_enough = False
         print('tol value at: ', str(tol), 'correlation thres at: ', str(tempcormin))
         print('Correlated with value: ', str(finalcorr[un]), ' with a distance: ', str(finaldist[un]))
 
@@ -1095,14 +1119,12 @@ def detect_ensemble_neurons(fanal, all_C, online_data, units, com, metadata, neu
         auxonline[np.isnan(auxonline)] = 0
         ax.plot(zscore(auxonline[-5000:]))
         if ~np.isnan(finalneur[un]):
-            auxC = all_C[finalneur[un].astype('int'), frames] 
-            ax.plot(zscore(auxC[-5000:]))
+            auxdd = all_dff[finalneur[un].astype('int'), frames] 
+            ax.plot(zscore(auxdd[-5000:]))
         
     plt.savefig(fanal + 'ens_online_offline.png', bbox_inches="tight")
-    
-    finalneur = finalneur[~np.isnan(finalneur)]
 
-    return finalneur.astype('int')
+    return finalneur
  
 
 def calculate_zvalues(folder, plane):
@@ -1399,7 +1421,7 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
     return F_dff, com, cnm2, totdes, SNR_comp[idx_components]
 
 
-def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
+def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len_base, number_planes_total=6):
     """
 	Finds the most likely E2 pairing by simulating the cursor with different
 	ensemble neuron pairings and finding the pairing with the highest correlation
@@ -1422,7 +1444,10 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
 
     # Contains the keys for each ens_neur to index into the online data
     ens = (online_data.keys())[2:]
-    online_data = online_data[cols].to_numpy().T
+    frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int')
+    online_data = online_data[ens].to_numpy().T
+    cursor = cursor[frames]
+    
     if online_data.shape[1] != cursor.size:
         raise ValueError("Data and cursor appear to be mismatched in time.")
 
@@ -1440,8 +1465,8 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
         e1 = [i for i in range(ens.size) if i not in e2]
         correlation = 0
         for i in range(trial_end.size):
-            start_idx = trial_start[i]
-            end_idx = trial_end[i]
+            start_idx = np.where(frames>(trial_start[i] - len_base))[0][0]
+            end_idx = np.where(frames>(trial_end[i] - len_base))[0][0]
             simulated_cursor = \
                 np.sum(online_data[e2,start_idx:end_idx], axis=0) - \
                 np.sum(online_data[e1,start_idx:end_idx], axis=0)
@@ -1457,8 +1482,9 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
 
     # Sometimes we only get negative correlations, so we should return None
     if best_e2_combo is None:
-        return None
-    best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
+        best_e2_neurons = [np.nan, np.nan]
+    else:
+        best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
 
 
