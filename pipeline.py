@@ -1460,3 +1460,54 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end):
         return None
     best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
+
+
+def compute_residuals(Yr, A, C, b, f, block_size=5000, num_blocks_per_run=20, dview=None):
+    # adapted from caiman/source_extraction/cnmf/cnmf.py
+    """compute residual for each component (variable YrA)
+
+     Args:
+         Yr :    np.ndarray
+                 movie in format pixels (d) x frames (T)
+    """
+    if 'csc_matrix' not in str(type(A)):
+        A = scipy.sparse.csc_matrix(A)
+    if 'array' not in str(type(b)):
+        b = b.toarray()
+    if 'array' not in str(type(C)):
+        C = C.toarray()
+    if 'array' not in str(type(f)):
+        f = f.toarray()
+
+    Ab = scipy.sparse.hstack((A, b)).tocsc()
+    nA2 = np.ravel(Ab.power(2).sum(axis=0))
+    nA2_inv_mat = scipy.sparse.spdiags(
+        1. / nA2, 0, nA2.shape[0], nA2.shape[0])
+    Cf = np.vstack((C, f))
+    if 'numpy.ndarray' in str(type(Yr)):
+        YA = (Ab.T.dot(Yr)).T * nA2_inv_mat
+    else:
+        YA = cm.mmapping.parallel_dot_product(Yr, Ab, dview=dview, block_size=block_size,
+                                              transpose=True,
+                                              num_blocks_per_run=num_blocks_per_run) * nA2_inv_mat
+
+    AA = Ab.T.dot(Ab) * nA2_inv_mat
+    return (YA - (AA.T.dot(Cf)).T)[:, :A.shape[-1]].T
+
+
+def compute_SNR_from_traces(A, C, b, f, Yr, pix, fr=4, decay_time=0.4, gSig=(3, 3), min_SNR=2.5, rval_thr=0.8,
+                          block_size=5000, num_blocks_per_run=20, dview=None):
+    """
+    Args:
+         Yr :    np.ndarray
+                 movie in format pixels (d) x frames (T)
+    """
+    dims = (pix, pix)
+    T = Yr.shape[1]
+    images = np.reshape(Yr.T, (T,) + dims, order='F')
+    YrA = compute_residuals(Yr, A, C, b, f, block_size, num_blocks_per_run, dview)
+    idx_components, idx_components_bad, SNR_comp, r_values, cnn_preds = \
+        estimate_components_quality_auto(images, A, C, b, f, YrA, fr, decay_time, gSig, dims,
+                                         dview=dview, min_SNR=min_SNR,
+                                         r_values_min=rval_thr, use_cnn=False)
+    return SNR_comp
