@@ -67,9 +67,9 @@ def plot_all_sessions_hpm(sharey=False):
                 maxHit = max(maxHit, np.nanmax(hpm))
         tPC_PTs, tPC_ITs = [np.nanmean(s) for s in PT_pcs], [np.nanmean(s) for s in IT_pcs]
         tPC_alldist = tPC_PTs+tPC_ITs
-        PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:] - s[0]) for s in PT_pcs], [np.nanmean(s[1:] - s[0]) for s in IT_pcs]
+        PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:]) - s[0] for s in PT_pcs], [np.nanmean(s[1:]) - s[0] for s in IT_pcs]
         PCgain_alldist = PCgain_PTs+PCgain_ITs
-        allGbins = np.histogram_bin_edges(PCgain_alldist)
+        allGbins = np.histogram_bin_edges(np.array(PCgain_alldist)[~np.isnan(PCgain_alldist)])
         binsTPC = np.linspace(0, 1, 11)
         fig, axes = plt.subplots(nrows=1, ncols=2)
         sns.distplot(tPC_ITs, hist=True, bins=binsTPC, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
