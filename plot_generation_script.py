@@ -42,13 +42,17 @@ def plot_all_sessions_hpm(sharey=False):
         IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
         IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
         IT_hits, PT_hits = [], []
-        IT_pcs, PT_pcs = [], []
+        IT_pcs, PT_pcs = {}, {}
         for animal in os.listdir(processed):
             animal_path = os.path.join(processed, animal)
             if not os.path.isdir(animal_path):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
+            if animal.startswith('IT'):
+                IT_pcs[animal] = []
+            else:
+                PT_pcs[animal] = []
             days = [decode_from_filename(d)[1] for d in os.listdir(animal_path) if d[:4] == 'full' or
                     d.isnumeric()]
             days.sort()
@@ -57,14 +61,18 @@ def plot_all_sessions_hpm(sharey=False):
                 _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
                 if animal.startswith('IT'):
                     t_hit, t_hits, t_pc, t_pcs = IT_hit, IT_hits, IT_pc, IT_pcs
-                    
+
                 else:
                     t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
                 t_hit.handle(np.nanmax(hpm))
                 t_hits.append(hpm)
                 t_pc.handle(np.nanmax(pc))
-                t_pcs.append(pc)
+                t_pcs[animal].append(pc)
                 maxHit = max(maxHit, np.nanmax(hpm))
+        aLabel_pcs = IT_pcs.update(PT_pcs)
+
+        IT_pcs = [l for animal in IT_pcs for l in IT_pcs[animal]]
+        PT_pcs = [l for animal in PT_pcs for l in PT_pcs[animal]]
         tPC_PTs, tPC_ITs = [np.nanmean(s) for s in PT_pcs], [np.nanmean(s) for s in IT_pcs]
         tPC_alldist = tPC_PTs+tPC_ITs
         PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:]) - s[0] for s in PT_pcs], [np.nanmean(s[1:]) - s[0] for s in IT_pcs]
