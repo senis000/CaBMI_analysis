@@ -3,11 +3,26 @@ import caiman as cm
 import tifffile, os, h5py, time
 from skimage import io
 from scipy.io import loadmat
+from scipy.sparse import csc_matrix
 from collections.abc import Iterable
 from caiman.source_extraction.cnmf import cnmf as cnmf
+from caiman.source_extraction.cnmf.estimates import Estimates
+from caiman.source_extraction.cnmf.params import CNMFParams
+from caiman.source_extraction.cnmf import online_cnmf
 from caiman.motion_correction import MotionCorrect
 from caiman.source_extraction.cnmf.utilities import detrend_df_f
 from caiman.components_evaluation import estimate_components_quality_auto
+
+
+def load_A(hf):
+    if 'estimates' in hf:
+        A = hf['estimates']['A']
+    else:
+        A = hf['A']
+    data = A['data']
+    indices = A['indices']
+    indptr = A['indptr']
+    return csc_matrix((data, indices, indptr), A['shape'])
 
 
 def extract_planes(tfile, outpath, use_planes, nplanes=6, decay=1.0, fmm='bigmem',
@@ -25,16 +40,16 @@ def extract_planes(tfile, outpath, use_planes, nplanes=6, decay=1.0, fmm='bigmem
 
     fnames = []
     for p in use_planes:
-        fnamemm = os.path.join(outpath, '{}{}_d1_{}_d2_{}_d3_{}_order_{}_frames_{}_.mmap'
-                               .format(fmm, p, d1, d2, d3, order, totlen))
-        bigmem =  np.memmap(fnamemm, mode='w+', dtype=np.float32, shape=(totlen, dims[0], dims[1]), order=order)
+        # fnamemm = os.path.join(outpath, '{}{}_d1_{}_d2_{}_d3_{}_order_{}_frames_{}_.mmap'
+        #                        .format(fmm, p, d1, d2, d3, order, totlen))
+        # bigmem =  np.memmap(fnamemm, mode='w+', dtype=np.float32, shape=(totlen, dims[0], dims[1]), order=order)
 
         # for i in range(totlen):
         #     print(i)
         #     img = tif.pages[nplanes * i + p].asarray()
         #     bigmem[i, :, :] = img * decay ** i if decay != 1.0 else img
         # bigmem.flush()
-        temp = np.concatenate([(tif.pages[nplanes * i + p].asarray()[np.newaxis, :, :], print(i))[0] for i in range(totlen)], axis=0)
+        temp = np.concatenate([((tif.pages[nplanes * i + p].asarray() * decay ** i)[np.newaxis, :, :] , print(i))[0] for i in range(totlen)], axis=0)
         print(p, 'saving as tif')
         # Read from mmap, save as tifs
         tifn = os.path.join(outpath, tifn)
@@ -216,24 +231,102 @@ def caiman_main(fr, fnames, out, dend=False):
         fp.create_dataset('snr', data=SNR_comp[idx_components])
 
 
+def OnACID_A_init(fr, fnames, out, hfile, epochs=2):
+
+    # %% set up some parameters
+
+    decay_time = .4  # approximate length of transient event in seconds
+    gSig = (4, 4)  # expected half size of neurons
+    p = 1  # order of AR indicator dynamics
+    thresh_CNN_noisy = 0.8 #0.65  # CNN threshold for candidate components
+    gnb = 2  # number of background components
+    init_method = 'cnmf'  # initialization method
+    min_SNR = 2.5  # signal to noise ratio for accepting a component
+    rval_thr = 0.8  # space correlation threshold for accepting a component
+    ds_factor = 1  # spatial downsampling factor, newImg=img/ds_factor(increases speed but may lose some fine structure)
+
+    # K = 25  # number of components per patch
+    patch_size = 32  # size of patch
+    stride = 3  # amount of overlap between patches
+
+    max_num_added = 5
+    max_comp_update_shape = np.inf
+    update_num_comps = False
+
+
+    gSig = tuple(np.ceil(np.array(gSig) / ds_factor).astype('int'))  # recompute gSig if downsampling is involved
+    mot_corr = True  # flag for online motion correction
+    pw_rigid = False  # flag for pw-rigid motion correction (slower but potentially more accurate)
+    max_shifts_online = np.ceil(10./ds_factor).astype('int')  # maximum allowed shift during motion correction
+    sniper_mode = True  # use a CNN to detect new neurons (o/w space correlation)
+    # set up some additional supporting parameters needed for the algorithm
+    # (these are default values but can change depending on dataset properties)
+    init_batch = 500  # number of frames for initialization (presumably from the first file)
+    K = 2  # initial number of components
+    show_movie = False  # show the movie as the data gets processed
+    print("Frame rate: {}".format(fr))
+    params_dict = {'fr': fr,
+                   'fnames': fnames,
+                   'decay_time': decay_time,
+                   'gSig': gSig,
+                   'gnb': gnb,
+                   'p': p,
+                   'min_SNR': min_SNR,
+                   'rval_thr': rval_thr,
+                   'ds_factor': ds_factor,
+                   'nb': gnb,
+                   'motion_correct': mot_corr,
+                   'normalize': True,
+                   'sniper_mode': sniper_mode,
+                   'K': K,
+                   'use_cnn': False,
+                   'epochs': epochs,
+                   'max_shifts_online': max_shifts_online,
+                   'pw_rigid': pw_rigid,
+                   'min_num_trial': 10,
+                   'show_movie': show_movie,
+                   'save_online_movie': False,
+                   "max_num_added": max_num_added,
+                   "max_comp_update_shape": max_comp_update_shape,
+                   "update_num_comps": update_num_comps,
+                   "dist_shape_update": update_num_comps,
+                   'init_batch': init_batch,
+                   'init_method': init_method,
+                   'rf': patch_size // 2,
+                   'stride': stride,
+                   'thresh_CNN_noisy': thresh_CNN_noisy}
+    opts = CNMFParams(params_dict=params_dict)
+    ests = Estimates(A=load_A(hfile))
+    cnm = online_cnmf.OnACID(params=opts, estimates=ests)
+    cnm.fit_online()
+    cnm.save(out)
+
+
 
 if __name__ == '__main__':
-    root = "/Users/albertqu/Documents/2.Courses/CogSci127/proj/data/"
-    #"/media/user/Seagate Backup Plus Drive/raw/IT5/190212/"  # DATA ROOT
+    animal, day = 'IT5', '190212'
+    root = "/media/user/Seagate Backup Plus Drive/raw/{}/{}/".format(animal, day)  # DATA ROOT
     tiff_path = os.path.join(root, "baseline_00001.tif")
-    out = root #os.path.join(root, 'splits')
+    out = os.path.join(root, 'splits')
     if not os.path.exists(out):
         os.makedirs(out)
     # print("start splitting")
     # # nodecay
     # fname0 = extract_planes(tiff_path, out, 0)
     # print('finish nodecay')
-    # #decay
-    # fname1 = extract_planes(tiff_path, out, 0, decay=0.9999)
-    # print('finish decay')
+    #decay
+    #fname1 = extract_planes(tiff_path, out, 0, decay=0.9999)
+    print('finish decay')
     fname0 = os.path.join(out, 'plane0_nodecay.tif')
-    print(fname0)
+    fname1 = os.path.join(out, 'plane0_decay.tif')
+    # print(fname0)
     # get frame rate
-    fr = 9.72365281 #loadmat(os.path.join(root, 'wmat.mat'))['fr'].item((0, 0))
-    caiman_main(fr, [fname0], os.path.join(out, 'plane0_nodecay.hdf5'))
+    fr = loadmat(os.path.join(root, 'wmat.mat'))['fr'].item((0, 0))
+    #caiman_main(fr, [fname0], os.path.join(out, '{}_{}_plane0_decay.hdf5'.format(animal, day)))
+    hfile0 = "{}_{}_plane0_nodecay.hdf5".format(animal, day)
+    OnACID_A_init(fr, [fname0], os.path.join(out, 'onacid_'+hfile0),
+                  os.path.join(out, hfile0))
+    hfile1 = "{}_{}_plane0_decay.hdf5".format(animal, day)
+    OnACID_A_init(fr, [fname1], os.path.join(out, 'onacid_' + hfile1),
+                  os.path.join(out, hfile1))
 
