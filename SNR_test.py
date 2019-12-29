@@ -258,7 +258,7 @@ def OnACID_A_init(fr, fnames, out, hfile, epochs=2):
     mot_corr = True  # flag for online motion correction
     pw_rigid = False  # flag for pw-rigid motion correction (slower but potentially more accurate)
     max_shifts_online = np.ceil(10./ds_factor).astype('int')  # maximum allowed shift during motion correction
-    sniper_mode = True  # use a CNN to detect new neurons (o/w space correlation)
+    sniper_mode = False  # use a CNN to detect new neurons (o/w space correlation)
     # set up some additional supporting parameters needed for the algorithm
     # (these are default values but can change depending on dataset properties)
     init_batch = 500  # number of frames for initialization (presumably from the first file)
