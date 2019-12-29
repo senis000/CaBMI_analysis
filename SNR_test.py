@@ -25,16 +25,16 @@ def extract_planes(tfile, outpath, use_planes, nplanes=6, decay=1.0, fmm='bigmem
 
     fnames = []
     for p in use_planes:
-        fnamemm = os.path.join(outpath, '{}{}_d1_{}_d2_{}_d3_{}_order_{}_frames_{}_.mmap'
-                               .format(fmm, p, d1, d2, d3, order, totlen))
-        bigmem =  np.memmap(fnamemm, mode='w+', dtype=np.float32, shape=(totlen, dims[0], dims[1]), order=order)
+        # fnamemm = os.path.join(outpath, '{}{}_d1_{}_d2_{}_d3_{}_order_{}_frames_{}_.mmap'
+        #                        .format(fmm, p, d1, d2, d3, order, totlen))
+        # bigmem =  np.memmap(fnamemm, mode='w+', dtype=np.float32, shape=(totlen, dims[0], dims[1]), order=order)
 
         # for i in range(totlen):
         #     print(i)
         #     img = tif.pages[nplanes * i + p].asarray()
         #     bigmem[i, :, :] = img * decay ** i if decay != 1.0 else img
         # bigmem.flush()
-        temp = np.concatenate([(tif.pages[nplanes * i + p].asarray()[np.newaxis, :, :], print(i))[0] for i in range(totlen)], axis=0)
+        temp = np.concatenate([((tif.pages[nplanes * i + p].asarray() * decay ** i)[np.newaxis, :, :] , print(i))[0] for i in range(totlen)], axis=0)
         print(p, 'saving as tif')
         # Read from mmap, save as tifs
         tifn = os.path.join(outpath, tifn)
@@ -218,22 +218,22 @@ def caiman_main(fr, fnames, out, dend=False):
 
 
 if __name__ == '__main__':
-    root = "/media/user/Seagate Backup Plus Drive/raw/IT5/190212/"  # DATA ROOT
+    animal, day = 'IT5', '190212'
+    root = "/media/user/Seagate Backup Plus Drive/raw/{}/{}/".format(animal, day)  # DATA ROOT
     tiff_path = os.path.join(root, "baseline_00001.tif")
     out = os.path.join(root, 'splits')
     if not os.path.exists(out):
-    	os.makedirs(out)
+        os.makedirs(out)
     # print("start splitting")
     # # nodecay
     # fname0 = extract_planes(tiff_path, out, 0)
     # print('finish nodecay')
-    # #decay
-    # fname1 = extract_planes(tiff_path, out, 0, decay=0.9999)
-    # print('finish decay')
-    fname0 = os.path.join(out, 'plane0_nodecay.tif')
-    print(fname0)
+    #decay
+    fname1 = extract_planes(tiff_path, out, 0, decay=0.9999)
+    print('finish decay')
+    # fname0 = os.path.join(out, 'plane0_nodecay.tif')
+    # print(fname0)
     # get frame rate
     fr = loadmat(os.path.join(root, 'wmat.mat'))['fr'].item((0, 0))
-
-    caiman_main(fr, [fname0], os.path.join(out, 'out0_nodecay.hdf5'))
+    caiman_main(fr, [fname1[0]], os.path.join(out, '{}_{}_plane0_decay.hdf5'.format(animal, day)))
 
