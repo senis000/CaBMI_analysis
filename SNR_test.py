@@ -296,7 +296,8 @@ def OnACID_A_init(fr, fnames, out, hfile, epochs=2):
                    'stride': stride,
                    'thresh_CNN_noisy': thresh_CNN_noisy}
     opts = CNMFParams(params_dict=params_dict)
-    ests = Estimates(A=load_A(hfile))
+    with h5py.File(hfile, 'r') as hf:
+        ests = Estimates(A=load_A(hf))
     cnm = online_cnmf.OnACID(params=opts, estimates=ests)
     cnm.fit_online()
     cnm.save(out)
