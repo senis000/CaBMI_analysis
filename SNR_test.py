@@ -299,6 +299,7 @@ def OnACID_A_init(fr, fnames, out, hfile, epochs=2):
     with h5py.File(hfile, 'r') as hf:
         ests = Estimates(A=load_A(hf))
     cnm = online_cnmf.OnACID(params=opts, estimates=ests)
+    cnm.estimates = ests
     cnm.fit_online()
     cnm.save(out)
 
