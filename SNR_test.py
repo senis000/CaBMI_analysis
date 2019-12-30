@@ -5,6 +5,7 @@ from skimage import io
 from scipy.io import loadmat
 from scipy.sparse import csc_matrix
 from collections.abc import Iterable
+from utils_loading import file_folder_path
 from caiman.source_extraction.cnmf import cnmf as cnmf
 from caiman.source_extraction.cnmf.estimates import Estimates
 from caiman.source_extraction.cnmf.params import CNMFParams
@@ -78,7 +79,7 @@ def caiman_main(fr, fnames, out, dend=False):
     F_dff(array): array with the dff of the components
     com(array): matrix with the position values of the components as given by caiman
     cnm(struct): struct with different stimates and returns from caiman"""
-    logfile = open(os.path.join(out, 'log.txt'), 'w+')
+    logfile = open(os.path.join(file_folder_path(out), 'log.txt'), 'w+')
     # parameters
     decay_time = 0.4  # length of a typical transient in seconds
 

@@ -10,6 +10,7 @@ from caiman.source_extraction.cnmf.utilities import detrend_df_f
 from caiman.components_evaluation import estimate_components_quality_auto
 from SNR_test import *
 
+
 def slave1():
     root = "/Users/albertqu/Documents/2.Courses/CogSci127/proj/data/"
     # "/media/user/Seagate Backup Plus Drive/raw/IT5/190212/"  # DATA ROOT
