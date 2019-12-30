@@ -78,7 +78,7 @@ def caiman_main(fr, fnames, out, dend=False):
     F_dff(array): array with the dff of the components
     com(array): matrix with the position values of the components as given by caiman
     cnm(struct): struct with different stimates and returns from caiman"""
-
+    logfile = open(os.path.join(out, 'log.txt'), 'w+')
     # parameters
     decay_time = 0.4  # length of a typical transient in seconds
 
@@ -158,6 +158,8 @@ def caiman_main(fr, fnames, out, dend=False):
     Yr, dims, T = cm.load_memmap(fname_new)
     d1, d2 = dims
     images = np.reshape(Yr.T, [T] + list(dims), order='F')
+    logfile.write('1: '+ str(images.shape) + '\n')
+
     # load frames in python format (T x X x Y)
 
     # %% restart cluster to clean up memory
@@ -175,6 +177,7 @@ def caiman_main(fr, fnames, out, dend=False):
                     method_init=init_method, alpha_snmf=alpha_snmf,
                     only_init_patch=False, gnb=gnb, border_pix=bord_px_els)
     cnm = cnm.fit(images)
+    logfile.write("2: " + str(images.shape) + '\n')
 
     # %% COMPONENT EVALUATION
     # the components are evaluated in three ways:
@@ -190,6 +193,8 @@ def caiman_main(fr, fnames, out, dend=False):
                                          r_values_min=rval_thr, use_cnn=False,
                                          thresh_cnn_min=cnn_thr)
 
+    logfile.write("3: " + str(images.shape) + '\n')
+
 
     # %% RE-RUN seeded CNMF on accepted patches to refine and perform deconvolution
     A_in, C_in, b_in, f_in = cnm.estimates.A[:, idx_components], cnm.estimates.C[
@@ -201,6 +206,9 @@ def caiman_main(fr, fnames, out, dend=False):
 
     print('***************Fit*************')
     cnm2 = cnm2.fit(images)
+
+    logfile.write("4: " + str(images.shape) + '\n')
+    logfile.close()
 
     print('***************Extractind DFFs*************')
     # %% Extract DF/F values
@@ -324,7 +332,7 @@ if __name__ == '__main__':
     # print(fname0)
     # get frame rate
     fr = loadmat(os.path.join(root, 'wmat.mat'))['fr'].item((0, 0))
-    #caiman_main(fr, [fname0], os.path.join(out, '{}_{}_plane0_decay.hdf5'.format(animal, day)))
+    # caiman_main(fr, [fname0], os.path.join(out, '{}_{}_plane0_nodecay.hdf5'.format(animal, day)))
     hfile0 = "{}_{}_plane0_nodecay.hdf5".format(animal, day)
     OnACID_A_init(fr, [fname0], os.path.join(out, 'onacid_'+hfile0),
                   os.path.join(out, hfile0))
