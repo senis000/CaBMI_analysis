@@ -1,9 +1,11 @@
 import os
-import numpy as np
 import json
 import h5py
 import re
+import tifffile
+import numpy as np
 import pandas as pd
+from scipy.sparse import csc_matrix
 from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
@@ -194,3 +196,40 @@ def get_learners(typhos=None):
     undefined = df[df['LT'] == 1]
     nonlearners = df[df['LT'] == 1]
     return learners, undefined, nonlearners
+
+
+def load_A(hf):
+    if 'estimates' in hf:
+        A = hf['estimates']['A']
+    else:
+        A = hf['Nsparse']
+    data = A['data']
+    indices = A['indices']
+    indptr = A['indptr']
+    return csc_matrix((data, indices, indptr), A['shape'])
+
+
+def load_all(hf):
+    # A, C, b, f, dff, snr
+    ests = hf['estimates']
+    return load_A(hf), np.array(ests['C']), np.array(ests['b']), np.array(ests['f']), np.array(
+        hf['dff']), np.array(hf['snr'])
+
+
+def load_Yr(tf, nplanes=1, used_planes=1, ret_shape=False, ORDER='F'):
+    rf = tifffile.TiffFile(tf)
+    shp = rf.pages[0].shape[0]
+    if nplanes == 1:
+        Yr = np.concatenate([p.asarray().ravel(order=ORDER)[:, np.newaxis] for p in rf.pages[:T]], axis=1)
+        if ret_shape:
+            return Yr, ret_shape
+        return Yr
+    else:
+        plane_iter = used_planes if hasattr(used_planes, '__iter__') else range(used_planes)
+        Y = {i: np.concatenate(
+            [p.asarray().ravel(order=ORDER)[:, np.newaxis] for p in rf.pages[i:T * nplanes:nplanes]], axis=1)
+             for i in plane_iter}
+        Y_all = np.sum(np.concatenate([y[:, np.newaxis, :] for y in Y.values()], axis=1), axis=1)
+        if ret_shape:
+            return Y, Y_all, ret_shape
+        return Y, Y_all

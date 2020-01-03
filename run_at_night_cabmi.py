@@ -7,7 +7,14 @@ import numpy as np
 import imp
 import shutil, os
 import sys, traceback
+from analysis_functions import all_run_SNR
 
+
+def tonightSNR_uzsh():
+    folder = 'J:/Nuria_data/CaBMI/Layer_project/'
+    animal = 'IT5'
+    days = ['190212']
+    all_run_SNR(folder, animal, days)
 
 def tonight():
 #     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
