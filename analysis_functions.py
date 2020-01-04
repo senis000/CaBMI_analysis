@@ -733,7 +733,7 @@ def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256,
                                        dview=dview)
     if baseline:
         blen = 9000
-        SNR_comp_base = compute_SNR_from_traces(A, C[:, :blen], B, Fhat[:, :blen], Yr, p, fr=fr, decay_time=decay_time, gSig=gSig,
+        SNR_comp_base = compute_SNR_from_traces(A, C[:, :blen], B, Fhat[:, :blen], Yr[:, :blen], p, fr=fr, decay_time=decay_time, gSig=gSig,
                                            min_SNR=min_SNR, rval_thr=rval_thr, cnn_thr=cnn_thr,
                                            block_size=block_size, num_blocks_per_run=num_blocks_per_run,
                                            dview=dview)
