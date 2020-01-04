@@ -312,6 +312,21 @@ def OnACID_A_init(fr, fnames, out, hfile, epochs=2):
     cnm.fit_online()
     cnm.save(out)
 
+def SNR_quality_test(path, animal, day):
+    hfs = [h5py.File(os.path.join(path, animal, day, "bmi__{}.hdf5".format(i)), 'r') for i in range(4)]
+    hf0 = h5py.File(os.path.join(path, animal, day, "SNR_IT5_190212.hdf5"), 'r')
+    counter = 0
+    for i in range(4):
+        print(i)
+        cmsnr = np.array(hfs[i]['SNR'])
+        flags = np.isinf(cmsnr) | np.isnan(cmsnr)
+        if np.sum(flags) > 0:
+            print('nan or inf')
+        cmsnr[flags] = 1
+        cmlen = len(cmsnr)
+        print('corr', np.corrcoef(cmsnr, hf0['SNR'][counter:counter+cmlen])[0, 1])
+        counter += cmlen
+
 
 
 if __name__ == '__main__':
