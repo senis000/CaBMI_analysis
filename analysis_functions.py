@@ -656,7 +656,7 @@ def compute_SNR_from_traces(A, C, b, f, Yr, pix, fr=4, decay_time=0.4, gSig=(3, 
 
 def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256, decay_time=0.4,
                        gSig=(3, 3), min_SNR=2.5, rval_thr=0.8, cnn_thr=0.8, block_size=5000,
-                       num_blocks_per_run=20, dview=None, baseline=True, ORDER='F'):
+                       num_blocks_per_run=20, dview=None, baseline=True, motion=True, ORDER='F'):
     """Given single plane [tiff fnames] and hfile, get SNR_comp"""
 
     # Params
@@ -686,38 +686,40 @@ def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256,
     if isinstance(fnames, np.ndarray):
         Yr, p = fnames, pixel
     elif '.mmap' in first_file or '.tif' in first_file:
-        print('***************Starting motion correction*************')
-        print('files:')
-        print(fnames)
+        if motion:
+            print('***************Starting motion correction*************')
+            print('files:')
+            print(fnames)
 
-        # %%% MOTION CORRECTION
-        # first we create a motion correction object with the parameters specified
-        min_mov = cm.load(fnames[0]).min()
-        # this will be subtracted from the movie to make it non-negative
+            # %%% MOTION CORRECTION
+            # first we create a motion correction object with the parameters specified
+            min_mov = cm.load(fnames[0]).min()
+            # this will be subtracted from the movie to make it non-negative
 
-        mc = MotionCorrect(fnames, min_mov,
-                           dview=dview, max_shifts=max_shifts, niter_rig=niter_rig,
-                           splits_rig=splits_rig,
-                           strides=strides, overlaps=overlaps, splits_els=splits_els,
-                           upsample_factor_grid=upsample_factor_grid,
-                           max_deviation_rigid=max_deviation_rigid,
-                           shifts_opencv=True, nonneg_movie=True)
-        # note that the file is not loaded in memory
+            mc = MotionCorrect(fnames, min_mov,
+                               dview=dview, max_shifts=max_shifts, niter_rig=niter_rig,
+                               splits_rig=splits_rig,
+                               strides=strides, overlaps=overlaps, splits_els=splits_els,
+                               upsample_factor_grid=upsample_factor_grid,
+                               max_deviation_rigid=max_deviation_rigid,
+                               shifts_opencv=True, nonneg_movie=True)
+            # note that the file is not loaded in memory
 
-        # %% Run piecewise-rigid motion correction using NoRMCorre
-        mc.motion_correct_pwrigid(save_movie=True)
-        bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
-                                         np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
-        print('***************Motion correction has ended*************')
-        # maximum shift to be used for trimming against NaNs
+            # %% Run piecewise-rigid motion correction using NoRMCorre
+            mc.motion_correct_pwrigid(save_movie=True)
+            bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
+                                             np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
+            print('***************Motion correction has ended*************')
+            # maximum shift to be used for trimming against NaNs
 
-        # %% MEMORY MAPPING
-        # memory map the file in order 'C'
-        fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
-        # TODO: check for .mmap file loading
-        fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
-                               border_to_0=bord_px_els)  # exclude borders
-        # fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C')
+            # %% MEMORY MAPPING
+            # memory map the file in order 'C'
+            fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
+            # TODO: check for .mmap file loading
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
+                                   border_to_0=bord_px_els)  # exclude borders
+        else:
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C')
 
         # now load the file
         Yr, dims, T = cm.load_memmap(fname_new)
