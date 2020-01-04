@@ -334,5 +334,3 @@ def tonight_caiman():
             shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
         except OSError as e:
             print("Error: %s - %s." % (e.filename, e.strerror))
-            
-            
