@@ -206,7 +206,11 @@ def load_A(hf):
     data = A['data']
     indices = A['indices']
     indptr = A['indptr']
-    return csc_matrix((data, indices, indptr), A['shape'])
+    if 'shape' in A:
+        return csc_matrix((data, indices, indptr), A['shape'])
+    else:
+        return csc_matrix((data, indices, indptr))
+
 
 
 def load_all(hf):

@@ -7,14 +7,33 @@ import numpy as np
 import imp
 import shutil, os
 import sys, traceback
-from analysis_functions import all_run_SNR
+from analysis_functions import all_run_SNR, calc_SNR_all_planes
 
 
 def tonightSNR_uzsh():
-    folder = 'J:/Nuria_data/CaBMI/Layer_project/'
+    folder = '/media/user/Seagate Backup Plus Drive/'
     animal = 'IT5'
     days = ['190212']
-    all_run_SNR(folder, animal, days)
+    # all_run_SNR(folder, animal, days[0])
+     
+    for day in days:
+        folder_path = folder + 'raw/' + animal + '/' + day + '/'
+        err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
+        vars = imp.load_source('readme', folder_path + 'readme.txt')
+        try:
+            calc_SNR_all_planes(folder, animal, day, vars.num_files, vars.num_files_b, 4)
+        except Exception as e:
+            tb = sys.exc_info()[2]
+            err_file.write("\n{}\n".format(folder_path))
+            err_file.write("{}\n".format(str(e.args)))
+            traceback.print_tb(tb, file=err_file)
+            err_file.close()
+            sys.exit('Error in analyze raw')
+         
+        try:
+            shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))
 
 def tonight():
 #     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
@@ -335,4 +354,5 @@ def tonight_caiman():
         except OSError as e:
             print("Error: %s - %s." % (e.filename, e.strerror))
             
-            
+if __name__ == '__main__':
+    tonightSNR_uzsh()

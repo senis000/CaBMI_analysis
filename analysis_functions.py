@@ -841,7 +841,7 @@ def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
         err_file.write("{}\n".format(str(e.args)))
         traceback.print_tb(tb, file=err_file)
         err_file.close()
-        sys.exit('Error in analyze raw')
+        sys.exit('Error in SNR calculation')
 
     try:
         shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
