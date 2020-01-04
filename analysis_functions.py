@@ -714,7 +714,7 @@ def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256,
         # %% MEMORY MAPPING
         # memory map the file in order 'C'
         fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
-        TODO: check for .mmap file loading
+        # TODO: check for .mmap file loading
         fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
                                border_to_0=bord_px_els)  # exclude borders
         # fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C')
