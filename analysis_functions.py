@@ -888,35 +888,6 @@ def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
     err_file.close()
 
 
-def online_SNR_single_session(folder, animal, day, out):
-    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
-    dayfile = encode_to_filename(folder, animal, day)
-    print(f'processing {dayfile}')
-    with h5py.File(dayfile, 'r') as session:
-        outpath = os.path.join(out, animal, day)
-        if not os.path.exists(outpath):
-            os.makedirs(outpath)
-        Nens = session['online_data'].shape[1] - 2
-        od = session['online_data']
-        frame = np.array(od[:, 1]).astype(np.int32) // 6
-        datamat = np.array(od[:, 2:])
-        Tdf = frame[-1] + 1
-        SNRs = []
-        for i in range(Nens):
-            data = datamat[:, i].values
-            sclean = ~np.isnan(data)
-            f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
-            all_online_frames = np.arange(Tdf)
-            interp_online = f(all_online_frames)
-            SNRs.append(caiman_SNR(all_online_frames, interp_online))
-        try:
-            with h5py.File(os.path.join(outpath, 'onlineSNR.hdf5'), 'w-') as osnr:
-                osnr['SNR_ens'] = np.around(SNRs, 4)
-        except IOError:
-            print(" OOPS!: The file already existed ease try with another file, "
-                  "new results will NOT be saved")
-
-
 #################################################################
 #################### online SNR calculation #####################
 #################################################################
@@ -966,6 +937,35 @@ def caiman_SNR(xs, ys, source='raw', verbose=False):
         print(source, f'snr: {snr:.5f}', f'noise: {sn:.5f}', f'sigpower: {sigpower:.5f}',
               f'putative power: {(np.mean(np.square(ys-bl))-sn**2):.5f}')
     return snr
+
+
+def online_SNR_single_session(folder, animal, day, out):
+    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    with h5py.File(dayfile, 'r') as session:
+        outpath = os.path.join(out, animal, day)
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        Nens = session['online_data'].shape[1] - 2
+        od = session['online_data']
+        frame = np.array(od[:, 1]).astype(np.int32) // 6
+        datamat = np.array(od[:, 2:])
+        Tdf = frame[-1] + 1
+        SNRs = []
+        for i in range(Nens):
+            data = datamat[:, i].values
+            sclean = ~np.isnan(data)
+            f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+            all_online_frames = np.arange(Tdf)
+            interp_online = f(all_online_frames)
+            SNRs.append(caiman_SNR(all_online_frames, interp_online))
+        try:
+            with h5py.File(os.path.join(outpath, 'onlineSNR.hdf5'), 'w-') as osnr:
+                osnr['SNR_ens'] = np.around(SNRs, 4)
+        except IOError:
+            print(" OOPS!: The file already existed please try with another file, "
+                  "new results will NOT be saved")
 
 
 if __name__ == '__main__':

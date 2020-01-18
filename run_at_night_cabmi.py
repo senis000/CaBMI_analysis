@@ -38,8 +38,8 @@ def tonightSNR_uzsh():
 
 
 def tonight_online_SNR_uzsh():
-    folder = ''
-    out = ''
+    folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/processed/'
+    out = '/media/user/Seagate Backup Plus Drive/Nuria_data/CaBMI/Layer_project/onlineSNR/'
     if not os.path.exists(out):
         os.makedirs(out)
     err_file = open(os.path.join(out, "errlog.txt"), 'a+')
