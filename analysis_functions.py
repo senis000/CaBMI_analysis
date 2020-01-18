@@ -607,6 +607,8 @@ def extract_clean_dff(A, C, B, F, raw=True):
 def MF_infer_f0(A, C, B, Yr, efficient=True):
     # A, C, B, Yr numpy arrays of the same orders
     B_inv = np.linalg.inv(B.T @ B)
+    if B.shape[0] != A.shape[0]:
+        A = A.T
     if efficient:
         return B_inv @ (B.T @ Yr - (B.T @ A) @ C)
     else:
@@ -669,7 +671,7 @@ def compute_SNR_from_traces(A, C, b, f, Yr, pix, fr=4, decay_time=0.4, gSig=(3, 
 
 def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256, decay_time=0.4,
                        gSig=(3, 3), min_SNR=2.5, rval_thr=0.8, cnn_thr=0.8, block_size=5000,
-                       num_blocks_per_run=20, dview=None, ORDER='F'):
+                       num_blocks_per_run=20, dview=None, baseline=True, motion=True, ORDER='F'):
     """Given single plane [tiff fnames] and hfile, get SNR_comp"""
 
     # Params
@@ -689,44 +691,50 @@ def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256,
         B = np.array(hf['b'])
     else:
         hf = hfile
-        B = np.array(hfile['base_im']).reshape((-1, 4), order=ORDER)
+        b = hfile['base_im']
+        B = np.array(hfile['base_im']).reshape((-1, b.shape[-1]), order=ORDER)
     A = load_A(hfile)
+    if A.shape[0] != B.shape[0]:
+        A = A.T
     C = np.array(hf['C'])
     first_file = fnames[0]
     if isinstance(fnames, np.ndarray):
         Yr, p = fnames, pixel
     elif '.mmap' in first_file or '.tif' in first_file:
-        print('***************Starting motion correction*************')
-        print('files:')
-        print(fnames)
+        if motion:
+            print('***************Starting motion correction*************')
+            print('files:')
+            print(fnames)
 
-        # %%% MOTION CORRECTION
-        # first we create a motion correction object with the parameters specified
-        min_mov = cm.load(fnames[0]).min()
-        # this will be subtracted from the movie to make it non-negative
+            # %%% MOTION CORRECTION
+            # first we create a motion correction object with the parameters specified
+            min_mov = cm.load(fnames[0]).min()
+            # this will be subtracted from the movie to make it non-negative
 
-        mc = MotionCorrect(fnames, min_mov,
-                           dview=dview, max_shifts=max_shifts, niter_rig=niter_rig,
-                           splits_rig=splits_rig,
-                           strides=strides, overlaps=overlaps, splits_els=splits_els,
-                           upsample_factor_grid=upsample_factor_grid,
-                           max_deviation_rigid=max_deviation_rigid,
-                           shifts_opencv=True, nonneg_movie=True)
-        # note that the file is not loaded in memory
+            mc = MotionCorrect(fnames, min_mov,
+                               dview=dview, max_shifts=max_shifts, niter_rig=niter_rig,
+                               splits_rig=splits_rig,
+                               strides=strides, overlaps=overlaps, splits_els=splits_els,
+                               upsample_factor_grid=upsample_factor_grid,
+                               max_deviation_rigid=max_deviation_rigid,
+                               shifts_opencv=True, nonneg_movie=True)
+            # note that the file is not loaded in memory
 
-        # %% Run piecewise-rigid motion correction using NoRMCorre
-        mc.motion_correct_pwrigid(save_movie=True)
-        bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
-                                         np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
-        print('***************Motion correction has ended*************')
-        # maximum shift to be used for trimming against NaNs
+            # %% Run piecewise-rigid motion correction using NoRMCorre
+            mc.motion_correct_pwrigid(save_movie=True)
+            bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
+                                             np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
+            print('***************Motion correction has ended*************')
+            # maximum shift to be used for trimming against NaNs
 
-        # %% MEMORY MAPPING
-        # memory map the file in order 'C'
-        fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
-        # TODO: check for .mmap file loading
-        fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
-                               border_to_0=bord_px_els)  # exclude borders
+            # %% MEMORY MAPPING
+            # memory map the file in order 'C'
+            fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
+            # TODO: check for .mmap file loading
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
+                                   border_to_0=bord_px_els)  # exclude borders
+        else:
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C')
 
         # now load the file
         Yr, dims, T = cm.load_memmap(fname_new)
@@ -734,12 +742,20 @@ def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256,
     else:
         raise NotImplementedError("currently only supports mmap, tif, and numpy array")
 
-    Fhat = MF_infer_f0(A, C, B, Yr)
-    SNR_comp = compute_SNR_from_traces(A, C, B, Fhat, Yr, p, fr=fr, decay_time=decay_time, gSig=gSig,
+    Fhat = MF_infer_f0(A, C[:, :T], B, Yr)  
+
+    SNR_comp = compute_SNR_from_traces(A, C[:, :T], B, Fhat, Yr, p, fr=fr, decay_time=decay_time, gSig=gSig,
                                        min_SNR=min_SNR, rval_thr=rval_thr, cnn_thr=cnn_thr,
                                        block_size=block_size, num_blocks_per_run=num_blocks_per_run,
                                        dview=dview)
-    return SNR_comp
+    if baseline:
+        blen = 9000
+        SNR_comp_base = compute_SNR_from_traces(A, C[:, :blen], B, Fhat[:, :blen], Yr[:, :blen], p, fr=fr, decay_time=decay_time, gSig=gSig,
+                                           min_SNR=min_SNR, rval_thr=rval_thr, cnn_thr=cnn_thr,
+                                           block_size=block_size, num_blocks_per_run=num_blocks_per_run,
+                                           dview=dview)
+        return SNR_comp, SNR_comp_base, Fhat
+    return SNR_comp, Fhat
 
 
 def calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_planes=4):
@@ -763,7 +779,9 @@ def calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_plan
 
     print('*************Starting with analysis*************')
     SNR_mats = []
+    SNR_basemats = []
     planes = []
+    fHats = []
 
     for plane in np.arange(number_planes):
         fnames = []
@@ -780,8 +798,10 @@ def calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_plan
         hf = h5py.File(folder + 'raw/' + animal + '/' + day + '/' + 'bmi_' +  '_' + str(plane) + '.hdf5', 'r')
 
         print(fnames)
-        SNRcomps = estimate_SNR_hfile(fnames, hf, fr)
+        SNRcomps, SNR_comp_base, fHat = estimate_SNR_hfile(fnames, hf, fr)
         SNR_mats.append(SNRcomps)
+        SNR_basemats.append(SNR_comp_base)
+        fHats.append(fHat)
         planes = planes + len(SNRcomps) * [plane]
         hf.close()
         print('SNR done: saving ... plane: ' + str(plane))
@@ -789,7 +809,9 @@ def calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_plan
     print('... done')
     try:
         with h5py.File(snr_out, 'w-') as snrhf:
-            snrhf['SNR'] = SNRcomps
+            snrhf['SNR'] = np.concatenate(SNR_mats)
+            snrhf['SNR_baseline'] = np.concatenate(SNR_basemats)
+            snrhf['F_hat'] = np.vstack(fHats)
             snrhf['plane'] = planes
     except IOError:
         print(" OOPS!: The file already existed ease try with another file, new results will NOT be saved")
