@@ -5,47 +5,62 @@ __author__ = 'Nuria'
 
 # C++ extension for data acquisition
 
-import time
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-import sklearn
-import pdb
+# system
 import sys
-import shutil, traceback
-import pandas as pd
-import seaborn as sns
+import h5py
 import os, re
+import time
 import math
 import random
-import scipy
 import copy
+import shutil, traceback
+import multiprocessing as mp
+
+# data
 from skimage import io
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.axes_grid1 import host_subplot
-from matplotlib.ticker import MultipleLocator
+import numpy as np
+import pandas as pd
+import scipy
 from scipy import stats
+from scipy import interpolate
 from scipy.stats.mstats import zscore
 from scipy.signal import correlate
+import sklearn
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from matplotlib import interactive
-from pipeline import separate_planes, separate_planes_multiple_baseline
-import utils_cabmi as ut
-from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename, load_A, load_Yr
-from preprocessing import get_roi_type
-import multiprocessing as mp
+
+# caiman
 try:
     import caiman as cm
     from caiman.motion_correction import MotionCorrect
     from caiman.components_evaluation import estimate_components_quality_auto
+    from caiman.source_extraction.cnmf.deconvolution import constrained_foopsi
 except ModuleNotFoundError:
     print("CaImAn not installed or environment not activated, certain functions might not be usable")
-from utils_loading import path_prefix_free, file_folder_path
-PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
+
+# plotting
+import pdb
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1 import host_subplot
+from matplotlib.ticker import MultipleLocator
+try:
+    import seaborn as sns
+    PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
+except ModuleNotFoundError:
+    print('seaborn not installed')
+from matplotlib import interactive
 interactive(True)
+
+# utils
+import utils_cabmi as ut
+from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename, load_A
+from utils_loading import path_prefix_free, file_folder_path
+from utils_cabmi import std_filter, median_filter
+from pipeline import separate_planes, separate_planes_multiple_baseline
+from preprocessing import get_roi_type
 
 
 def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
@@ -841,7 +856,7 @@ def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
         err_file.write("{}\n".format(str(e.args)))
         traceback.print_tb(tb, file=err_file)
         err_file.close()
-        sys.exit('Error in analyze raw')
+        sys.exit('Error in SNR calculation')
 
     try:
         shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
@@ -849,6 +864,86 @@ def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
         print("Error: %s - %s." % (e.filename, e.strerror))
 
     err_file.close()
+
+
+def online_SNR_single_session(folder, animal, day, out):
+    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    with h5py.File(dayfile, 'r') as session:
+        outpath = os.path.join(out, animal, day)
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        Nens = session['online_data'].shape[1] - 2
+        od = session['online_data']
+        frame = np.array(od[:, 1]).astype(np.int32) // 6
+        datamat = np.array(od[:, 2:])
+        Tdf = frame[-1] + 1
+        SNRs = []
+        for i in range(Nens):
+            data = datamat[:, i].values
+            sclean = ~np.isnan(data)
+            f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+            all_online_frames = np.arange(Tdf)
+            interp_online = f(all_online_frames)
+            SNRs.append(caiman_SNR(all_online_frames, interp_online))
+        try:
+            with h5py.File(os.path.join(outpath, 'onlineSNR.hdf5'), 'w-') as osnr:
+                osnr['SNR_ens'] = np.around(SNRs, 4)
+        except IOError:
+            print(" OOPS!: The file already existed ease try with another file, "
+                  "new results will NOT be saved")
+
+
+#################################################################
+#################### online SNR calculation #####################
+#################################################################
+def f0_filter_sig(xs, ys, method=2, width=30):
+    """
+    Return:
+        dff: np.ndarray (T, 2)
+            col0: dff
+            col1: boundary scale for noise level
+    """
+    if method < 10:
+        mf, mDC = median_filter(width, method)
+    else:
+        mf, mDC = std_filter(width, method%10, buffer=True)
+    dff = np.array([(mf(ys, i), mDC.get_dev()) for i in range(len(ys))])
+    return dff
+
+
+def calcium_dff(xs, ys, method=2, width=30):
+    f0 =f0_filter_sig(xs, ys, method=method, width=width)[:, 0]
+    return (ys-f0) / f0
+
+
+def caiman_SNR(xs, ys, source='raw', verbose=False):
+    """
+    method: str
+        raw: raw caiman SNR
+        dff: feed dff to caiman
+        dbl: specify baseline in foopsi
+        df: feed filtered signal to caiman
+    """
+    if source == 'raw':
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys, p=2)
+    elif source == 'dff':
+        dff = calcium_dff(xs, ys)
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(dff, p=2)
+    elif source == 'dbl':
+        bl0 = f0_filter_sig(xs, ys)[:, 0]
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys, bl=bl0, p=2)
+    elif source == 'df':
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys-f0_filter_sig(xs, ys)[:, 0], p=2)
+    else:
+        raise NotImplementedError(f"source method {source} not recognized")
+    sigpower = np.mean(np.square(c))
+    snr = sigpower / (sn ** 2)
+    if verbose:
+        print(source, f'snr: {snr:.5f}', f'noise: {sn:.5f}', f'sigpower: {sigpower:.5f}',
+              f'putative power: {(np.mean(np.square(ys-bl))-sn**2):.5f}')
+    return snr
 
 
 if __name__ == '__main__':

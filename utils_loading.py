@@ -91,10 +91,17 @@ def parse_group_dict(folder, group_dict, opt):
     return group_dict
 
 
+def get_all_animals(folder):
+    return [d for d in os.listdir(folder) if d[1] == 'T'
+            and os.path.isdir(os.path.join(folder, d))]
+
+
 def encode_to_filename(path, animal, day, hyperparams=None):
     dirs = path.split('/')
     k = -1
     category = None
+    if day[-5] == '.hdf5':
+        return os,path.join(path, animal, day)
     while True:
         curr = dirs[k]
         if curr == '':
@@ -103,7 +110,10 @@ def encode_to_filename(path, animal, day, hyperparams=None):
             category = curr
             break
     if category == 'processed':
-        template = "full_{}_{}__data.hdf5"
+        if hyperparams == 'SNR':
+            template = 'SNR_{}_{}.hdf5'
+        else:
+            template = "full_{}_{}__data.hdf5"
     elif category == 'IBI':
         template = "IBI_{}_{}_" + hyperparams + ".hdf5"
     else:
@@ -206,7 +216,10 @@ def load_A(hf):
     data = A['data']
     indices = A['indices']
     indptr = A['indptr']
-    return csc_matrix((data, indices, indptr), A['shape'])
+    if 'shape' in A:
+        return csc_matrix((data, indices, indptr), A['shape'])
+    else:
+        return csc_matrix((data, indices, indptr))
 
 
 def load_all(hf):
@@ -216,7 +229,7 @@ def load_all(hf):
         hf['dff']), np.array(hf['snr'])
 
 
-def load_Yr(tf, nplanes=1, used_planes=1, ret_shape=False, ORDER='F'):
+def load_Yr(tf, T, nplanes=1, used_planes=1, ret_shape=False, ORDER='F'):
     rf = tifffile.TiffFile(tf)
     shp = rf.pages[0].shape[0]
     if nplanes == 1:
