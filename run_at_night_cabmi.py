@@ -7,7 +7,8 @@ import numpy as np
 import imp
 import shutil, os
 import sys, traceback
-from analysis_functions import all_run_SNR, calc_SNR_all_planes, online_SNR_single_session
+from analysis_functions import all_run_SNR, calc_SNR_all_planes, \
+    online_SNR_single_session, dff_SNR_single_session
 from utils_loading import get_all_animals, decode_from_filename
 
 
@@ -37,7 +38,7 @@ def tonightSNR_uzsh():
             print("Error: %s - %s." % (e.filename, e.strerror))
 
 
-def tonight_online_SNR_uzsh():
+def tonight_dff_SNR_uzsh():
     folder = "/Volumes/DATA_01/NL/layerproject/processed/"
     out = '/Users/albertqu/Documents/7.Research/BMI/onlineSNR/'
     if not os.path.exists(out):
@@ -52,7 +53,7 @@ def tonight_online_SNR_uzsh():
             elif not day.isnumeric():
                 continue
             try:
-                online_SNR_single_session(folder, animal, d, out)
+                dff_SNR_single_session(folder, animal, d, out)
             except Exception as e:
                 tb = sys.exc_info()[2]
                 err_file.write(f"\n{animal}, {day}\n")
@@ -60,6 +61,7 @@ def tonight_online_SNR_uzsh():
                 traceback.print_tb(tb, file=err_file)
             print('done', animal, day)
     err_file.close()
+
 
 def tonight():
 #     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))

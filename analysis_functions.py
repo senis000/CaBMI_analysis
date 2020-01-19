@@ -971,6 +971,39 @@ def online_SNR_single_session(folder, animal, day, out):
                   "new results will NOT be saved")
 
 
+def dff_SNR_single_session(folder, animal, day, out):
+    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    outpath = os.path.join(out, animal, day)
+    targetfile = os.path.join(outpath, f'dffSNR_{animal}_{day}.hdf5')
+    if os.path.exists(targetfile):
+        print(f'{animal} {day} already done, skipping...')
+    with h5py.File(dayfile, 'r') as session:
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        dff = np.array(session['dff'])
+        Nneur = dff.shape[0]
+        T = dff.shape[1]
+        frame = np.arange(T)
+        SNRs = np.empty(Nneur, dtype=np.float64)
+        for i in range(Nneur):
+            data = dff[i, :]
+            sclean = ~np.isnan(data)
+            if sum(sclean) != T:
+                f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+                trace = f(frame)
+            else:
+                trace = data
+            SNRs[i] = caiman_SNR(frame, trace)
+        try:
+            with h5py.File(targetfile, 'w-') as osnr:
+                osnr['SNR_ens'] = np.around(SNRs, 4)
+        except IOError:
+            print(" OOPS!: The file already existed please try with another file, "
+                  "new results will NOT be saved")
+
+
 if __name__ == '__main__':
     home = "/home/user/"
     #processed = os.path.join(home, "CaBMI_analysis/processed/")
