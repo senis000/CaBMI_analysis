@@ -100,8 +100,8 @@ def encode_to_filename(path, animal, day, hyperparams=None):
     dirs = path.split('/')
     k = -1
     category = None
-    if day[-5] == '.hdf5':
-        return os,path.join(path, animal, day)
+    if day[-5:] == '.hdf5':
+        return os.path.join(path, animal, day)
     while True:
         curr = dirs[k]
         if curr == '':
@@ -130,6 +130,8 @@ def encode_to_filename(path, animal, day, hyperparams=None):
 
 def decode_from_filename(filename):
     fname = path_prefix_free(filename)
+    if fname[-5:] == '.hdf5':
+        fname = fname[:-5]
     opts = fname.split('_')
     return opts[1], opts[2]
 

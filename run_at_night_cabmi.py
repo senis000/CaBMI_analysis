@@ -38,28 +38,28 @@ def tonightSNR_uzsh():
 
 
 def tonight_online_SNR_uzsh():
-    folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/processed/'
-    out = '/media/user/Seagate Backup Plus Drive/Nuria_data/CaBMI/Layer_project/onlineSNR/'
+    folder = "/Volumes/DATA_01/NL/layerproject/processed/"
+    out = '/Users/albertqu/Documents/7.Research/BMI/onlineSNR/'
     if not os.path.exists(out):
         os.makedirs(out)
-    err_file = open(os.path.join(out, "errlog.txt"), 'a+')
+    err_file = open(os.path.join(out, "errlog.txt"), 'w')
     for animal in get_all_animals(folder):
+    # for animal in ['IT10']:
         animal_path = os.path.join(folder, animal)
         for day in os.listdir(animal_path):
-            if day[:-5] == '.hdf5':
+            if day[-5:] == '.hdf5':
                 _, d = decode_from_filename(day)
             elif not day.isnumeric():
                 continue
             try:
-                online_SNR_single_session(folder, animal, day, out)
+                online_SNR_single_session(folder, animal, d, out)
             except Exception as e:
                 tb = sys.exc_info()[2]
                 err_file.write(f"\n{animal}, {day}\n")
                 err_file.write("{}\n".format(str(e.args)))
                 traceback.print_tb(tb, file=err_file)
-                err_file.close()
-                sys.exit('Error in separate planes')
-
+            print('done', animal, day)
+    err_file.close()
 
 def tonight():
 #     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))

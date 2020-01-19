@@ -943,8 +943,11 @@ def online_SNR_single_session(folder, animal, day, out):
     # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
     dayfile = encode_to_filename(folder, animal, day)
     print(f'processing {dayfile}')
+    outpath = os.path.join(out, animal, day)
+    targetfile = os.path.join(outpath, f'onlineSNR_{animal}_{day}.hdf5')
+    if os.path.exists(targetfile):
+        print(f'{animal} {day} already done, skipping...')
     with h5py.File(dayfile, 'r') as session:
-        outpath = os.path.join(out, animal, day)
         if not os.path.exists(outpath):
             os.makedirs(outpath)
         Nens = session['online_data'].shape[1] - 2
@@ -954,14 +957,14 @@ def online_SNR_single_session(folder, animal, day, out):
         Tdf = frame[-1] + 1
         SNRs = []
         for i in range(Nens):
-            data = datamat[:, i].values
+            data = datamat[:, i]
             sclean = ~np.isnan(data)
             f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
             all_online_frames = np.arange(Tdf)
             interp_online = f(all_online_frames)
             SNRs.append(caiman_SNR(all_online_frames, interp_online))
         try:
-            with h5py.File(os.path.join(outpath, 'onlineSNR.hdf5'), 'w-') as osnr:
+            with h5py.File(targetfile, 'w-') as osnr:
                 osnr['SNR_ens'] = np.around(SNRs, 4)
         except IOError:
             print(" OOPS!: The file already existed please try with another file, "

@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import h5py, os
 from utils_loading import path_prefix_free, file_folder_path, get_PTIT_over_days, \
-    parse_group_dict, encode_to_filename, find_file_regex
+    parse_group_dict, encode_to_filename, find_file_regex, get_all_animals, decode_from_filename
 from utils_cabmi import median_absolute_deviation
 import csv
 import multiprocessing as mp
@@ -317,6 +317,27 @@ def digitize_calcium_all(folder, groups, source, ns, nproc=1):
                             [(processed, animal, all_files[animal], source, n) for animal in all_files])
         with open("dCalcium_n_{}.txt".format(n)) as f:
             f.write("done")
+
+
+def move_typhos(folder):
+    # check date in micelog
+    for animal in get_all_animals(folder):
+        animal_path = os.path.join(folder, animal)
+        for day in os.listdir(animal_path):
+            if day[-5:] == '.hdf5':
+                _, d = decode_from_filename(day)
+                daydir = os.path.join(animal_path, d)
+                if not os.path.exists(daydir):
+                    os.makedirs(daydir)
+                os.rename(os.path.join(animal_path, day), os.path.join(daydir, day))
+            elif day.isnumeric():
+                daypath = os.path.join(animal_path, day)
+                for f in os.listdir(daypath):
+                    if f == 'onlineSNR.hdf5':
+                        os.rename(os.path.join(daypath, f), os.path.join(daypath,
+                                                                         f'onlineSNR_{animal}_{day}.hdf5'))
+
+
 
 if __name__ == '__main__':
     home = "/home/user/"
