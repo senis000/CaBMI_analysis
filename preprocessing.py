@@ -338,7 +338,6 @@ def move_typhos(folder):
                                                                          f'onlineSNR_{animal}_{day}.hdf5'))
 
 
-
 if __name__ == '__main__':
     home = "/home/user/"
     digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])

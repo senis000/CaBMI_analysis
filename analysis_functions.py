@@ -1004,6 +1004,7 @@ def dff_SNR_single_session(folder, animal, day, out):
                   "new results will NOT be saved")
 
 
+
 if __name__ == '__main__':
     home = "/home/user/"
     #processed = os.path.join(home, "CaBMI_analysis/processed/")

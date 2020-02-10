@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.stats import zscore
 import matplotlib.pyplot as plt
-from utils_loading import encode_to_filename, parse_group_dict
+from utils_loading import encode_to_filename, parse_group_dict, get_all_animals, decode_from_filename
 
 
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
@@ -103,7 +103,6 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
     return results
 
 
-
 def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=None,
                      nonstop=True, PROBELEN=1000):
     # TODO: SO FAR assume map_async does not have a callback, also assuming __main__ is not mandatory
@@ -174,6 +173,43 @@ def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=No
     except (KeyboardInterrupt, FileNotFoundError) as e:
         if csvout is not None:
             csvf.close()
+
+
+def caiman_dff_check(folder, out):
+    if not os.path.exists(out):
+        os.makedirs(out)
+    allrows = None
+    for animal in sorted(get_all_animals(folder)):
+        animal_path = os.path.join(folder, animal)
+        for day in sorted(os.listdir(animal_path)):
+            if day[-5:] == '.hdf5':
+                _, d = decode_from_filename(day)
+            elif not day.isnumeric():
+                continue
+            else:
+                d = day
+            try:
+                with h5py.File(encode_to_filename(folder, animal, d), 'r') as hf:
+                    nans = np.sum(np.any(np.isnan(hf['dff']), axis=1))
+            except OSError as e:
+                nans = np.nan
+            print(animal, d)
+            if allrows is None:
+                allrows = np.array([[animal, d, nans]])
+            else:
+                allrows = np.vstack((allrows, [animal, d, nans]))
+    pdf = pd.DataFrame(allrows, columns=['animal', 'day', '#nans'])
+    pdf.to_csv(os.path.join(out, 'caiman_dff_quality.csv'))
+
+
+#############################################################
+#################### caiman issue debug #####################
+#############################################################
+def query_nans_issue(fil, normal, wheres):
+    plt.plot(fil['com_cm'][:, 2])
+    plt.scatter(normal, np.zeros_like(normal), s=0.2)
+    plt.scatter(wheres, np.zeros_like(wheres), s=0.2)
+    plt.show()
 
 
 if __name__ == '__main__':
