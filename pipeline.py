@@ -167,14 +167,20 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
       
     print('loading image...')
     ims = tifffile.TiffFile(ffull[0])
-    len_im = int(len(ims.pages)/number_planes_total)
-    dims = [len_im] + list(ims.pages[0].shape)  
+    LEN_IM = int(len(ims.pages)/number_planes_total)
+    dims = [LEN_IM] + list(ims.pages[0].shape)
     print('Image loaded')
     
-    num_files = int(np.ceil(len_im/lim_bf))
-    
-    for plane in np.arange(number_planes):
-        len_im = int(len(ims.pages)/number_planes_total)
+    num_files = int(np.ceil(LEN_IM/lim_bf))
+
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
+
+
+    for plane in plane_iters:
+        len_im = LEN_IM
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -207,8 +213,8 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
 
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(number_planes):
-        len_im = int(len(ims.pages)/number_planes_total)
+    for plane in plane_iters:
+        len_im = LEN_IM
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -229,7 +235,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
             except OSError as e:  ## if failed, report it back to the user ##
                 print ("Error: %s - %s." % (e.filename, e.strerror))
     
-    len_im = int(len(ims.pages)/number_planes_total)
+    len_im = LEN_IM
     del ims
     
     err_file.close()
@@ -278,8 +284,13 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
     dims = dims1 + np.asarray([dims2[0], 0, 0])
     len_im = copy.deepcopy(int(dims[0]))
     num_files = int(np.ceil(len_im/lim_bf))
+
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
     
-    for plane in np.arange(number_planes):
+    for plane in plane_iters:
         first_images_left = int(dims1[0])
         len_im = int(dims[0])
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
@@ -315,7 +326,7 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
             del big_file
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(number_planes):
+    for plane in plane_iters:
         len_im = int(dims[0])
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):

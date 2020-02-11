@@ -5,6 +5,7 @@ import numpy as np
 from scipy.stats import zscore
 import matplotlib.pyplot as plt
 from utils_loading import encode_to_filename, parse_group_dict, get_all_animals, decode_from_filename
+from pipeline import *
 
 
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
@@ -205,13 +206,28 @@ def caiman_dff_check(folder, out):
 #############################################################
 #################### caiman issue debug #####################
 #############################################################
-def query_nans_issue(folder, animal, day, out=None):
+def query_nans_issue(folder, animal, day, out=None, dffnans=None):
     rawf = os.path.join(folder, 'raw')
     processedf = os.path.join(folder, 'processed')
+    if dffnans is not None:
+        print(animal, day, file=dffnans)
+    else:
+        print(animal, day)
+    for i in range(4):
+        with h5py.File(os.path.join(rawf, animal, day, f'bmi__{i}.hdf5'), 'r') as hf:
+            if dffnans is not None:
+                print(i, hf['dff'].shape[0], file=dffnans)
+            else:
+                print(i, hf['dff'].shape[0])
+
     with h5py.File(encode_to_filename(processedf, animal, day), 'r') as processed:
         nans = np.any(np.isnan(processed['dff']), axis=1)
         normal = ~nans
         nans, normal = np.where(nans)[0], np.where(normal)[0]
+        if dffnans is not None:
+            print('#nans:', len(nans), file=dffnans)
+        else:
+            print('#nans:', len(nans))
         plt.figure(figsize=(15, 15))
         plt.plot(processed['com_cm'][:, 2])
         plt.scatter(normal, np.zeros_like(normal), s=0.2)
@@ -222,7 +238,7 @@ def query_nans_issue(folder, animal, day, out=None):
             plt.show()
 
 
-def session_nan_test():
+def session_nan_test(folder, out=None):
     sessions = [('PT7', '181211'),
                 ('IT5', '190129'),
                 ('PT9', '181219'),
@@ -230,10 +246,14 @@ def session_nan_test():
                 ('IT2', '181001'),
                 ('PT6', '181126'),
                 ('PT9', '181128')]
+    rawf = os.path.join(folder, 'raw')
+    processedf = os.path.join(folder, 'processed')
+    dffnans = open(os.path.join(processedf, 'dffnans.txt'), 'w+')
+    for a, d in sessions:
+        query_nans_issue(folder, a, d, out=out, dffnans=dffnans)
 
 
 def single_dff_nan_test():
-    from pipeline import *
     folder ="/media/user/Seagate Backup Plus Drive/Nuria_data/CaBMI/Layer_project/"
     animal = 'IT5'
     day = '190129'
@@ -242,13 +262,28 @@ def single_dff_nan_test():
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
     if not os.path.exists(folder_final):
         os.makedirs(folder_final)
-    
-    finfo = folder_path +  'wmat.mat'  #file name of the mat 
+
+    finfo = folder_path + 'wmat.mat'  # file name of the mat
     matinfo = scipy.io.loadmat(finfo)
-    ffull = [folder_path + matinfo['fname'][0]]            # filename to be processed
+    ffull = [folder_path + matinfo['fname'][0]]  # filename to be processed
     fbase = [folder_path + matinfo['fbase'][0]]
-    number_planes=4
-    number_planes_total=6
+    number_planes = 4
+    number_planes_total = 6
+
+    try:
+        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes,
+                                             number_planes_total)
+        num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes,
+                                                number_planes_total)
+    except Exception as e:
+        tb = sys.exc_info()[2]
+        err_file.write("\n{}\n".format(folder_path))
+        err_file.write("{}\n".format(str(e.args)))
+        traceback.print_tb(tb, file=err_file)
+        err_file.close()
+        sys.exit('Error in separate planes')
+    
+
     num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes, number_planes_total)
     num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
     dend=False; display_images=True
@@ -283,7 +318,6 @@ def single_dff_nan_test():
         f = h5py.File(folder + 'raw/' + animal + '/' + day + '/' + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'w-')
     except IOError:
         print(" OOPS!: The file already existed ease try with another file, new results will NOT be saved")
-        continue 
         
     zval = calculate_zvalues(folder, plane)
     print(fnames)
