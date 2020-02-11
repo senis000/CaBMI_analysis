@@ -1386,7 +1386,6 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
         F_dff = cnm2.estimates.C * np.nan
         print ('WHAAT went wrong again?')
     
-    
     print ('***************stopping cluster*************')
     #%% STOP CLUSTER and clean up log files
     #cm.stop_server(dview=dview)
