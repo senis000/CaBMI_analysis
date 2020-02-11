@@ -205,11 +205,31 @@ def caiman_dff_check(folder, out):
 #############################################################
 #################### caiman issue debug #####################
 #############################################################
-def query_nans_issue(fil, normal, wheres):
-    plt.plot(fil['com_cm'][:, 2])
-    plt.scatter(normal, np.zeros_like(normal), s=0.2)
-    plt.scatter(wheres, np.zeros_like(wheres), s=0.2)
-    plt.show()
+def query_nans_issue(folder, animal, day, out=None):
+    rawf = os.path.join(folder, 'raw')
+    processedf = os.path.join(folder, 'processed')
+    with h5py.File(encode_to_filename(processedf, animal, day), 'r') as processed:
+        nans = np.any(np.isnan(processed['dff']), axis=1)
+        normal = ~nans
+        nans, normal = np.where(nans)[0], np.where(normal)[0]
+        plt.figure(figsize=(15, 15))
+        plt.plot(processed['com_cm'][:, 2])
+        plt.scatter(normal, np.zeros_like(normal), s=0.2)
+        plt.scatter(nans, np.zeros_like(nans), s=0.2)
+        if out is not None:
+            plt.savefig(os.path.join(out, f'plane_depth2_nan_{animal}_{day}.png'))
+        else:
+            plt.show()
+
+
+def session_nan_test():
+    sessions = [('PT7', '181211'),
+                ('IT5', '190129'),
+                ('PT9', '181219'),
+                ('PT6', '181128'),
+                ('IT2', '181001'),
+                ('PT6', '181126'),
+                ('PT9', '181128')]
 
 
 if __name__ == '__main__':
