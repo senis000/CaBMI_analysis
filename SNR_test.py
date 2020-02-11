@@ -1,18 +1,22 @@
 import numpy as np
-import caiman as cm
 import tifffile, os, h5py, time
 from skimage import io
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 from scipy.sparse import csc_matrix
 from collections.abc import Iterable
-from utils_loading import file_folder_path
-from caiman.source_extraction.cnmf import cnmf as cnmf
-from caiman.source_extraction.cnmf.estimates import Estimates
-from caiman.source_extraction.cnmf.params import CNMFParams
-from caiman.source_extraction.cnmf import online_cnmf
-from caiman.motion_correction import MotionCorrect
-from caiman.source_extraction.cnmf.utilities import detrend_df_f
-from caiman.components_evaluation import estimate_components_quality_auto
+from utils_loading import file_folder_path, get_all_animals, decode_from_filename
+try:
+    import caiman as cm
+    from caiman.source_extraction.cnmf import cnmf as cnmf
+    from caiman.source_extraction.cnmf.estimates import Estimates
+    from caiman.source_extraction.cnmf.params import CNMFParams
+    from caiman.source_extraction.cnmf import online_cnmf
+    from caiman.motion_correction import MotionCorrect
+    from caiman.source_extraction.cnmf.utilities import detrend_df_f
+    from caiman.components_evaluation import estimate_components_quality_auto
+except ModuleNotFoundError:
+    print("please activate caiman environment first")
+import matplotlib.pyplot as plt
 
 
 def load_A(hf):
@@ -326,6 +330,49 @@ def SNR_quality_test(path, animal, day):
         cmlen = len(cmsnr)
         print('corr', np.corrcoef(cmsnr, hf0['SNR'][counter:counter+cmlen])[0, 1])
         counter += cmlen
+
+
+def SNR_quality_test_all(folder):
+    allcorrs = {}
+    for animal in get_all_animals(folder):
+    # for animal in ['IT10']:
+        animal_path = os.path.join(folder, animal)
+        for day in os.listdir(animal_path):
+            if day[-5:] == '.hdf5':
+                _, d = decode_from_filename(day)
+            elif not day.isnumeric():
+                continue
+            else:
+                d = day
+            target = os.path.join(folder, f"{animal}/{d}/dffSNR_{animal}_{d}.hdf5")
+            if not os.path.exists(target):
+                corr = np.inf
+            else:
+                dff = h5py.File(target, 'r')
+                hf = h5py.File(os.path.join(folder, f"{animal}/{d}/full_{animal}_{d}__data.hdf5"), 'r')
+                if dff['SNR_ens'].shape[0] != hf['SNR'].shape[0]:
+                    corr = np.nan
+                else:
+                    corr = np.corrcoef(dff['SNR_ens'], hf['SNR'])[0, 1]
+            if animal in allcorrs:
+                allcorrs[animal][d] = corr
+            else:
+                allcorrs[animal] = {d: corr}
+    savemat(os.path.join(folder, 'dffSNR_test.mat'), allcorrs)
+    allvals = np.array([allcorrs[a][d] for a in allcorrs for d in allcorrs[a]])
+    infwheres = np.where(np.isinf(allvals))[0]
+    nanwheres = np.where(np.isnan(allvals))[0]
+    plt.figure(figsize=(20, 10))
+    plt.scatter(np.arange(len(allvals)), allvals, label='correct')
+    plt.scatter(infwheres, np.zeros_like(infwheres), label='pipeline fail')
+    plt.scatter(nanwheres, np.zeros_like(nanwheres), label='dimension mismatch')
+    plt.title("SNR corr dff&caiman")
+    plt.xlabel("arbitrary axis (sessions)")
+    plt.ylabel("corrcoef (R pearson)")
+    plt.legend()
+    plt.savefig(os.path.join(folder, "dffSNR_test.png"))
+    plt.savefig(os.path.join(folder, "dffSNR_test.eps"))
+    plt.close()
 
 
 def caimanTestProcess1():

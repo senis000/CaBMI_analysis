@@ -5,7 +5,7 @@ import scipy
 from scipy.sparse import spdiags
 import scipy.ndimage.morphology as morph
 
-def detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=500,
+def detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=250,
                  flag_auto=True, use_fast=False):
     """ Compute DF/F signal without using the original data.
     In general much faster than extract_DF_F

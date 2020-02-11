@@ -39,8 +39,8 @@ def tonightSNR_uzsh():
 
 
 def tonight_dff_SNR_uzsh():
-    folder = "/Volumes/DATA_01/NL/layerproject/processed/"
-    out = '/Users/albertqu/Documents/7.Research/BMI/onlineSNR/'
+    folder = "/media/user/Seagate Backup Plus Drive/Nuria_data/CaBMI/Layer_project/processed/"
+    out = folder
     if not os.path.exists(out):
         os.makedirs(out)
     err_file = open(os.path.join(out, "errlog.txt"), 'w')
@@ -52,6 +52,8 @@ def tonight_dff_SNR_uzsh():
                 _, d = decode_from_filename(day)
             elif not day.isnumeric():
                 continue
+            else:
+                d = day
             try:
                 dff_SNR_single_session(folder, animal, d, out)
             except Exception as e:
