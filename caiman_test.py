@@ -285,8 +285,6 @@ def single_dff_nan_test():
         sys.exit('Error in separate planes')
     
 
-    num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes, number_planes_total)
-    num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
     dend=False; display_images=True
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
     finfo = folder + 'raw/' + animal + '/' + day + '/wmat.mat'  #file name of the mat 
