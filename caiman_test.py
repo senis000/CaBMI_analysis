@@ -236,6 +236,7 @@ def query_nans_issue(folder, animal, day, out=None, dffnans=None):
             plt.savefig(os.path.join(out, f'plane_depth2_nan_{animal}_{day}.png'))
         else:
             plt.show()
+        plt.close()
 
 
 def session_nan_test(folder, out=None):
