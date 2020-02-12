@@ -70,28 +70,35 @@ interactive(True)
 
 
 def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
-    """ 
+    """
     Function to run all the different functions of the pipeline that gives back the analyzed data
     Folder (str): folder where the input/output is/will be stored
     animal/day (str) to be analyzed
     number_planes (int): number of planes that carry information
     number_planes_total (int): number of planes given back by the recording system, it may differ from number_planes
     to provide time for the objective to return to origen"""
-    
+
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
     if not os.path.exists(folder_final):
         os.makedirs(folder_final)
-    
-    finfo = folder_path +  'wmat.mat'  #file name of the mat 
+
+    finfo = folder_path +  'wmat.mat'  #file name of the mat
     matinfo = scipy.io.loadmat(finfo)
     ffull = [folder_path + matinfo['fname'][0]]            # filename to be processed
-    fbase = [folder_path + matinfo['fbase'][0]] 
-    
+    fbase = [folder_path + matinfo['fbase'][0]]
+    fbase1 = [folder + 'raw/' + animal + '/' + day + '/' + 'baseline_00001.tif']
+    fbase2 = [folder + 'raw/' + animal + '/' + day + '/' + 'bmi_00000.tif']
+
     try:
-        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes, number_planes_total)
-        num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
+        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes,
+                                             number_planes_total)
+        if os.path.exists(fbase2[0]):
+            num_files_b, len_base = separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2,
+                                                                      number_planes=number_planes)
+        else:
+            num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
     except Exception as e:
         tb = sys.exc_info()[2]
         err_file.write("\n{}\n".format(folder_path))
@@ -99,8 +106,8 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in separate planes')
-        
-        
+
+
     nam = folder_path + 'readme.txt'
     readme = open(nam, 'w+')
     readme.write("num_files_b = " + str(num_files_b) + '; \n')
@@ -108,7 +115,7 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
     readme.write("len_base = " + str(len_base)+ '; \n')
     readme.write("len_bmi = " + str(len_bmi)+ '; \n')
     readme.close()
-       
+
     try:
         analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes, False)
     except Exception as e:
@@ -118,14 +125,14 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in analyze raw')
-        
+
     try:
         shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
     except OSError as e:
         print ("Error: %s - %s." % (e.filename, e.strerror))
 
-# This section is done nowadays in another computer to minimize time for analysis        
-#     try:  
+# This section is done nowadays in another computer to minimize time for analysis
+#     try:
 #         put_together(folder, animal, day, len_base, len_bmi, number_planes, number_planes_total)
 #     except Exception as e:
 #         tb = sys.exc_info()[2]
@@ -134,7 +141,7 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
 #         traceback.print_tb(tb, file=err_file)
 #         err_file.close()
 #         sys.exit('Error in put together')
-    
+
     err_file.close()
     
 
@@ -385,7 +392,12 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     print('*************Starting with analysis*************')
     neuron_mats = []
 
-    for plane in np.arange(number_planes):
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
+
+    for plane in plane_iters:
         dff_all = []
         neuron_act_all = []
         fnames = []

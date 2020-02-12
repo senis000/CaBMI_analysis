@@ -13,29 +13,46 @@ from utils_loading import get_all_animals, decode_from_filename
 
 
 def tonightSNR_uzsh():
-    folder = '/media/user/Seagate Backup Plus Drive/'
-    animal = 'IT5'
-    days = ['190212']
-    # all_run_SNR(folder, animal, days[0])
-     
-    for day in days:
-        folder_path = folder + 'raw/' + animal + '/' + day + '/'
-        err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
-        vars = imp.load_source('readme', folder_path + 'readme.txt')
-        try:
-            calc_SNR_all_planes(folder, animal, day, vars.num_files, vars.num_files_b, 4)
-        except Exception as e:
-            tb = sys.exc_info()[2]
-            err_file.write("\n{}\n".format(folder_path))
-            err_file.write("{}\n".format(str(e.args)))
-            traceback.print_tb(tb, file=err_file)
-            err_file.close()
-            sys.exit('Error in analyze raw')
-         
-        try:
-            shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
-        except OSError as e:
-            print("Error: %s - %s." % (e.filename, e.strerror))
+    # folder = '/media/user/Seagate Backup Plus Drive/'
+    # animal = 'IT5'
+    # days = ['190212']
+    # # all_run_SNR(folder, animal, days[0])
+    #
+    # for day in days:
+    #     folder_path = folder + 'raw/' + animal + '/' + day + '/'
+    #     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
+    #     vars = imp.load_source('readme', folder_path + 'readme.txt')
+    #     try:
+    #         calc_SNR_all_planes(folder, animal, day, vars.num_files, vars.num_files_b, 4)
+    #     except Exception as e:
+    #         tb = sys.exc_info()[2]
+    #         err_file.write("\n{}\n".format(folder_path))
+    #         err_file.write("{}\n".format(str(e.args)))
+    #         traceback.print_tb(tb, file=err_file)
+    #         err_file.close()
+    #         sys.exit('Error in analyze raw')
+    #
+    #     try:
+    #         shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
+    #     except OSError as e:
+    #         print("Error: %s - %s." % (e.filename, e.strerror))
+    folder = ""
+    sessions = [('PT7', '181211', 1),
+                ('IT5', '190129', 1),
+                ('PT9', '181219', 0),
+                ('PT6', '181128', 1),
+                ('IT2', '181001', 1),
+                ('PT6', '181126', 0),
+                ('PT9', '181128', 2)]
+    for a, d, p in sessions:
+        if a == 'PT7':
+            planes = [0, p]
+        else:
+            planes = [p]
+        fpath = os.path.join(folder, 'raw', a, d)
+        for pl in planes:
+            os.rename(os.path.join(fpath, f"bmi__{pl}.hdf5"), os.path.join(fpath, f"bmi__{pl}_old.hdf5"))
+        pipe.all_run(folder, a, d, number_planes=planes)
 
 
 def tonight_dff_SNR_uzsh():
