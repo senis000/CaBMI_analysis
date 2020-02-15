@@ -66,10 +66,11 @@ import copy
 from matplotlib import interactive
 import sys, traceback
 import imp
+import shutil
 interactive(True)
 
 
-def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
+def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=False):
     """
     Function to run all the different functions of the pipeline that gives back the analyzed data
     Folder (str): folder where the input/output is/will be stored
@@ -107,14 +108,14 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         err_file.close()
         sys.exit('Error in separate planes')
 
-
-    nam = folder_path + 'readme.txt'
-    readme = open(nam, 'w+')
-    readme.write("num_files_b = " + str(num_files_b) + '; \n')
-    readme.write("num_files = " + str(num_files)+ '; \n')
-    readme.write("len_base = " + str(len_base)+ '; \n')
-    readme.write("len_bmi = " + str(len_bmi)+ '; \n')
-    readme.close()
+    if fresh:
+        nam = folder_path + 'readme.txt'
+        readme = open(nam, 'w+')
+        readme.write("num_files_b = " + str(num_files_b) + '; \n')
+        readme.write("num_files = " + str(num_files)+ '; \n')
+        readme.write("len_base = " + str(len_base)+ '; \n')
+        readme.write("len_bmi = " + str(len_bmi)+ '; \n')
+        readme.close()
 
     try:
         analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes, False)
@@ -1445,24 +1446,24 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
 
 def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len_base, number_planes_total=6):
     """
-	Finds the most likely E2 pairing by simulating the cursor with different
-	ensemble neuron pairings and finding the pairing with the highest correlation
-	with the real cursor
+    Finds the most likely E2 pairing by simulating the cursor with different
+    ensemble neuron pairings and finding the pairing with the highest correlation
+    with the real cursor
 
-	Args
-		ens_neur: A (4,) numpy array containing the indices of the ensemble neurons.
-			For instance, this array may look like [100, 452, 78, 94]
-		online_data: A Pandas dataframe containing the neural activity of
-			each activity over time. ENS_NEUR will index into this matrix.
-		cursor: A (time,) numpy array containing the cursor activity. Assumed to be
-			the same length in time as EXP_DATA
-	Returns
-		A (2,) numpy array containing the indices of the ensemble neurons of the
-			most likely E2 pair. For instance, if ENS_NEUR is [100, 452, 78, 94],
-			this function may return something like [78, 94]
-	Raises
-		ValueError: if cursor and exp_data are mismatched in time.
-	"""
+    Args
+        ens_neur: A (4,) numpy array containing the indices of the ensemble neurons.
+            For instance, this array may look like [100, 452, 78, 94]
+        online_data: A Pandas dataframe containing the neural activity of
+            each activity over time. ENS_NEUR will index into this matrix.
+        cursor: A (time,) numpy array containing the cursor activity. Assumed to be
+            the same length in time as EXP_DATA
+    Returns
+        A (2,) numpy array containing the indices of the ensemble neurons of the
+            most likely E2 pair. For instance, if ENS_NEUR is [100, 452, 78, 94],
+            this function may return something like [78, 94]
+    Raises
+        ValueError: if cursor and exp_data are mismatched in time.
+    """
 
     # Contains the keys for each ens_neur to index into the online data
     ens = (online_data.keys())[2:]
@@ -1474,7 +1475,7 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
         raise ValueError("Data and cursor appear to be mismatched in time.")
 
     # Generate all possible pairwise combinations. We will find the combination
-	# with the maximal correlation value
+    # with the maximal correlation value
     e2_possibilities = list(combinations(np.arange(ens.size), 2))
     best_e2_combo = None
     best_e2_combo_val = 0.0

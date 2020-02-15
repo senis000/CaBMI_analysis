@@ -188,3 +188,125 @@ def fixed_point(t, M, I, a2):
         time=(2*const*K0/M/f)**(2/(3+2*s))
         f=2*sci.pi**(2*s)*sci.sum(I**s*a2*sci.exp(-I*sci.pi**2*time))
     return t-(2*M*sci.sqrt(sci.pi)*f)**(-2/5)
+
+
+def something():
+    from run_at_night_cabmi import tonightAllRun_uzsh
+    %time tonightAllRun_uzsh()
+    from pipeline import *
+    bmi1_old = h5py.File("/media/user/Seagate Backup Plus Drive1/raw/IT5/190129/bmi__1.hdf5", 'r')
+    bmi1_old = h5py.File("/media/user/Seagate Backup Plus Drive1/raw/IT5/190129/bmi__1_old.hdf5", 'r')
+    bmi1 = h5py.File("/media/user/Seagate Backup Plus Drive1/raw/IT5/190129/bmi__1.hdf5", 'r')
+    np.sum(np.any(np.isnan(bmi1['dff']), axis=1))
+    np.sum(np.any(np.isnan(bmi1_old['dff']), axis=1))
+    np.allclose(bmi1['dff'], bmi_old['C'])
+    np.allclose(bmi1['C'], bmi1_old['C'])
+    bmi1.shape
+    bmi1['C'].shape
+    bmi1_old['C'].shape
+    plt
+    plt.plot(bmi1['C'][0], bmi1_old['C'][0])
+    plt.plot(bmi1['C'][579], bmi1_old['C'][579])
+    plt.plot(bmi1['C'][2], bmi1_old['C'][2])
+    dis = []; for i in range(580):
+        if not np.allclose(bmi1['C'][i], bmi1_old['C'][i]):
+            dis.append(i)
+    dis = []
+    for i in range(580):
+        if not np.allclose(bmi1['C'][i], bmi1_old['C'][i]):
+            dis.append(i)
+    dis
+    dis[0]
+    len(dis)
+    np.allclose(bmi1['C'][0], bmi1_old['C'][0])
+    plt.plot(np.vstack([bmi1['C'][0], bmi1_old['C'][0]]).T);plt.show()
+    d = bmi1['C']-bmi1_old['C']
+    d = np.array(bmi1['C'])-np.array(bmi1_old['C'])
+    d = np.array(bmi1['C'])-np.array(bmi1_old['C'][:580])
+    plt.plot(d[0])
+    np.max(d[0])
+    np.mean(bmi1['C'][0])
+    diff = []
+    diff = [];
+    dis = []
+    for i in range(580):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])< mC / 10:
+            dis.append(i)
+    dis[0]
+    dis = []
+    for i in range(2):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])< mC / 10:
+            print(np.max(d[i]), mC)
+            dis.append(i)
+    dis = []
+    for i in range(2):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])> mC / 10:
+            print(np.max(d[i]), mC)
+            dis.append(i)
+    dis[0]
+    dis
+    dis = []
+    for i in range(2):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])> mC / 100:
+            print(np.max(d[i]), mC)
+            dis.append(i)
+    dis[0]
+    dis = []
+    for i in range(2):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])> 10:
+            print(np.max(d[i]), mC)
+            dis.append(i)
+    dis
+    np.max(d[579])
+    dis = []
+    for i in range(2):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])> mC / 10:
+            dis.append(i)
+    dis = []
+    for i in range(580):
+        mC = np.mean(bmi1['C'][i])
+        if np.max(d[i])> mC / 10:
+            dis.append(i)
+    dis[0]
+    np.max(d[75])
+    plt.plot(np.vstack((bmi1['C'][75], bmi1_old['C'][75])).T)
+    dis = []
+    for i in range(580):
+        mC = np.std(bmi1['C'][i])
+        if np.max(d[i])> mC:
+            dis.append(i)
+    dis[0]
+    plt.plot(np.vstack((bmi1['C'][235], bmi1_old['C'][235])).T)
+    np.corrcoef(bmi1['C'][235], bmi1_old['C'][235])
+    dis = []
+    for i in range(580):
+        dis.append(np.corrcoef(bmi1['C'][i], bmi1_old['C'][i]))
+    dis = np.array(dis)
+    np.min(dis)
+    plt.plot(dis);plt.ylim((-0.1, 1.1))
+    dis = []
+    for i in range(580):
+        dis.append(np.corrcoef(bmi1['C'][i], bmi1_old['C'][i])[1, 0])
+    plt.plot(dis);plt.ylim((-0.1, 1.1))
+    plt.scatter(np.arange(580), dis);plt.ylim((-0.1, 1.1))
+    C = np.array(bmi1['C'])
+    oC = np.array(bmi1_old['C'])
+    plt.plot(C[236], C[237])
+    C.shape
+    oC.shape
+    plt.plot(C[236], oC[237])
+    plt.plot(C[580], oC[581])
+    plt.plot(C[580-1], oC[580])
+    nC = np.vstack((oC[:236], oC[237:]))
+    dis = []
+    for i in range(580):
+        dis.append(np.corrcoef(C[i], nC[i])[1, 0])
+    plt.scatter(np.arange(580), dis);plt.ylim((-0.1, 1.1))
+    plt.plot(C[238], oC[239])
+    plt.plot(np.vstack((bmi1['C'][238], bmi1_old['C'][239])).T)
