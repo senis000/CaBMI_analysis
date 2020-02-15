@@ -284,7 +284,8 @@ def single_dff_nan_test():
         sys.exit('Error in separate planes')
     
 
-    dend=False; display_images=True
+    dend=False
+    display_images=True
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
     finfo = folder + 'raw/' + animal + '/' + day + '/wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
