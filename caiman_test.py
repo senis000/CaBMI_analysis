@@ -236,6 +236,7 @@ def query_nans_issue(folder, animal, day, out=None, dffnans=None):
             plt.savefig(os.path.join(out, f'plane_depth2_nan_{animal}_{day}.png'))
         else:
             plt.show()
+        plt.close()
 
 
 def session_nan_test(folder, out=None):
@@ -246,11 +247,56 @@ def session_nan_test(folder, out=None):
                 ('IT2', '181001'),
                 ('PT6', '181126'),
                 ('PT9', '181128')]
-    rawf = os.path.join(folder, 'raw')
     processedf = os.path.join(folder, 'processed')
     dffnans = open(os.path.join(processedf, 'dffnans.txt'), 'w+')
     for a, d in sessions:
         query_nans_issue(folder, a, d, out=out, dffnans=dffnans)
+
+
+def second_run_check(out):
+    sessions = [('PT7', '181211'),
+                ('IT5', '190129'),
+                ('PT9', '181219'),
+                ('PT6', '181128'),
+                ('IT2', '181001'),
+                ('PT6', '181126'),
+                ('PT9', '181128')]
+    for animal, day in sessions:
+        daypath = os.path.join("/media/user/Seagate Backup Plus Drive1/raw/", animal, day)
+        planes = []
+        planes_old = []
+        for f in os.listdir(daypath):
+            if f[-8:] == 'old.hdf5':
+                planes_old.append(os.path.join(daypath, f))
+                planes.append(os.path.join(daypath, f"{f[:6]}.hdf5"))
+
+        for i, old in enumerate(planes_old):
+            bmi = h5py.File(planes[i], 'r')
+            bmi_old = h5py.File(old, 'r')
+            assert np.sum(np.isnan(bmi['dff'])) == 0
+            C, oC = np.array(bmi['C']), np.array(bmi_old['C'])
+            if C.shape != oC.shape:
+                print(animal, day, f'Dimension Mismatch check manually, old: {C.shape} new: {oC.shape}')
+                continue
+            absMax = np.max(np.abs(C-oC), axis=1)
+            corrs = [np.corrcoef(C[i], oC[i]) for i in range(C.shape[0])]
+            maxD_i = np.argmax(absMax)
+            maxD = absMax[maxD_i]
+            minCorr_i = np.argmin(corrs)
+            minCorr = corrs[int(minCorr_i)]
+            xs = np.arange(C.shape[0])
+            fig, axes = plt.figure(sharex=True, figsize=(20, 10))
+            axes[0].set_title(f'Max Difference, max neur: {maxD_i}, {maxD:.3f}')
+            axes[0].scatter(xs, absMax)
+            axes[0].set_ylabel('abs diff')
+            axes[1].scatter(xs, corrs)
+            axes[1].set_ylim((-0.1, 1.1))
+            axes[1].set_title(f'CorrCoef, min neur: {minCorr_i}, {minCorr:.5f}')
+            axes[1].set_ylabel('correlation (R)')
+            axes[1].set_xlabel('neuron')
+            fig.savefig(os.path.join(out, f'cm_dpc_{animal}_{day}_plane{i}.png'))
+        print('Done ', animal, day)
+
 
 
 def single_dff_nan_test():

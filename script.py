@@ -2,6 +2,8 @@ from builtins import str
 import logging
 import numpy as np
 import scipy
+import os
+import h5py
 from scipy.sparse import spdiags
 import scipy.ndimage.morphology as morph
 
@@ -188,3 +190,5 @@ def fixed_point(t, M, I, a2):
         time=(2*const*K0/M/f)**(2/(3+2*s))
         f=2*sci.pi**(2*s)*sci.sum(I**s*a2*sci.exp(-I*sci.pi**2*time))
     return t-(2*M*sci.sqrt(sci.pi)*f)**(-2/5)
+
+
