@@ -192,3 +192,44 @@ def fixed_point(t, M, I, a2):
     return t-(2*M*sci.sqrt(sci.pi)*f)**(-2/5)
 
 
+def nitime_solution(animal, day):
+    import h5py
+    import nitime
+    import numpy as np
+    import nitime.analysis as nta
+    from utils_loading import encode_to_filename
+    from nitime.viz import drawmatrix_channels
+    import matplotlib.pyplot as plt
+    folder = "/Volumes/DATA_01/NL/layerproject/processed/"
+    hf = h5py.File(encode_to_filename(folder, animal, day), 'r')
+    dff = np.array(hf['dff'])
+    NEUR = 'ens'
+    # Critical neuron pair vs general neuron gc
+    if NEUR == 'ens':
+        rois = dff[hf['ens_neur']]
+    else:
+        rois = dff[NEUR]
+    rois_ts = nitime.TimeSeries(rois, sampling_interval=1 / hf.attrs['fr'])
+    G = nta.GrangerAnalyzer(rois_ts, order=1)
+    g1 = np.mean(G.causality_xy, -1)
+    caus = G.causality_xy
+    fig03 = drawmatrix_channels(g1, ['E11', 'E12', 'E21', 'E22'], size=[10., 10.], color_anchor = 0)
+    plt.colorbar()
+
+def statsmodel_solution(animal, day):
+    import h5py
+    import nitime
+    import numpy as np
+    import nitime.analysis as nta
+    from utils_loading import encode_to_filename
+    from nitime.viz import drawmatrix_channels
+    import matplotlib.pyplot as plt
+    folder = "/Volumes/DATA_01/NL/layerproject/processed/"
+    hf = h5py.File(encode_to_filename(folder, animal, day), 'r')
+    dff = np.array(hf['dff'])
+    NEUR = 'ens'
+    # Critical neuron pair vs general neuron gc
+    if NEUR == 'ens':
+        rois = dff[hf['ens_neur']]
+    else:
+        rois = dff[NEUR]

@@ -338,6 +338,34 @@ def move_typhos(folder):
                                                                          f'onlineSNR_{animal}_{day}.hdf5'))
 
 
+
+def regulize_directory(folder):
+    # TODO: rename ALL dffSNRs from snr_ens to snr_dff
+    # check date in micelog
+    processed = os.path.join(folder, 'processed')
+    utils = os.path.join(folder, 'utils')
+
+    def hdf5_to_utils(f, animal, fpath):
+        subdir = f.split('_')[0]
+        animal_subdir = os.path.join(utils, subdir, animal)
+        if not os.path.exists(animal_subdir):
+            os.makedirs(animal_subdir)
+        os.rename(os.path.join(fpath, f), os.path.join(animal_subdir, f))
+    for animal in get_all_animals(processed):
+        animal_path = os.path.join(processed, animal)
+
+        for day in os.listdir(animal_path):
+            if day[-5:] == '.hdf5' and day[:4] != 'full':
+                hdf5_to_utils(day, animal, animal_path)
+            elif day.isnumeric():
+                daypath = os.path.join(animal_path, day)
+                for f in os.listdir(daypath):
+                    if f[:4] == 'full':
+                        os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
+                    else:
+                        hdf5_to_utils(f, animal, daypath)
+
+
 if __name__ == '__main__':
     home = "/home/user/"
     digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])
