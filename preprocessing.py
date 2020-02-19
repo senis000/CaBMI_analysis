@@ -338,8 +338,7 @@ def move_typhos(folder):
                                                                          f'onlineSNR_{animal}_{day}.hdf5'))
 
 
-
-def regulize_directory(folder):
+def regularize_directory(folder):
     # TODO: rename ALL dffSNRs from snr_ens to snr_dff
     # check date in micelog
     processed = os.path.join(folder, 'processed')
