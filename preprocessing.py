@@ -358,11 +358,16 @@ def regularize_directory(folder):
                 hdf5_to_utils(day, animal, animal_path)
             elif day.isnumeric():
                 daypath = os.path.join(animal_path, day)
+                hdf5only = True
                 for f in os.listdir(daypath):
+                    if f[-4:] != '.hdf5':
+                        hdf5only = False
                     if f[:4] == 'full':
                         os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
                     else:
                         hdf5_to_utils(f, animal, daypath)
+                if hdf5only:
+                    os.removedirs(daypath)
 
 
 if __name__ == '__main__':
