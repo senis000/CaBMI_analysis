@@ -216,7 +216,7 @@ def nitime_solution(animal, day):
     fig03 = drawmatrix_channels(g1, ['E11', 'E12', 'E21', 'E22'], size=[10., 10.], color_anchor = 0)
     plt.colorbar()
 
-def statsmodel_solution(animal, day):
+def statsmodel_solution(animal, day, maxlag=12):
     import h5py
     import nitime
     import numpy as np
@@ -224,6 +224,7 @@ def statsmodel_solution(animal, day):
     from utils_loading import encode_to_filename
     from nitime.viz import drawmatrix_channels
     import matplotlib.pyplot as plt
+    from statsmodels.tsa.stattools import grangercausalitytests
     folder = "/Volumes/DATA_01/NL/layerproject/processed/"
     hf = h5py.File(encode_to_filename(folder, animal, day), 'r')
     dff = np.array(hf['dff'])
@@ -233,3 +234,9 @@ def statsmodel_solution(animal, day):
         rois = dff[hf['ens_neur']]
     else:
         rois = dff[NEUR]
+    i, j = 0, 1
+    test, reg = grangercausalitytests(dff[[i, j]], maxlag)
+    ssrEig = reg[0].srr
+    ssrBeid = reg[1].ssr
+    #TODO: USE LOG stats of two ssrs
+
