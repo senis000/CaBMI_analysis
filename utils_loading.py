@@ -96,28 +96,29 @@ def get_all_animals(folder):
             and os.path.isdir(os.path.join(folder, d))]
 
 
+def get_animal_days(animal_path):
+    subs = os.listdir(animal_path)
+    hdf = lambda s: s[:4] == 'full' and s[-5:] == '.hdf5'
+    for s in subs:
+        if hdf(s):
+            return sorted([decode_from_filename(ss)[1] for ss in subs if hdf(ss)])
+    return sorted(filter(lambda s: s.isnumeric(), subs))
+
+
 def encode_to_filename(path, animal, day, hyperparams=None):
     dirs = path.split('/')
-    k = -1
-    category = None
     if day[-5:] == '.hdf5':
         return os.path.join(path, animal, day)
-    while True:
-        curr = dirs[k]
-        if curr == '':
-            k -= 1
-        else:
-            category = curr
-            break
+    category = dirs[-1] if dirs[-1] else dirs[-2]
     if category == 'processed':
-        if hyperparams == 'SNR':
-            template = 'SNR_{}_{}.hdf5'
-        else:
-            template = "full_{}_{}__data.hdf5"
+        template = "full_{}_{}__data.hdf5"
     elif category == 'IBI':
         template = "IBI_{}_{}_" + hyperparams + ".hdf5"
+    elif category == 'utils':
+        template = hyperparams+'_{}_{}.hdf5'
     else:
-        raise ValueError("Category Undefined")
+        template = category + '_{}_{}.hdf5'
+        #raise ValueError("Category Undefined")
     temp = os.path.join(path, animal, day, template.format(animal, day))
     if os.path.exists(temp):
         return temp
@@ -248,3 +249,4 @@ def load_Yr(tf, T, nplanes=1, used_planes=1, ret_shape=False, ORDER='F'):
         if ret_shape:
             return Y, Y_all, ret_shape
         return Y, Y_all
+

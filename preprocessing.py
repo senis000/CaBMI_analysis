@@ -111,6 +111,17 @@ def get_roi_type(processed, animal, day):
     return rois
 
 
+def ens_identity(hf, n):
+    if n in hf['ens_neur']:
+        return 'ens'
+    return 'neur'
+
+
+def get_neur_namecode(session):
+    return ["{} {}".format(n, ens_identity(session, n) if nerden else 'dend')
+     for n, nerden in zip(np.arange(session['C'].shape[0]), session['nerden'])]
+
+
 def get_peak_times_over_thres(inputs, window, method, tlock=30):
     """ Returns Peak Times, organized by window bins and trial bins respectively, that Passes a specific
     threshold specified by method. """
@@ -360,7 +371,7 @@ def regularize_directory(folder):
                 daypath = os.path.join(animal_path, day)
                 hdf5only = True
                 for f in os.listdir(daypath):
-                    if f[-4:] != '.hdf5':
+                    if f[-5:] != '.hdf5':
                         hdf5only = False
                     if f[:4] == 'full':
                         os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
@@ -373,3 +384,5 @@ def regularize_directory(folder):
 if __name__ == '__main__':
     home = "/home/user/"
     digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])
+
+

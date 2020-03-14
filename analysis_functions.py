@@ -115,7 +115,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False, dropend=True, out=None):
+    to_plot=None, end_bin=None, reg=False, dropend=True, out=None, total=False):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -133,6 +133,7 @@ def learning_params(
     if out is None:
         out = folder
     f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
+    print(f.filename)
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
@@ -142,8 +143,16 @@ def learning_params(
     array_miss = np.asarray(f['array_miss'])
     trial_end = np.asarray(f['trial_end'])
     trial_start = np.asarray(f['trial_start'])
+    bigbin = bin_size * 60
+    first_bin_end = bigbin * fr
+    trial_durs = trial_end + 1 - trial_start
+    totalPC = hits.shape[0]/ trial_end.shape[0]
+    # TODO: Greedy way to calculate HPM
+    DELTA = fr * 60
+    totalHPM = hits.shape[0] * DELTA / (trial_end[-1] - trial_start[0])
+    #totalHPM = hits.shape[0] * fr * 60 / (np.sum(trial_durs)) # use sum of all trial times
     #percentage_correct = hits.shape[0]/trial_end.shape[0]
-    bigbin = bin_size*60
+
     if dropend:
         ebin = trial_end[-1]/fr + 1
     else:
@@ -233,6 +242,14 @@ def learning_params(
 
     xx_axis = xx/bigbin
     xx_axis = np.expand_dims(xx_axis, axis=1)
+    if total:
+        evohits = hits[hits > first_bin_end]
+        evomiss = miss[miss > first_bin_end]
+        evoPC = len(evohits) / (len(evohits) + len(evomiss))
+        evoHPM = len(evohits) * DELTA / (trial_end[-1]+1-first_bin_end)
+        hpm = (hpm, totalHPM, evoHPM - hpm[0])
+        percentage_correct = (percentage_correct, totalPC, evoPC - percentage_correct[0])
+
     return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
 def activity_hits(folder, animal, day, sec_var=''):
