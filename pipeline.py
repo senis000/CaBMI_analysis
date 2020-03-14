@@ -66,32 +66,40 @@ import copy
 from matplotlib import interactive
 import sys, traceback
 import imp
+import shutil
 interactive(True)
 
 
-def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
-    """ 
+def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=False):
+    """
     Function to run all the different functions of the pipeline that gives back the analyzed data
     Folder (str): folder where the input/output is/will be stored
     animal/day (str) to be analyzed
     number_planes (int): number of planes that carry information
     number_planes_total (int): number of planes given back by the recording system, it may differ from number_planes
     to provide time for the objective to return to origen"""
-    
+
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
     if not os.path.exists(folder_final):
         os.makedirs(folder_final)
-    
-    finfo = folder_path +  'wmat.mat'  #file name of the mat 
+
+    finfo = folder_path +  'wmat.mat'  #file name of the mat
     matinfo = scipy.io.loadmat(finfo)
     ffull = [folder_path + matinfo['fname'][0]]            # filename to be processed
-    fbase = [folder_path + matinfo['fbase'][0]] 
-    
+    fbase = [folder_path + matinfo['fbase'][0]]
+    fbase1 = [folder + 'raw/' + animal + '/' + day + '/' + 'baseline_00001.tif']
+    fbase2 = [folder + 'raw/' + animal + '/' + day + '/' + 'bmi_00000.tif']
+
     try:
-        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes, number_planes_total)
-        num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
+        num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes,
+                                             number_planes_total)
+        if os.path.exists(fbase2[0]):
+            num_files_b, len_base = separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2,
+                                                                      number_planes=number_planes)
+        else:
+            num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes, number_planes_total)
     except Exception as e:
         tb = sys.exc_info()[2]
         err_file.write("\n{}\n".format(folder_path))
@@ -99,16 +107,16 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in separate planes')
-        
-        
-    nam = folder_path + 'readme.txt'
-    readme = open(nam, 'w+')
-    readme.write("num_files_b = " + str(num_files_b) + '; \n')
-    readme.write("num_files = " + str(num_files)+ '; \n')
-    readme.write("len_base = " + str(len_base)+ '; \n')
-    readme.write("len_bmi = " + str(len_bmi)+ '; \n')
-    readme.close()
-       
+
+    if fresh:
+        nam = folder_path + 'readme.txt'
+        readme = open(nam, 'w+')
+        readme.write("num_files_b = " + str(num_files_b) + '; \n')
+        readme.write("num_files = " + str(num_files)+ '; \n')
+        readme.write("len_base = " + str(len_base)+ '; \n')
+        readme.write("len_bmi = " + str(len_bmi)+ '; \n')
+        readme.close()
+
     try:
         analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes, False)
     except Exception as e:
@@ -118,14 +126,14 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
         traceback.print_tb(tb, file=err_file)
         err_file.close()
         sys.exit('Error in analyze raw')
-        
+
     try:
         shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
     except OSError as e:
         print ("Error: %s - %s." % (e.filename, e.strerror))
 
-# This section is done nowadays in another computer to minimize time for analysis        
-#     try:  
+# This section is done nowadays in another computer to minimize time for analysis
+#     try:
 #         put_together(folder, animal, day, len_base, len_bmi, number_planes, number_planes_total)
 #     except Exception as e:
 #         tb = sys.exc_info()[2]
@@ -134,7 +142,7 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6):
 #         traceback.print_tb(tb, file=err_file)
 #         err_file.close()
 #         sys.exit('Error in put together')
-    
+
     err_file.close()
     
 
@@ -167,14 +175,20 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
       
     print('loading image...')
     ims = tifffile.TiffFile(ffull[0])
-    len_im = int(len(ims.pages)/number_planes_total)
-    dims = [len_im] + list(ims.pages[0].shape)  
+    LEN_IM = int(len(ims.pages)/number_planes_total)
+    dims = [LEN_IM] + list(ims.pages[0].shape)
     print('Image loaded')
     
-    num_files = int(np.ceil(len_im/lim_bf))
-    
-    for plane in np.arange(number_planes):
-        len_im = int(len(ims.pages)/number_planes_total)
+    num_files = int(np.ceil(LEN_IM/lim_bf))
+
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
+
+
+    for plane in plane_iters:
+        len_im = LEN_IM
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
         for nf in np.arange(num_files):
             # create the mmap file
@@ -207,8 +221,8 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
 
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(number_planes):
-        len_im = int(len(ims.pages)/number_planes_total)
+    for plane in plane_iters:
+        len_im = LEN_IM
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
             fnamemm = folder_path + 'temp_plane_' + str(plane) + '_nf_' + str(nf) +  '.mmap'
@@ -229,7 +243,7 @@ def separate_planes(folder, animal, day, ffull, var='bmi', number_planes=4, numb
             except OSError as e:  ## if failed, report it back to the user ##
                 print ("Error: %s - %s." % (e.filename, e.strerror))
     
-    len_im = int(len(ims.pages)/number_planes_total)
+    len_im = LEN_IM
     del ims
     
     err_file.close()
@@ -278,8 +292,13 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
     dims = dims1 + np.asarray([dims2[0], 0, 0])
     len_im = copy.deepcopy(int(dims[0]))
     num_files = int(np.ceil(len_im/lim_bf))
+
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
     
-    for plane in np.arange(number_planes):
+    for plane in plane_iters:
         first_images_left = int(dims1[0])
         len_im = int(dims[0])
         print ('length of tiff is: ' + str(len_im) + ' volumes')  
@@ -315,7 +334,7 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
             del big_file
     
     # save the mmaps as tiff-files for caiman
-    for plane in np.arange(number_planes):
+    for plane in plane_iters:
         len_im = int(dims[0])
         print ('saving a  tiff of: ' + str(len_im) + ' volumes') 
         for nf in np.arange(num_files):
@@ -374,7 +393,12 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     print('*************Starting with analysis*************')
     neuron_mats = []
 
-    for plane in np.arange(number_planes):
+    if hasattr(number_planes, '__iter__'):
+        plane_iters = number_planes
+    else:
+        plane_iters = np.arange(number_planes)
+
+    for plane in plane_iters:
         dff_all = []
         neuron_act_all = []
         fnames = []
@@ -455,7 +479,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     com_list = []
     neuron_plane = np.zeros(number_planes)
     tot_des_plane = np.zeros((number_planes, 2))
-    for plane in np.arange(number_planes): 
+    for plane in np.arange(number_planes):
         try:
             f = h5py.File(folder_path + 'bmi_' + sec_var + '_' + str(plane) + '.hdf5', 'r')
         except OSError:
@@ -1389,7 +1413,6 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
         F_dff = cnm2.estimates.C * np.nan
         print ('WHAAT went wrong again?')
     
-    
     print ('***************stopping cluster*************')
     #%% STOP CLUSTER and clean up log files
     #cm.stop_server(dview=dview)
@@ -1426,24 +1449,24 @@ def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
 
 def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len_base, number_planes_total=6):
     """
-	Finds the most likely E2 pairing by simulating the cursor with different
-	ensemble neuron pairings and finding the pairing with the highest correlation
-	with the real cursor
+    Finds the most likely E2 pairing by simulating the cursor with different
+    ensemble neuron pairings and finding the pairing with the highest correlation
+    with the real cursor
 
-	Args
-		ens_neur: A (4,) numpy array containing the indices of the ensemble neurons.
-			For instance, this array may look like [100, 452, 78, 94]
-		online_data: A Pandas dataframe containing the neural activity of
-			each activity over time. ENS_NEUR will index into this matrix.
-		cursor: A (time,) numpy array containing the cursor activity. Assumed to be
-			the same length in time as EXP_DATA
-	Returns
-		A (2,) numpy array containing the indices of the ensemble neurons of the
-			most likely E2 pair. For instance, if ENS_NEUR is [100, 452, 78, 94],
-			this function may return something like [78, 94]
-	Raises
-		ValueError: if cursor and exp_data are mismatched in time.
-	"""
+    Args
+        ens_neur: A (4,) numpy array containing the indices of the ensemble neurons.
+            For instance, this array may look like [100, 452, 78, 94]
+        online_data: A Pandas dataframe containing the neural activity of
+            each activity over time. ENS_NEUR will index into this matrix.
+        cursor: A (time,) numpy array containing the cursor activity. Assumed to be
+            the same length in time as EXP_DATA
+    Returns
+        A (2,) numpy array containing the indices of the ensemble neurons of the
+            most likely E2 pair. For instance, if ENS_NEUR is [100, 452, 78, 94],
+            this function may return something like [78, 94]
+    Raises
+        ValueError: if cursor and exp_data are mismatched in time.
+    """
 
     # Contains the keys for each ens_neur to index into the online data
     ens = (online_data.keys())[2:]
@@ -1455,7 +1478,7 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
         raise ValueError("Data and cursor appear to be mismatched in time.")
 
     # Generate all possible pairwise combinations. We will find the combination
-	# with the maximal correlation value
+    # with the maximal correlation value
     e2_possibilities = list(combinations(np.arange(ens.size), 2))
     best_e2_combo = None
     best_e2_combo_val = 0.0
@@ -1489,3 +1512,103 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
     else:
         best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
+
+
+from caiman.utils.stats import df_percentile
+
+def novel_detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=250,
+                 flag_auto=True, use_fast=False, scaleC=False):
+    """ Compute DF/F signal without using the original data.
+    In general much faster than extract_DF_F
+
+    Args:
+        A: scipy.sparse.csc_matrix
+            spatial components (from cnmf cnm.A)
+
+        b: ndarray
+            spatial background components
+
+        C: ndarray
+            temporal components (from cnmf cnm.C)
+
+        f: ndarray
+            temporal background components
+
+        YrA: ndarray
+            residual signals
+
+        quantile_min: float
+            quantile used to estimate the baseline (values in [0,100])
+
+        frames_window: int
+            number of frames for computing running quantile
+
+        flag_auto: bool
+            flag for determining quantile automatically
+
+        use_fast: bool
+            flag for using approximate fast percentile filtering
+
+    Returns:
+        F_df:
+            the computed Calcium acitivty to the derivative of f
+    """
+
+    if C is None:
+        logging.warning("There are no components for DF/F extraction!")
+        return None
+
+    if 'csc_matrix' not in str(type(A)):
+        A = scipy.sparse.csc_matrix(A)
+    if 'array' not in str(type(b)):
+        b = b.toarray()
+    if 'array' not in str(type(C)):
+        C = C.toarray()
+    if 'array' not in str(type(f)):
+        f = f.toarray()
+
+    nA = np.sqrt(np.ravel(A.power(2).sum(axis=0)))
+    nA_mat = scipy.sparse.spdiags(nA, 0, nA.shape[0], nA.shape[0])
+    nA_inv_mat = scipy.sparse.spdiags(1. / nA, 0, nA.shape[0], nA.shape[0])
+    A = A * nA_inv_mat
+    oC = C
+    C = nA_mat * C
+    if YrA is not None:
+        YrA = nA_mat * YrA
+
+    F = C + YrA if YrA is not None else C
+    B = A.T.dot(b).dot(f)
+    T = C.shape[-1]
+
+    if flag_auto:
+        ###### break down
+        data_prct, val = df_percentile(F[:, :frames_window], axis=1)
+        if frames_window is None or frames_window > T:
+            Fd = np.stack([np.percentile(f, prctileMin) for f, prctileMin in
+                           zip(F, data_prct)])
+            Df = np.stack([np.percentile(f, prctileMin) for f, prctileMin in
+                           zip(B, data_prct)])
+            F_df = (F - Fd[:, None]) / (Df[:, None] + Fd[:, None])
+        else:
+            Fd = np.stack([scipy.ndimage.percentile_filter(
+                f, prctileMin, (frames_window)) for f, prctileMin in
+                zip(F, data_prct)])
+            Df = np.stack([scipy.ndimage.percentile_filter(
+                f, prctileMin, (frames_window)) for f, prctileMin in
+                zip(B, data_prct)])
+            if scaleC:
+                F_df = C / (Df + Fd)
+            else:
+                F_df = oC / (Df + Fd)
+    else:
+        if frames_window is None or frames_window > T:
+            Fd = np.percentile(F, quantileMin, axis=1)
+            Df = np.percentile(B, quantileMin, axis=1)
+            F_df = (F - Fd) / (Df[:, None] + Fd[:, None])
+        else:
+            Fd = scipy.ndimage.percentile_filter(
+                F, quantileMin, (frames_window, 1))
+            Df = scipy.ndimage.percentile_filter(
+                B, quantileMin, (frames_window, 1))
+            F_df = (F - Fd) / (Df + Fd)
+    return F_df

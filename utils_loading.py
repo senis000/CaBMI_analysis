@@ -1,9 +1,11 @@
 import os
-import numpy as np
 import json
 import h5py
 import re
+import tifffile
+import numpy as np
 import pandas as pd
+from scipy.sparse import csc_matrix
 from utils_bursting import neuron_calcium_ibi_cwt, neuron_calcium_ipri
 
 
@@ -89,23 +91,34 @@ def parse_group_dict(folder, group_dict, opt):
     return group_dict
 
 
+def get_all_animals(folder):
+    return [d for d in os.listdir(folder) if d[1] == 'T'
+            and os.path.isdir(os.path.join(folder, d))]
+
+
+def get_animal_days(animal_path):
+    subs = os.listdir(animal_path)
+    hdf = lambda s: s[:4] == 'full' and s[-5:] == '.hdf5'
+    for s in subs:
+        if hdf(s):
+            return sorted([decode_from_filename(ss)[1] for ss in subs if hdf(ss)])
+    return sorted(filter(lambda s: s.isnumeric(), subs))
+
+
 def encode_to_filename(path, animal, day, hyperparams=None):
     dirs = path.split('/')
-    k = -1
-    category = None
-    while True:
-        curr = dirs[k]
-        if curr == '':
-            k -= 1
-        else:
-            category = curr
-            break
+    if day[-5:] == '.hdf5':
+        return os.path.join(path, animal, day)
+    category = dirs[-1] if dirs[-1] else dirs[-2]
     if category == 'processed':
         template = "full_{}_{}__data.hdf5"
     elif category == 'IBI':
         template = "IBI_{}_{}_" + hyperparams + ".hdf5"
+    elif category == 'utils':
+        template = hyperparams+'_{}_{}.hdf5'
     else:
-        raise ValueError("Category Undefined")
+        template = category + '_{}_{}.hdf5'
+        #raise ValueError("Category Undefined")
     temp = os.path.join(path, animal, day, template.format(animal, day))
     if os.path.exists(temp):
         return temp
@@ -118,6 +131,8 @@ def encode_to_filename(path, animal, day, hyperparams=None):
 
 def decode_from_filename(filename):
     fname = path_prefix_free(filename)
+    if fname[-5:] == '.hdf5':
+        fname = fname[:-5]
     opts = fname.split('_')
     return opts[1], opts[2]
 
@@ -194,3 +209,44 @@ def get_learners(typhos=None):
     undefined = df[df['LT'] == 1]
     nonlearners = df[df['LT'] == 1]
     return learners, undefined, nonlearners
+
+
+def load_A(hf):
+    if 'estimates' in hf:
+        A = hf['estimates']['A']
+    else:
+        A = hf['Nsparse']
+    data = A['data']
+    indices = A['indices']
+    indptr = A['indptr']
+    if 'shape' in A:
+        return csc_matrix((data, indices, indptr), A['shape'])
+    else:
+        return csc_matrix((data, indices, indptr))
+
+
+def load_all(hf):
+    # A, C, b, f, dff, snr
+    ests = hf['estimates']
+    return load_A(hf), np.array(ests['C']), np.array(ests['b']), np.array(ests['f']), np.array(
+        hf['dff']), np.array(hf['snr'])
+
+
+def load_Yr(tf, T, nplanes=1, used_planes=1, ret_shape=False, ORDER='F'):
+    rf = tifffile.TiffFile(tf)
+    shp = rf.pages[0].shape[0]
+    if nplanes == 1:
+        Yr = np.concatenate([p.asarray().ravel(order=ORDER)[:, np.newaxis] for p in rf.pages[:T]], axis=1)
+        if ret_shape:
+            return Yr, ret_shape
+        return Yr
+    else:
+        plane_iter = used_planes if hasattr(used_planes, '__iter__') else range(used_planes)
+        Y = {i: np.concatenate(
+            [p.asarray().ravel(order=ORDER)[:, np.newaxis] for p in rf.pages[i:T * nplanes:nplanes]], axis=1)
+             for i in plane_iter}
+        Y_all = np.sum(np.concatenate([y[:, np.newaxis, :] for y in Y.values()], axis=1), axis=1)
+        if ret_shape:
+            return Y, Y_all, ret_shape
+        return Y, Y_all
+

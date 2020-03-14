@@ -5,39 +5,63 @@ __author__ = 'Nuria'
 
 # C++ extension for data acquisition
 
-import time
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-import sklearn
-import pdb
+# system
 import sys
-import pandas as pd
-import seaborn as sns
-import os
+import h5py
+import os, re
+import time
 import math
 import random
-import scipy
 import copy
+import shutil, traceback
+import multiprocessing as mp
+
+# data
 from skimage import io
+import numpy as np
+import pandas as pd
+import scipy
+from scipy import stats
+from scipy import interpolate
+from scipy.stats.mstats import zscore
+from scipy.signal import correlate
+import sklearn
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
+
+# caiman
+try:
+    import caiman as cm
+    from caiman.motion_correction import MotionCorrect
+    from caiman.components_evaluation import estimate_components_quality_auto
+    from caiman.source_extraction.cnmf.deconvolution import constrained_foopsi
+except ModuleNotFoundError:
+    print("CaImAn not installed or environment not activated, certain functions might not be usable")
+
+# plotting
+import pdb
+import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import host_subplot
 from matplotlib.ticker import MultipleLocator
-from scipy import stats
-from scipy.stats.mstats import zscore
-from scipy.signal import correlate
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-from sklearn.linear_model import LinearRegression
+try:
+    import seaborn as sns
+    PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
+except ModuleNotFoundError:
+    print('seaborn not installed')
 from matplotlib import interactive
-import utils_cabmi as ut
-from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename
-from preprocessing import get_roi_type
-import multiprocessing as mp
-from utils_loading import path_prefix_free, file_folder_path
-PALETTE = [sns.color_palette('Blues')[-1], sns.color_palette('Reds')[-1]] # Blue IT, Red PT
 interactive(True)
+
+# utils
+import utils_cabmi as ut
+from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename, load_A
+from utils_loading import path_prefix_free, file_folder_path
+from utils_cabmi import std_filter, median_filter
+from pipeline import separate_planes, separate_planes_multiple_baseline
+from preprocessing import get_roi_type
+
 
 def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
     '''
@@ -91,7 +115,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False, dropend=True, out=None):
+    to_plot=None, end_bin=None, reg=False, dropend=True, out=None, total=False):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -109,6 +133,7 @@ def learning_params(
     if out is None:
         out = folder
     f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
+    print(f.filename)
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
@@ -118,8 +143,16 @@ def learning_params(
     array_miss = np.asarray(f['array_miss'])
     trial_end = np.asarray(f['trial_end'])
     trial_start = np.asarray(f['trial_start'])
+    bigbin = bin_size * 60
+    first_bin_end = bigbin * fr
+    trial_durs = trial_end + 1 - trial_start
+    totalPC = hits.shape[0]/ trial_end.shape[0]
+    # TODO: Greedy way to calculate HPM
+    DELTA = fr * 60
+    totalHPM = hits.shape[0] * DELTA / (trial_end[-1] - trial_start[0])
+    #totalHPM = hits.shape[0] * fr * 60 / (np.sum(trial_durs)) # use sum of all trial times
     #percentage_correct = hits.shape[0]/trial_end.shape[0]
-    bigbin = bin_size*60
+
     if dropend:
         ebin = trial_end[-1]/fr + 1
     else:
@@ -209,8 +242,15 @@ def learning_params(
 
     xx_axis = xx/bigbin
     xx_axis = np.expand_dims(xx_axis, axis=1)
-    return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
+    if total:
+        evohits = hits[hits > first_bin_end]
+        evomiss = miss[miss > first_bin_end]
+        evoPC = len(evohits) / (len(evohits) + len(evomiss))
+        evoHPM = len(evohits) * DELTA / (trial_end[-1]+1-first_bin_end)
+        hpm = (hpm, totalHPM, evoHPM - hpm[0])
+        percentage_correct = (percentage_correct, totalPC, evoPC - percentage_correct[0])
 
+    return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
 def activity_hits(folder, animal, day, sec_var=''):
     '''
@@ -368,7 +408,6 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
     # Create TD model and compare V(t) and d(T) to activity of neurons
     # IT/PT/REST
-
 
 def raw_activity_tuning_single_session(folder, animal, day, i, window=3000, itype='dff', metric='raw', zcap=None):
     hf = encode_to_filename(processed, animal, day)
@@ -569,17 +608,415 @@ def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False
     return savepath
 
 
-def obtain_basic_features(folder, animal, day):
-    
-    f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
-    com = np.asarray(f['new_com'])
-    cursor = np.asarray(f['cursor'])
-    dff = np.asarray(f['dff'])
-    e2_neur = np.asarray(f['e2_neur'])
-    ens_neur = np.asarray(f['ens_neur'])
-    nerden = np.asarray(f['nerden'])
-    
-    
+#################################################################
+######################## SNR calculation ########################
+#################################################################
+def extract_clean_dff(A, C, B, F, raw=True):
+    nA = np.sqrt(np.ravel(A.power(2).sum(axis=0)))
+    nA_mat = scipy.sparse.spdiags(nA, 0, nA.shape[0], nA.shape[0])
+    nA_inv_mat = scipy.sparse.spdiags(1. / nA, 0, nA.shape[0], nA.shape[0])
+    A = A * nA_inv_mat
+    F0 = (A.T @ B) @ F
+    if raw:
+        return C / F0
+
+
+def MF_infer_f0(A, C, B, Yr, efficient=True):
+    # A, C, B, Yr numpy arrays of the same orders
+    B_inv = np.linalg.inv(B.T @ B)
+    if B.shape[0] != A.shape[0]:
+        A = A.T
+    if efficient:
+        return B_inv @ (B.T @ Yr - (B.T @ A) @ C)
+    else:
+        R = Yr - A @ C
+        return B_inv @ (B.T @ R)
+
+
+def compute_residuals(Yr, A, C, b, f, block_size=5000, num_blocks_per_run=20, dview=None):
+    # adapted from caiman/source_extraction/cnmf/cnmf.py
+    """compute residual for each component (variable YrA)
+     Args:
+         Yr :    np.ndarray
+                 movie in format pixels (d) x frames (T)
+    """
+    if 'csc_matrix' not in str(type(A)):
+        A = scipy.sparse.csc_matrix(A)
+    if 'array' not in str(type(b)):
+        b = b.toarray()
+    if 'array' not in str(type(C)):
+        C = C.toarray()
+    if 'array' not in str(type(f)):
+        f = f.toarray()
+
+    Ab = scipy.sparse.hstack((A, b)).tocsc()
+    nA2 = np.ravel(Ab.power(2).sum(axis=0))
+    nA2_inv_mat = scipy.sparse.spdiags(
+        1. / nA2, 0, nA2.shape[0], nA2.shape[0])
+    Cf = np.vstack((C, f))
+    if 'numpy.ndarray' in str(type(Yr)):
+        YA = (Ab.T.dot(Yr)).T * nA2_inv_mat
+    else:
+        YA = cm.mmapping.parallel_dot_product(Yr, Ab, dview=dview, block_size=block_size,
+                                              transpose=True,
+                                              num_blocks_per_run=num_blocks_per_run) * nA2_inv_mat
+
+    AA = Ab.T.dot(Ab) * nA2_inv_mat
+    return (YA - (AA.T.dot(Cf)).T)[:, :A.shape[-1]].T
+
+
+def compute_SNR_from_traces(A, C, b, f, Yr, pix, fr=4, decay_time=0.4, gSig=(3, 3), min_SNR=2.5, rval_thr=0.8,
+                            cnn_thr=0.8, block_size=5000, num_blocks_per_run=20, dview=None):
+    """
+    Args:
+         Yr :    np.ndarray
+                 movie in format pixels (d) x frames (T)
+    compare with cnm.estimates.YrA: mean: 0.9688151430842026 max:  0.99811120903548 min:  0.8694174255835385
+    """
+    dims = (pix, pix)
+    T = Yr.shape[1]
+    images = np.reshape(Yr, dims + (T,), order='F')
+    YrA = compute_residuals(Yr, A, C, b, f, block_size, num_blocks_per_run, dview)
+    idx_components, idx_components_bad, SNR_comp, r_values, cnn_preds = \
+        estimate_components_quality_auto(images, A, C, b, f, YrA, fr, decay_time, gSig, dims,
+                                         dview=dview, min_SNR=min_SNR,
+                                         r_values_min=rval_thr, use_cnn=False, thresh_cnn_min=cnn_thr)
+    return SNR_comp
+
+
+def estimate_SNR_hfile(fnames, hfile, fr, used_planes=1, numplanes=1, pixel=256, decay_time=0.4,
+                       gSig=(3, 3), min_SNR=2.5, rval_thr=0.8, cnn_thr=0.8, block_size=5000,
+                       num_blocks_per_run=20, dview=None, baseline=True, motion=True, ORDER='F'):
+    """Given single plane [tiff fnames] and hfile, get SNR_comp"""
+
+    # Params
+    # motion correct
+    niter_rig = 1  # number of iterations for rigid motion correction
+    max_shifts = (3, 3)  # maximum allow rigid shift
+    splits_rig = 10  # for parallelization split the movies in  num_splits chuncks across time
+    strides = (96, 96)  # start a new patch for pw-rigid motion correction every x pixels
+    overlaps = (48, 48)  # overlap between pathes (size of patch strides+overlaps)
+    splits_els = 10  # for parallelization split the movies in  num_splits chuncks across time
+    upsample_factor_grid = 4  # upsample factor to avoid smearing when merging patches
+    max_deviation_rigid = 3  # maximum deviation allowed for patch with respect to rigid shifts
+    ########################
+
+    if 'estimates' in hfile:
+        hf = hfile['estimates']
+        B = np.array(hf['b'])
+    else:
+        hf = hfile
+        b = hfile['base_im']
+        B = np.array(hfile['base_im']).reshape((-1, b.shape[-1]), order=ORDER)
+    A = load_A(hfile)
+    if A.shape[0] != B.shape[0]:
+        A = A.T
+    C = np.array(hf['C'])
+    first_file = fnames[0]
+    if isinstance(fnames, np.ndarray):
+        Yr, p = fnames, pixel
+    elif '.mmap' in first_file or '.tif' in first_file:
+        if motion:
+            print('***************Starting motion correction*************')
+            print('files:')
+            print(fnames)
+
+            # %%% MOTION CORRECTION
+            # first we create a motion correction object with the parameters specified
+            min_mov = cm.load(fnames[0]).min()
+            # this will be subtracted from the movie to make it non-negative
+
+            mc = MotionCorrect(fnames, min_mov,
+                               dview=dview, max_shifts=max_shifts, niter_rig=niter_rig,
+                               splits_rig=splits_rig,
+                               strides=strides, overlaps=overlaps, splits_els=splits_els,
+                               upsample_factor_grid=upsample_factor_grid,
+                               max_deviation_rigid=max_deviation_rigid,
+                               shifts_opencv=True, nonneg_movie=True)
+            # note that the file is not loaded in memory
+
+            # %% Run piecewise-rigid motion correction using NoRMCorre
+            mc.motion_correct_pwrigid(save_movie=True)
+            bord_px_els = np.ceil(np.maximum(np.max(np.abs(mc.x_shifts_els)),
+                                             np.max(np.abs(mc.y_shifts_els)))).astype(np.int)
+            print('***************Motion correction has ended*************')
+            # maximum shift to be used for trimming against NaNs
+
+            # %% MEMORY MAPPING
+            # memory map the file in order 'C'
+            fnames = mc.fname_tot_els  # name of the pw-rigidly corrected file.
+            # TODO: check for .mmap file loading
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C',
+                                   border_to_0=bord_px_els)  # exclude borders
+        else:
+            fname_new = cm.save_memmap(fnames, base_name='memmap_', order='C')
+
+        # now load the file
+        Yr, dims, T = cm.load_memmap(fname_new)
+        p = dims[0]
+    else:
+        raise NotImplementedError("currently only supports mmap, tif, and numpy array")
+
+    Fhat = MF_infer_f0(A, C[:, :T], B, Yr)  
+
+    SNR_comp = compute_SNR_from_traces(A, C[:, :T], B, Fhat, Yr, p, fr=fr, decay_time=decay_time, gSig=gSig,
+                                       min_SNR=min_SNR, rval_thr=rval_thr, cnn_thr=cnn_thr,
+                                       block_size=block_size, num_blocks_per_run=num_blocks_per_run,
+                                       dview=dview)
+    if baseline:
+        blen = 9000
+        SNR_comp_base = compute_SNR_from_traces(A, C[:, :blen], B, Fhat[:, :blen], Yr[:, :blen], p, fr=fr, decay_time=decay_time, gSig=gSig,
+                                           min_SNR=min_SNR, rval_thr=rval_thr, cnn_thr=cnn_thr,
+                                           block_size=block_size, num_blocks_per_run=num_blocks_per_run,
+                                           dview=dview)
+        return SNR_comp, SNR_comp_base, Fhat
+    return SNR_comp, Fhat
+
+
+def calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_planes=4):
+    """
+    Function to analyze every plane and get the result in a hdf5 file. It uses caiman_main
+    Folder(str): folder where the input/output is/will be stored
+    animal/day(str) to be analyzed
+    num_files(int): number of files for the bmi file
+    num_files_b(int): number of files for the baseline file
+    number_planes(int): number of planes that carry information
+    number_planes_total(int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen
+    dend(bool): Boleean to change parameters to look for neurons or dendrites
+    display_images(bool): to display and save different plots"""
+
+    folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
+    finfo = folder + 'raw/' + animal + '/' + day + '/wmat.mat'  # file name of the mat
+    matinfo = scipy.io.loadmat(finfo)
+    fr = matinfo['fr'][0][0]
+    snr_out = os.path.join(folder, 'raw', animal, day, 'SNR_{}_{}.hdf5'.format(animal, day))
+
+    print('*************Starting with analysis*************')
+    SNR_mats = []
+    SNR_basemats = []
+    planes = []
+    fHats = []
+
+    for plane in np.arange(number_planes):
+        fnames = []
+        for nf in np.arange(int(num_files_b)):
+            fnames.append(folder_path + 'baseline' + '_plane_' + str(plane) + '_nf_' + str(nf) + '.tiff')
+        print('performing plane: ' + str(plane))
+        for nf in np.arange(int(num_files)):
+            fnames.append(folder_path + 'bmi' + '_plane_' + str(plane) + '_nf_' + str(nf) + '.tiff')
+
+        fpath = folder + 'raw/' + animal + '/' + day + '/analysis/' + str(plane) + '/'
+        if not os.path.exists(fpath):
+            os.makedirs(fpath)
+
+        hf = h5py.File(folder + 'raw/' + animal + '/' + day + '/' + 'bmi_' +  '_' + str(plane) + '.hdf5', 'r')
+
+        print(fnames)
+        SNRcomps, SNR_comp_base, fHat = estimate_SNR_hfile(fnames, hf, fr)
+        SNR_mats.append(SNRcomps)
+        SNR_basemats.append(SNR_comp_base)
+        fHats.append(fHat)
+        planes = planes + len(SNRcomps) * [plane]
+        hf.close()
+        print('SNR done: saving ... plane: ' + str(plane))
+
+    print('... done')
+    try:
+        with h5py.File(snr_out, 'w-') as snrhf:
+            snrhf['SNR'] = np.concatenate(SNR_mats)
+            snrhf['SNR_baseline'] = np.concatenate(SNR_basemats)
+            snrhf['F_hat'] = np.vstack(fHats)
+            snrhf['plane'] = planes
+    except IOError:
+        print(" OOPS!: The file already existed ease try with another file, new results will NOT be saved")
+
+
+def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
+    """
+    Function to run all the different functions of the pipeline that gives back the analyzed data
+    Folder (str): folder where the input/output is/will be stored
+    animal/day (str) to be analyzed
+    number_planes (int): number of planes that carry information
+    number_planes_total (int): number of planes given back by the recording system, it may differ from number_planes
+    to provide time for the objective to return to origen"""
+
+    folder_path = folder + 'raw/' + animal + '/' + day + '/'
+    folder_final = folder + 'processed/' + animal + '/' + day + '/'
+    err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
+    if not os.path.exists(folder_final):
+        os.makedirs(folder_final)
+
+    finfo = folder_path + 'wmat.mat'  # file name of the mat
+    matinfo = scipy.io.loadmat(finfo)
+    ffull = [folder_path + matinfo['fname'][0]]  # filename to be processed
+    fbase = [folder_path + matinfo['fbase'][0]]
+
+    try:
+        wmatp = re.compile('wmat(.*).mat')
+        bmip = re.compile('bmi_(.*).tif')
+        bmi_count = len([1 for f in os.listdir(folder_path) if bmip.match(f)])
+        wmat_count = len([1 for f in os.listdir(folder_path) if wmatp.match(f)])
+        if wmat_count == 1:
+            if bmi_count == 1:
+                num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi', number_planes,
+                                                     number_planes_total)
+                num_files_b, len_base = separate_planes(folder, animal, day, fbase, 'baseline', number_planes,
+                                                        number_planes_total)
+            elif bmi_count == 2:
+                fbase1 = [folder + 'raw/' + animal + '/' + day + '/' + 'baseline_00001.tif']
+                fbase2 = [folder + 'raw/' + animal + '/' + day + '/' + 'bmi_00000.tif']
+                num_files_b, len_base = separate_planes_multiple_baseline(folder, animal, day, fbase1,
+                                                                               fbase2)
+                num_files, len_bmi = separate_planes(folder, animal, day, ffull, 'bmi')
+    except Exception as e:
+        tb = sys.exc_info()[2]
+        err_file.write("\n{}\n".format(folder_path))
+        err_file.write("{}\n".format(str(e.args)))
+        traceback.print_tb(tb, file=err_file)
+        err_file.close()
+        sys.exit('Error in separate planes')
+
+    # nam = folder_path + 'readme.txt'
+    # readme = open(nam, 'w+')
+    # readme.write("num_files_b = " + str(num_files_b) + '; \n')
+    # readme.write("num_files = " + str(num_files) + '; \n')
+    # readme.write("len_base = " + str(len_base) + '; \n')
+    # readme.write("len_bmi = " + str(len_bmi) + '; \n')
+    # readme.close()
+
+    try:
+        calc_SNR_all_planes(folder, animal, day, num_files, num_files_b, number_planes)
+    except Exception as e:
+        tb = sys.exc_info()[2]
+        err_file.write("\n{}\n".format(folder_path))
+        err_file.write("{}\n".format(str(e.args)))
+        traceback.print_tb(tb, file=err_file)
+        err_file.close()
+        sys.exit('Error in SNR calculation')
+
+    try:
+        shutil.rmtree(folder + 'raw/' + animal + '/' + day + '/separated/')
+    except OSError as e:
+        print("Error: %s - %s." % (e.filename, e.strerror))
+
+    err_file.close()
+
+
+#################################################################
+#################### online SNR calculation #####################
+#################################################################
+def f0_filter_sig(xs, ys, method=2, width=30):
+    """
+    Return:
+        dff: np.ndarray (T, 2)
+            col0: dff
+            col1: boundary scale for noise level
+    """
+    if method < 10:
+        mf, mDC = median_filter(width, method)
+    else:
+        mf, mDC = std_filter(width, method%10, buffer=True)
+    dff = np.array([(mf(ys, i), mDC.get_dev()) for i in range(len(ys))])
+    return dff
+
+
+def calcium_dff(xs, ys, method=2, width=30):
+    f0 =f0_filter_sig(xs, ys, method=method, width=width)[:, 0]
+    return (ys-f0) / f0
+
+
+def caiman_SNR(xs, ys, source='raw', verbose=False):
+    """
+    method: str
+        raw: raw caiman SNR
+        dff: feed dff to caiman
+        dbl: specify baseline in foopsi
+        df: feed filtered signal to caiman
+    """
+    if source == 'raw':
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys, p=2)
+    elif source == 'dff':
+        dff = calcium_dff(xs, ys)
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(dff, p=2)
+    elif source == 'dbl':
+        bl0 = f0_filter_sig(xs, ys)[:, 0]
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys, bl=bl0, p=2)
+    elif source == 'df':
+        c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys-f0_filter_sig(xs, ys)[:, 0], p=2)
+    else:
+        raise NotImplementedError(f"source method {source} not recognized")
+    sigpower = np.mean(np.square(c))
+    snr = sigpower / (sn ** 2)
+    if verbose:
+        print(source, f'snr: {snr:.5f}', f'noise: {sn:.5f}', f'sigpower: {sigpower:.5f}',
+              f'putative power: {(np.mean(np.square(ys-bl))-sn**2):.5f}')
+    return snr
+
+
+def online_SNR_single_session(folder, animal, day, out):
+    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    outpath = os.path.join(out, animal, day)
+    targetfile = os.path.join(outpath, f'onlineSNR_{animal}_{day}.hdf5')
+    if os.path.exists(targetfile):
+        print(f'{animal} {day} already done, skipping...')
+    with h5py.File(dayfile, 'r') as session:
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        Nens = session['online_data'].shape[1] - 2
+        od = session['online_data']
+        frame = np.array(od[:, 1]).astype(np.int32) // 6
+        datamat = np.array(od[:, 2:])
+        Tdf = frame[-1] + 1
+        SNRs = []
+        for i in range(Nens):
+            data = datamat[:, i]
+            sclean = ~np.isnan(data)
+            f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+            all_online_frames = np.arange(Tdf)
+            interp_online = f(all_online_frames)
+            SNRs.append(caiman_SNR(all_online_frames, interp_online))
+        try:
+            with h5py.File(targetfile, 'w-') as osnr:
+                osnr['SNR_ens'] = np.around(SNRs, 4)
+        except IOError:
+            print(" OOPS!: The file already existed please try with another file, "
+                  "new results will NOT be saved")
+
+
+def dff_SNR_single_session(folder, animal, day, out):
+    # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    outpath = os.path.join(out, animal, day)
+    targetfile = os.path.join(outpath, f'dffSNR_{animal}_{day}.hdf5')
+    if os.path.exists(targetfile):
+        print(f'{animal} {day} already done, skipping...')
+    with h5py.File(dayfile, 'r') as session:
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        dff = np.array(session['dff'])
+        Nneur = dff.shape[0]
+        T = dff.shape[1]
+        frame = np.arange(T)
+        SNRs = np.empty(Nneur, dtype=np.float64)
+        for i in range(Nneur):
+            data = dff[i, :]
+            sclean = ~np.isnan(data)
+            if sum(sclean) != T:
+                f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+                trace = f(frame)
+            else:
+                trace = data
+            SNRs[i] = caiman_SNR(frame, trace)
+        try:
+            with h5py.File(targetfile, 'w-') as osnr:
+                osnr['SNR_ens'] = np.around(SNRs, 4)
+        except IOError:
+            print(" OOPS!: The file already existed please try with another file, "
+                  "new results will NOT be saved")
 
 
 
