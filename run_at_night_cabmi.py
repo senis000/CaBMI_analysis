@@ -10,10 +10,11 @@ import sys, traceback
 
 
 def tonight():
-#     put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5','IT6', 'PT12','PT13','PT18'))
-    put_together_tonight(folder = 'H:/Nuria_data/CaBMI/Layer_project/', animals = ('IT3','IT4', 'PT6','PT9'))
-#     put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1','IT2', 'PT7'))
-    put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8','IT9', 'IT10','PT19','PT20'))
+    put_together_tonight(folder = 'G:/Nuria_data/CaBMI/Layer_project/', animals = ('IT5', 'IT6', 'PT12','PT13','PT18'))
+    put_together_tonight(folder = 'H:/Nuria_data/CaBMI/Layer_project/', animals = ('IT3', 'IT4', 'PT6','PT9'))
+    put_together_tonight(folder = 'I:/Nuria_data/CaBMI/Layer_project/', animals = ('IT1', 'IT2', 'PT7'))
+    put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10', 'PT19', 'PT20'))
+#     put_together_tonight(folder = 'G:/', animals = ('PT6',), toplot=True)
 
 #     folder = 'G:/Nuria_data/CaBMI/Layer_project/'
 #     animal = 'PT18'
@@ -73,7 +74,7 @@ def cut_tonight():
 #         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
 
 
-def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10')):
+def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10'), toplot=False):
     
 #     
 #     animal = 'IT4'
@@ -109,7 +110,7 @@ def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals 
                 continue
             print('runing animal: ' + str(animal) + "and day: " + str(day))
             try:
-                pipe.put_together(folder, animal, day)
+                pipe.put_together(folder, animal, day, toplot=toplot)
             except Exception as e:
                 fails[animal].append((day, e.args))
     print(fails)       
