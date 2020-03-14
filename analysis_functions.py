@@ -211,6 +211,7 @@ def learning_params(
     xx_axis = np.expand_dims(xx_axis, axis=1)
     return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
+
 def activity_hits(folder, animal, day, sec_var=''):
     '''
     Function to obtain the activity of neurons time-locked to the trial end.
@@ -367,6 +368,7 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
     # Create TD model and compare V(t) and d(T) to activity of neurons
     # IT/PT/REST
+
 
 def raw_activity_tuning_single_session(folder, animal, day, i, window=3000, itype='dff', metric='raw', zcap=None):
     hf = encode_to_filename(processed, animal, day)
@@ -566,6 +568,18 @@ def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False
     del neurcorr
     return savepath
 
+
+def obtain_basic_features(folder, animal, day):
+    
+    f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
+    com = np.asarray(f['new_com'])
+    cursor = np.asarray(f['cursor'])
+    dff = np.asarray(f['dff'])
+    e2_neur = np.asarray(f['e2_neur'])
+    ens_neur = np.asarray(f['ens_neur'])
+    nerden = np.asarray(f['nerden'])
+    
+    
 
 
 
