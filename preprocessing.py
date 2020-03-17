@@ -361,6 +361,7 @@ def regularize_directory(folder):
                 hdf5only = True
                 for f in os.listdir(daypath):
                     if f[-4:] != '.hdf5':
+                        print(f)
                         hdf5only = False
                     if f[:4] == 'full':
                         os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
