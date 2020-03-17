@@ -626,6 +626,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     plt.close('all')
 
 
+    # does fr exist?
+    fr = matinfo['fr'][0][0]
 
     #fill the file with all the correct data!
     try:
@@ -636,6 +638,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
         fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
         fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
+        fall.create_dataset('com', data = new_com) # (array) Position of the components as calculated in pipeline (better approx) 
         fall.attrs['blen'] = vars.len_base # (int) lenght of the baseline
         gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
         gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
@@ -650,7 +653,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('e2_neur', data = e2_neur) # (array) Index of the E2 neurons among the rest of components
         fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
         fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
-        fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
+        fall.attrs['fr'] =  fr # (int) Framerate
         fall.create_dataset('redlabel', data = redlabel) # (array-bool) True labels neurons as red
         fall.create_dataset('nerden', data = nerden) # (array-bool) True labels components as neurons
         fall.create_dataset('hits', data = hits) # (array) When the animal hit the target 
@@ -1509,3 +1512,103 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
     else:
         best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
+
+
+from caiman.utils.stats import df_percentile
+
+def novel_detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=250,
+                 flag_auto=True, use_fast=False, scaleC=False):
+    """ Compute DF/F signal without using the original data.
+    In general much faster than extract_DF_F
+
+    Args:
+        A: scipy.sparse.csc_matrix
+            spatial components (from cnmf cnm.A)
+
+        b: ndarray
+            spatial background components
+
+        C: ndarray
+            temporal components (from cnmf cnm.C)
+
+        f: ndarray
+            temporal background components
+
+        YrA: ndarray
+            residual signals
+
+        quantile_min: float
+            quantile used to estimate the baseline (values in [0,100])
+
+        frames_window: int
+            number of frames for computing running quantile
+
+        flag_auto: bool
+            flag for determining quantile automatically
+
+        use_fast: bool
+            flag for using approximate fast percentile filtering
+
+    Returns:
+        F_df:
+            the computed Calcium acitivty to the derivative of f
+    """
+
+    if C is None:
+        logging.warning("There are no components for DF/F extraction!")
+        return None
+
+    if 'csc_matrix' not in str(type(A)):
+        A = scipy.sparse.csc_matrix(A)
+    if 'array' not in str(type(b)):
+        b = b.toarray()
+    if 'array' not in str(type(C)):
+        C = C.toarray()
+    if 'array' not in str(type(f)):
+        f = f.toarray()
+
+    nA = np.sqrt(np.ravel(A.power(2).sum(axis=0)))
+    nA_mat = scipy.sparse.spdiags(nA, 0, nA.shape[0], nA.shape[0])
+    nA_inv_mat = scipy.sparse.spdiags(1. / nA, 0, nA.shape[0], nA.shape[0])
+    A = A * nA_inv_mat
+    oC = C
+    C = nA_mat * C
+    if YrA is not None:
+        YrA = nA_mat * YrA
+
+    F = C + YrA if YrA is not None else C
+    B = A.T.dot(b).dot(f)
+    T = C.shape[-1]
+
+    if flag_auto:
+        ###### break down
+        data_prct, val = df_percentile(F[:, :frames_window], axis=1)
+        if frames_window is None or frames_window > T:
+            Fd = np.stack([np.percentile(f, prctileMin) for f, prctileMin in
+                           zip(F, data_prct)])
+            Df = np.stack([np.percentile(f, prctileMin) for f, prctileMin in
+                           zip(B, data_prct)])
+            F_df = (F - Fd[:, None]) / (Df[:, None] + Fd[:, None])
+        else:
+            Fd = np.stack([scipy.ndimage.percentile_filter(
+                f, prctileMin, (frames_window)) for f, prctileMin in
+                zip(F, data_prct)])
+            Df = np.stack([scipy.ndimage.percentile_filter(
+                f, prctileMin, (frames_window)) for f, prctileMin in
+                zip(B, data_prct)])
+            if scaleC:
+                F_df = C / (Df + Fd)
+            else:
+                F_df = oC / (Df + Fd)
+    else:
+        if frames_window is None or frames_window > T:
+            Fd = np.percentile(F, quantileMin, axis=1)
+            Df = np.percentile(B, quantileMin, axis=1)
+            F_df = (F - Fd) / (Df[:, None] + Fd[:, None])
+        else:
+            Fd = scipy.ndimage.percentile_filter(
+                F, quantileMin, (frames_window, 1))
+            Df = scipy.ndimage.percentile_filter(
+                B, quantileMin, (frames_window, 1))
+            F_df = (F - Fd) / (Df + Fd)
+    return F_df

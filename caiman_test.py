@@ -4,8 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.stats import zscore
 import matplotlib.pyplot as plt
-from utils_loading import encode_to_filename, parse_group_dict, get_all_animals, decode_from_filename
-from pipeline import *
+from utils_loading import encode_to_filename, parse_group_dict
 
 
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
@@ -102,6 +101,7 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
         results[i + 8] = corrs_pair2[i]
         results[i + 13] = corrs_pair3[i]
     return results
+
 
 
 def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=None,

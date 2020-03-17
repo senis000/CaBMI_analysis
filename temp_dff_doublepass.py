@@ -23,7 +23,7 @@ def dff_test(root, animal, day, dff_func):
     dff = dff_func(f)
     blen = f.attrs['blen']
     nerden = f['nerden']
-    ens_neur = np.array(f['ens_neur'])
+    ens_neur = np.array(f['ens_neur'], dtype=np.int16)
     online_data = pd.read_csv(csvf)
     units = len(ens_neur)
     online = online_data.iloc[:, 2:2 + units].values.T
@@ -82,52 +82,57 @@ def dff_test(root, animal, day, dff_func):
     axes[1].legend(['C', 'dff', 'online raw', 'double pass C'])
     axes[1].set_title('Raw No zscore')
 
-animal, day = 'IT2', '181115'
-root = "/Volumes/DATA_01/NL/layerproject/"
-caiman_dff = lambda hf: np.array(hf['dff'])
-#dff_test(root, animal, day, dff_func=caiman_dff)
+def dff_test_main():
+    animal, day = 'IT2', '181115'
+    root = "/Volumes/DATA_01/NL/layerproject/"
+    caiman_dff = lambda hf: np.array(hf['dff'])
+    #dff_test(root, animal, day, dff_func=caiman_dff)
 
 
-# TODO: VISUALLY INSPECT A and C.
-ORDER = 'F'
-T = 200
-rawf_name = "baseline_00001.tif"
-hf = h5py.File(root + "processed/{}/full_{}_{}__data.hdf5".format(animal, animal, day), 'r')
-rawf = os.path.join(root, "raw/{}/{}/{}".format(animal, day, rawf_name))
-rf = tifffile.TiffFile(rawf)
+def small_Test_residual():
+    animal, day = 'IT2', '181115'
+    root = "/Volumes/DATA_01/NL/layerproject/"
+    root = "/Volumes/DATA_01/NL/layerproject/"
+    # TODO: VISUALLY INSPECT A and C.
+    ORDER = 'F'
+    T = 200
+    rawf_name = "baseline_00001.tif"
+    hf = h5py.File(root + "processed/{}/full_{}_{}__data.hdf5".format(animal, animal, day), 'r')
+    rawf = os.path.join(root, "raw/{}/{}/{}".format(animal, day, rawf_name))
+    rf = tifffile.TiffFile(rawf)
 
-Y = np.concatenate([p.asarray()[:, :, np.newaxis] for p in rf.pages[:T]], axis=2)  #shape=(256, 256, T)
-B = np.array(hf['base_im']).reshape((-1, 4))  #shape=(65536, 4)
-Yr = Y.reshape((-1, T), order=ORDER)
+    Y = np.concatenate([p.asarray()[:, :, np.newaxis] for p in rf.pages[:T]], axis=2)  #shape=(256, 256, T)
+    B = np.array(hf['base_im']).reshape((-1, 4))  #shape=(65536, 4)
+    Yr = Y.reshape((-1, T), order=ORDER)
 
-data = hf['Nsparse']['data']
-indices = hf['Nsparse']['indices']
-indptr = hf['Nsparse']['indptr']
-Asparse = csc_matrix((data, indices, indptr)) #(N, P)
-#Asparse = csc_matrix(np.array(data), np.array(indices), np.array(indptr))
+    data = hf['Nsparse']['data']
+    indices = hf['Nsparse']['indices']
+    indptr = hf['Nsparse']['indptr']
+    Asparse = csc_matrix((data, indices, indptr)) #(N, P)
+    #Asparse = csc_matrix(np.array(data), np.array(indices), np.array(indptr))
 
-A_all = np.sum(Asparse.toarray(), axis=0)
+    A_all = np.sum(Asparse.toarray(), axis=0)
 
-C = hf['C']
-C_samp = C[:, :T]
+    C = hf['C']
+    C_samp = C[:, :T]
 
-CP = Asparse.T @ C_samp
+    CP = Asparse.T @ C_samp
 
-R = Yr-CP
+    R = Yr-CP
 
 
-# fig, axes = plt.subplots(nrows = 1, ncols=2)
-# axes[0].imshow(pp.reshape((256, 256)))
-# axes[1].imshow(Y[:, 0].reshape((256, 256)))
-# plt.show()
+    # fig, axes = plt.subplots(nrows = 1, ncols=2)
+    # axes[0].imshow(pp.reshape((256, 256)))
+    # axes[1].imshow(Y[:, 0].reshape((256, 256)))
+    # plt.show()
 
-# fig, axes = plt.subplots(nrows = 1, ncols=2)
-# axes[0].imshow(pp.reshape((256, 256)))
-# axes[1].imshow(Y[:, 0].reshape((256, 256)))
+    # fig, axes = plt.subplots(nrows = 1, ncols=2)
+    # axes[0].imshow(pp.reshape((256, 256)))
+    # axes[1].imshow(Y[:, 0].reshape((256, 256)))
 
-# fig, axes = plt.subplots(nrows = 1, ncols=2)
-# axes[0].imshow(pp.reshape((256, 256)))
-# axes[1].imshow(Y[:, 0].reshape((256, 256)))
+    # fig, axes = plt.subplots(nrows = 1, ncols=2)
+    # axes[0].imshow(pp.reshape((256, 256)))
+    # axes[1].imshow(Y[:, 0].reshape((256, 256)))
 
 import caiman as cm
 from caiman.source_extraction.cnmf import cnmf as cnmf

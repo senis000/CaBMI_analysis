@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import h5py, os
 from utils_loading import path_prefix_free, file_folder_path, get_PTIT_over_days, \
-    parse_group_dict, encode_to_filename, find_file_regex, get_all_animals, decode_from_filename
+    parse_group_dict, encode_to_filename, find_file_regex
 from utils_cabmi import median_absolute_deviation
 import csv
 import multiprocessing as mp
