@@ -318,6 +318,59 @@ def digitize_calcium_all(folder, groups, source, ns, nproc=1):
         with open("dCalcium_n_{}.txt".format(n)) as f:
             f.write("done")
 
+
+def move_typhos(folder):
+    # check date in micelog
+    for animal in get_all_animals(folder):
+        animal_path = os.path.join(folder, animal)
+        for day in os.listdir(animal_path):
+            if day[-5:] == '.hdf5':
+                _, d = decode_from_filename(day)
+                daydir = os.path.join(animal_path, d)
+                if not os.path.exists(daydir):
+                    os.makedirs(daydir)
+                os.rename(os.path.join(animal_path, day), os.path.join(daydir, day))
+            elif day.isnumeric():
+                daypath = os.path.join(animal_path, day)
+                for f in os.listdir(daypath):
+                    if f == 'onlineSNR.hdf5':
+                        os.rename(os.path.join(daypath, f), os.path.join(daypath,
+                                                                         f'onlineSNR_{animal}_{day}.hdf5'))
+
+
+def regularize_directory(folder):
+    # TODO: rename ALL dffSNRs from snr_ens to snr_dff
+    # check date in micelog
+    processed = os.path.join(folder, 'processed')
+    utils = os.path.join(folder, 'utils')
+
+    def hdf5_to_utils(f, animal, fpath):
+        subdir = f.split('_')[0]
+        animal_subdir = os.path.join(utils, subdir, animal)
+        if not os.path.exists(animal_subdir):
+            os.makedirs(animal_subdir)
+        os.rename(os.path.join(fpath, f), os.path.join(animal_subdir, f))
+    for animal in get_all_animals(processed):
+        animal_path = os.path.join(processed, animal)
+
+        for day in os.listdir(animal_path):
+            if day[-5:] == '.hdf5' and day[:4] != 'full':
+                hdf5_to_utils(day, animal, animal_path)
+            elif day.isnumeric():
+                daypath = os.path.join(animal_path, day)
+                hdf5only = True
+                for f in os.listdir(daypath):
+                    if f[-4:] != '.hdf5':
+                        print(f)
+                        hdf5only = False
+                    if f[:4] == 'full':
+                        os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
+                    else:
+                        hdf5_to_utils(f, animal, daypath)
+                if hdf5only:
+                    os.removedirs(daypath)
+
+
 if __name__ == '__main__':
     home = "/home/user/"
     digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])
