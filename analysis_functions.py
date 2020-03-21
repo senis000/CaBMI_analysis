@@ -252,6 +252,7 @@ def learning_params(
 
     return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
+
 def activity_hits(folder, animal, day, sec_var=''):
     '''
     Function to obtain the activity of neurons time-locked to the trial end.
@@ -408,6 +409,7 @@ def feature_select(folder, animal, day, sec_var='', sec_bin=[30, 0], step=5,
 # def tdmodel(folder, animal, day, sec_var='', to_plot=True):
     # Create TD model and compare V(t) and d(T) to activity of neurons
     # IT/PT/REST
+
 
 def raw_activity_tuning_single_session(folder, animal, day, i, window=3000, itype='dff', metric='raw', zcap=None):
     hf = encode_to_filename(processed, animal, day)
@@ -611,6 +613,8 @@ def coactivation_single_session(inputs, window=3000, mlag=10, include_dend=False
 #################################################################
 ######################## SNR calculation ########################
 #################################################################
+
+
 def extract_clean_dff(A, C, B, F, raw=True):
     nA = np.sqrt(np.ravel(A.power(2).sum(axis=0)))
     nA_mat = scipy.sparse.spdiags(nA, 0, nA.shape[0], nA.shape[0])
@@ -906,6 +910,8 @@ def all_run_SNR(folder, animal, day, number_planes=4, number_planes_total=6):
 #################################################################
 #################### online SNR calculation #####################
 #################################################################
+
+
 def f0_filter_sig(xs, ys, method=2, width=30):
     """
     Return:
