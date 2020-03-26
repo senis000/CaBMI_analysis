@@ -1492,7 +1492,10 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
         correlation = 0
         for i in range(trial_end.size):
             start_idx = np.where(frames>(trial_start[i] - len_base))[0][0]
-            end_idx = np.where(frames>(trial_end[i] - len_base))[0][0]
+            aux_end = trial_end[i] - len_base
+            if aux_end > frames[-1]:
+                aux_end = frames[-1]
+            end_idx = np.where(frames>=aux_end)[0][0]
             simulated_cursor = \
                 np.sum(online_data[e2,start_idx:end_idx], axis=0) - \
                 np.sum(online_data[e1,start_idx:end_idx], axis=0)
