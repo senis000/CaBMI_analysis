@@ -133,7 +133,7 @@ def learning_params(
     if out is None:
         out = folder
     fname = encode_to_filename(os.path.join(folder, 'processed'), animal, day)
-    print('trying: ', fname)
+    print('processing: ', fname)
     f = h5py.File(fname, 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']

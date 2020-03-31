@@ -76,7 +76,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
                     HPMgains.append(np.nan)
                     continue
                 except OSError:
-                    print(f'cannot find {animal} {d}')
+                    print(f'cannot open {animal} {d}')
                     nofile.append((animal, d))
                 hpm = np.around(hpm, 2)
                 pc = np.around(pc, 4)
