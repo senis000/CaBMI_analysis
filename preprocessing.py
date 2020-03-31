@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import h5py, os
 from utils_loading import path_prefix_free, file_folder_path, get_PTIT_over_days, \
-    parse_group_dict, encode_to_filename, find_file_regex
+    parse_group_dict, encode_to_filename, find_file_regex, get_all_animals, decode_from_filename
 from utils_cabmi import median_absolute_deviation
 import csv
 import multiprocessing as mp
@@ -109,6 +109,17 @@ def get_roi_type(processed, animal, day):
     else:
         rois[ens_neur] = 'E'
     return rois
+
+
+def ens_identity(hf, n):
+    if n in hf['ens_neur']:
+        return 'ens'
+    return 'neur'
+
+
+def get_neur_namecode(session):
+    return ["{} {}".format(n, ens_identity(session, n) if nerden else 'dend')
+     for n, nerden in zip(np.arange(session['C'].shape[0]), session['nerden'])]
 
 
 def get_peak_times_over_thres(inputs, window, method, tlock=30):
@@ -360,8 +371,7 @@ def regularize_directory(folder):
                 daypath = os.path.join(animal_path, day)
                 hdf5only = True
                 for f in os.listdir(daypath):
-                    if f[-4:] != '.hdf5':
-                        print(f)
+                    if f[-5:] != '.hdf5':
                         hdf5only = False
                     if f[:4] == 'full':
                         os.rename(os.path.join(daypath, f), os.path.join(animal_path, f))
@@ -424,3 +434,5 @@ def find_meta_data(d, stack, val):
 if __name__ == '__main__':
     home = "/home/user/"
     digitize_calcium_all(home, "*", 'dff', [2, 3, 4, 5, 6])
+
+
