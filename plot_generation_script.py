@@ -30,7 +30,7 @@ from sklearn.linear_model import LinearRegression
 sns.palplot(sns.color_palette("Set2"))
 
 
-def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
+def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
     """ Saves pd.DataFrame as hdf5 (DEFAULT), which contains 3 matrices (NAN default):
         hpm: animal day, session, window 0-14, detailed HPM matrix
         pc: animal day, session, window 0-14, detailed PC matrix
@@ -78,6 +78,12 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
                 except OSError:
                     print(f'cannot open {animal} {d}')
                     nofile.append((animal, d))
+                    tPCs.append(np.nan)
+                    tHPMs.append(np.nan)
+                    maxHPMs.append(np.nan)
+                    maxPCs.append(np.nan)
+                    PCgains.append(np.nan)
+                    HPMgains.append(np.nan)
                 hpm = np.around(hpm, 2)
                 pc = np.around(pc, 4)
                 totalHPM, HPMgain = np.around((totalHPM, HPMgain), 2)
@@ -163,7 +169,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
         PCdict = {'animal': animals, 'day': days, 'session': sessions}
         PCdict.update({f'window {i}': windowsPC[:, i] for i in range(windowsPC.shape[1])})
         PCS = pd.DataFrame(PCdict)
-        if csv:
+        if to_csv:
             HPMS.to_csv(os.path.join(out, f'learning_stats_HPM_bin_{binsize}.csv'), index=False)
             PCS.to_csv(os.path.join(out, f'learning_stats_PC_bin_{binsize}.csv'), index=False)
         else:
@@ -173,7 +179,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
     else:
         PDF = pd.DataFrame({'animal': animals, 'day': days, 'session': sessions, 'window': windows,
                             'PC': windowsPC, 'HPM': windowshpm})
-        if csv:
+        if to_csv:
             PDF.to_csv(os.path.join(out, f'learning_stats_detail_bin_{binsize}.csv'), index=False)
         else:
             fname = os.path.join(out, f'learning_stats_bin_{binsize}_NONAN.hdf5')
@@ -181,7 +187,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
     sumPDF = pd.DataFrame({'animal': sum_animals, 'day': sum_days, 'session': sum_sessions,
                   'maxPC': maxPCs, 'maxHPM': maxHPMs, 'totalPC': tPCs,
                   'totalHPM': tHPMs, 'PC_gain': PCgains, 'HPM_gain': HPMgains})
-    if csv:
+    if to_csv:
         sumPDF.to_csv(os.path.join(out, f'learning_stats_summary_bin_{binsize}.csv'), index=False)
     else:
         sumPDF.to_hdf(fname, key='summary', index=False)
