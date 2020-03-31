@@ -4,8 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.stats import zscore
 import matplotlib.pyplot as plt
-from utils_loading import encode_to_filename, parse_group_dict, get_all_animals, decode_from_filename
-from pipeline import *
+from utils_loading import encode_to_filename, parse_group_dict
 
 
 def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, PROBELEN=1000,
@@ -102,6 +101,7 @@ def dff_sanity_check_single_session(rawbase, processed, animal, day, out=None, P
         results[i + 8] = corrs_pair2[i]
         results[i + 13] = corrs_pair3[i]
     return results
+
 
 
 def dff_sanity_check(rawbase, processed, nproc=1, group='*', out=None, csvout=None,
@@ -276,16 +276,16 @@ def second_run_check(out):
             assert np.sum(np.isnan(bmi['dff'])) == 0
             C, oC = np.array(bmi['C']), np.array(bmi_old['C'])
             if C.shape != oC.shape:
-                print(animal, day, f'Dimension Mismatch check manually, old: {C.shape} new: {oC.shape}')
+                print(animal, day, f'Dimension Mismatch check manually plane {planes[i][-6]}, old: {oC.shape} new: {C.shape}')
                 continue
             absMax = np.max(np.abs(C-oC), axis=1)
-            corrs = [np.corrcoef(C[i], oC[i]) for i in range(C.shape[0])]
+            corrs = [np.corrcoef(C[i], oC[i])[0, 1] for i in range(C.shape[0])]
             maxD_i = np.argmax(absMax)
             maxD = absMax[maxD_i]
             minCorr_i = np.argmin(corrs)
             minCorr = corrs[int(minCorr_i)]
             xs = np.arange(C.shape[0])
-            fig, axes = plt.figure(sharex=True, figsize=(20, 10))
+            fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(20, 10))
             axes[0].set_title(f'Max Difference, max neur: {maxD_i}, {maxD:.3f}')
             axes[0].scatter(xs, absMax)
             axes[0].set_ylabel('abs diff')
@@ -294,7 +294,8 @@ def second_run_check(out):
             axes[1].set_title(f'CorrCoef, min neur: {minCorr_i}, {minCorr:.5f}')
             axes[1].set_ylabel('correlation (R)')
             axes[1].set_xlabel('neuron')
-            fig.savefig(os.path.join(out, f'cm_dpc_{animal}_{day}_plane{i}.png'))
+            fig.savefig(os.path.join(out, f'cm_dpc_{animal}_{day}_plane{planes[i][-6]}.png'))
+            plt.close()
         print('Done ', animal, day)
 
 

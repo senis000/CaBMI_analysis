@@ -89,6 +89,7 @@ def plot_trial_end_all(folder, animal, day,
     trial_slider.on_changed(update)
     neurons_slider.on_changed(update)
     plt.show(block=True)
+ 
     
 def plot_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -157,6 +158,7 @@ def plot_trial_end_ens(folder, animal, day,
         fig.canvas.draw_idle()
     trial_slider.on_changed(update)
     plt.show(block=True)
+
 
 def plot_avg_trial_end_ens(folder, animal, day,
         trial_type=0, sec_var=''):
@@ -305,6 +307,7 @@ def plot_zscore_rewards(folder, animal, day, sec_var=''):
     neurons_slider.on_changed(update)
     pdb.set_trace()
     plt.show()
+
 
 def plot_reward_histograms(folder, animal, day, sec_var=''):
     '''
@@ -485,6 +488,7 @@ def best_nbins(data):
     nbins = min(int((np.max(data) - np.min(data)) / binsize) + 1, 1000)
     return nbins if nbins < len(data) / 4 else max(len(data) // 20, 1)
 
+
 if __name__ == '__main__':
     home = "/home/user/"
     processed = os.path.join(home, "CaBMI_analysis/processed/")
@@ -503,3 +507,4 @@ if __name__ == '__main__':
     #             sdays = sorted(os.listdir(animal_path))
     #             for day in sdays:
     #                 plot_peak_psth(home, animal, day, m, window)s
+    

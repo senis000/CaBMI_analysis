@@ -626,6 +626,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     plt.close('all')
 
 
+    # does fr exist?
+    fr = matinfo['fr'][0][0]
 
     #fill the file with all the correct data!
     try:
@@ -636,6 +638,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('C', data = all_C)  # (array) Relative fluorescence of each component
         fall.create_dataset('SNR', data = all_SNR)  # (array) Signal to noise ratio of each component
         fall.create_dataset('com_cm', data = all_com) # (array) Position of the components as given by caiman 
+        fall.create_dataset('com', data = new_com) # (array) Position of the components as calculated in pipeline (better approx) 
         fall.attrs['blen'] = vars.len_base # (int) lenght of the baseline
         gall = fall.create_group('Nsparse') # (sparse matrix) spatial filter of each component
         gall.create_dataset('data', data = Asparse.data) # (part of the sparse matrix)
@@ -650,7 +653,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         fall.create_dataset('e2_neur', data = e2_neur) # (array) Index of the E2 neurons among the rest of components
         fall.create_dataset('trial_end', data = trial_end) # (array) When a trial ended. Can be a hit or a miss
         fall.create_dataset('trial_start', data = trial_start) # (array) When a trial started
-        fall.attrs['fr'] =  matinfo['fr'][0][0] # (int) Framerate
+        fall.attrs['fr'] =  fr # (int) Framerate
         fall.create_dataset('redlabel', data = redlabel) # (array-bool) True labels neurons as red
         fall.create_dataset('nerden', data = nerden) # (array-bool) True labels components as neurons
         fall.create_dataset('hits', data = hits) # (array) When the animal hit the target 
@@ -1489,7 +1492,10 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
         correlation = 0
         for i in range(trial_end.size):
             start_idx = np.where(frames>(trial_start[i] - len_base))[0][0]
-            end_idx = np.where(frames>(trial_end[i] - len_base))[0][0]
+            aux_end = trial_end[i] - len_base
+            if aux_end > frames[-1]:
+                aux_end = frames[-1]
+            end_idx = np.where(frames>=aux_end)[0][0]
             simulated_cursor = \
                 np.sum(online_data[e2,start_idx:end_idx], axis=0) - \
                 np.sum(online_data[e1,start_idx:end_idx], axis=0)
