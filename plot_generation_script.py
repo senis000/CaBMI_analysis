@@ -43,6 +43,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
     PCgains, HPMgains = [], [], [], [], [], [], [], [], []
     exceptions = []
     misaligned = []
+    nofile = []
     if NAN:
         results = {}
         maxWindow = 0
@@ -74,6 +75,9 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, csv=False):
                     PCgains.append(np.nan)
                     HPMgains.append(np.nan)
                     continue
+                except OSError:
+                    print(f'cannot find {animal} {d}')
+                    nofile.append((animal, d))
                 hpm = np.around(hpm, 2)
                 pc = np.around(pc, 4)
                 totalHPM, HPMgain = np.around((totalHPM, HPMgain), 2)
