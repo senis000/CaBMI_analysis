@@ -897,3 +897,55 @@ axes[1, 0].plot(sGs_xy_tests.T)
 axes[1, 1].plot(sGs_yx_tests.T)
 axes[1, 0].legend(tests)
 
+
+# STATIONARITY
+def stationarity():
+    from statsmodels.tsa.stattools import adfuller
+    result = adfuller(X)
+    print('ADF Statistic: %f' % result[0])
+    print('p-value: %f' % result[1])
+    print('Critical Values:')
+    for key, value in result[4].items():
+        print('\t%s: %.3f' % (key, value))
+    result = adfuller(X)
+    print('ADF Statistic: %f' % result[0])
+    print('p-value: %f' % result[1])
+    print('Critical Values:')
+    for key, value in result[4].items():
+        print('\t%s: %.3f' % (key, value))
+    k = np.arange(64).reshape((2, 32))
+    k
+    k.reshape((2, 2, 16))
+    k.reshape((2, 2, 16), order='C')
+    k.reshape((2, 2, 16), order='F')
+    dff.shape
+    dffS = dff[:, :3000 * (dff.shape[1] // 3000)]
+    dffS.shape
+    dff[0, :20]
+    dffWrap = dffS.reshape((-1, 3000, 27), order='C')
+    dffWrap = dffS.reshape((-1, 3000, 17), order='C')
+    dffWrap[0, 0, :20]
+    means = np.mean(dffWrap, axis=1)
+    std = np.std(dffWrap, axis=1)
+    stds = np.std(dffWrap, axis=1)
+    stds.shape
+    cols = []
+    for i in range(stds.shape[0]):
+        for j in range(stds.shape[1]):
+            cols.append((i, j, stds[i, j]))
+    stdPDF = pd.DataFrame(np.array(cols), columns=['neuron', 'window', 'std'])
+    import seaborn as sns
+    sns.regplot(x="neuron", y="std", stdPDF)
+    sns.regplot(x="neuron", y="std", data=stdPDF)
+    sns.regplot(x="window", y="std", data=stdPDF)
+    % hist
+    64: 66
+    cols = []
+    for i in range(means.shape[0]):
+        for j in range(means.shape[1]):
+            cols.append((i, j, means[i, j]))
+    meanPDF = pd.DataFrame(np.array(cols), columns=['neuron', 'window', 'mean'])
+    sns.regplot(x="window", y="mean", data=meanPDF)
+    sns.regplot(x="window", y="mean", data=meanPDF)
+    sns.regplot(x="window", y="std", data=stdPDF)
+
