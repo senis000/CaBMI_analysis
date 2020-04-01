@@ -132,8 +132,9 @@ def learning_params(
     '''
     if out is None:
         out = folder
-    f = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
-    print(f.filename)
+    fname = encode_to_filename(os.path.join(folder, 'processed'), animal, day)
+    print('processing: ', fname)
+    f = h5py.File(fname, 'r')
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
@@ -144,7 +145,7 @@ def learning_params(
     trial_end = np.asarray(f['trial_end'])
     trial_start = np.asarray(f['trial_start'])
     bigbin = bin_size * 60
-    first_bin_end = bigbin * fr
+    first_bin_end = bigbin * fr + blen
     trial_durs = trial_end + 1 - trial_start
     totalPC = hits.shape[0]/ trial_end.shape[0]
     # TODO: Greedy way to calculate HPM
@@ -158,6 +159,7 @@ def learning_params(
     else:
         ebin = int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1
     bins = np.arange(0, ebin, bigbin)
+    # TODO: RESOLVE BINNING ISSUE
     [hpm, xx] = np.histogram(hits/fr, bins)
     [mpm, _] = np.histogram(miss/fr, bins)
     hpm = hpm[blen_min//bin_size:]

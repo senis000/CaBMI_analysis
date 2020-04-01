@@ -23,11 +23,175 @@ from analysis_functions import *
 from utils_gte import *
 from utils_clustering import *
 from plot_rewardend import *
-from utils_loading import decode_from_filename
+from utils_loading import decode_from_filename, get_all_animals, get_animal_days
 from plot_base_end import *
 from sklearn.linear_model import LinearRegression
 
 sns.palplot(sns.color_palette("Set2"))
+
+
+def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
+    """ Saves pd.DataFrame as hdf5 (DEFAULT), which contains 3 matrices (NAN default):
+        hpm: animal day, session, window 0-14, detailed HPM matrix
+        pc: animal day, session, window 0-14, detailed PC matrix
+        summary: animal, day, session, summary metrics (1 value each session)
+        NOTE: data keeps four decimals for PC, 2 decimals for hpm
+    """
+    processed = os.path.join(folder, 'processed')
+    animals, days, sessions, windowshpm, windowsPC = [], [], [], [], []
+    sum_animals, sum_days, sum_sessions, maxPCs, maxHPMs, tPCs, tHPMs, \
+    PCgains, HPMgains = [], [], [], [], [], [], [], [], []
+    exceptions = []
+    misaligned = []
+    nofile = []
+    if NAN:
+        results = {}
+        maxWindow = 0
+        nsession = 0
+        for animal in get_all_animals(processed):
+            results[animal] = {}
+            animal_path = os.path.join(processed, animal)
+            ds = get_animal_days(animal_path)
+            for d in ds:
+                try:
+                    _, (hpm, totalHPM, HPMgain), (pc, totalPC, PCgain) , _ = learning_params(folder,
+                                                                                             animal, d,
+                                                                            bin_size=binsize, total=True)
+                except KeyError:
+                    exceptions.append((animal, d))
+                    tPCs.append(np.nan)
+                    tHPMs.append(np.nan)
+                    maxHPMs.append(np.nan)
+                    maxPCs.append(np.nan)
+                    PCgains.append(np.nan)
+                    HPMgains.append(np.nan)
+                    continue
+                except IndexError:
+                    misaligned.append((animal, d))
+                    tPCs.append(np.nan)
+                    tHPMs.append(np.nan)
+                    maxHPMs.append(np.nan)
+                    maxPCs.append(np.nan)
+                    PCgains.append(np.nan)
+                    HPMgains.append(np.nan)
+                    continue
+                except OSError:
+                    print(f'cannot open {animal} {d}')
+                    nofile.append((animal, d))
+                    tPCs.append(np.nan)
+                    tHPMs.append(np.nan)
+                    maxHPMs.append(np.nan)
+                    maxPCs.append(np.nan)
+                    PCgains.append(np.nan)
+                    HPMgains.append(np.nan)
+                hpm = np.around(hpm, 2)
+                pc = np.around(pc, 4)
+                totalHPM, HPMgain = np.around((totalHPM, HPMgain), 2)
+                totalPC, PCgain = np.around((totalPC, PCgain), 4)
+                maxHPM = np.nanmax(hpm)
+                maxPC = np.nanmax(pc)
+                tPCs.append(totalPC)
+                tHPMs.append(totalHPM)
+                maxHPMs.append(maxHPM)
+                maxPCs.append(maxPC)
+                PCgains.append(PCgain)
+                HPMgains.append(HPMgain)
+
+                results[animal][d] = {'hpm': hpm, 'pc': pc}
+                maxWindow = max(maxWindow, len(hpm))
+                nsession += 1
+            sum_animals.append([animal] * len(ds))
+            sum_sessions.append(np.arange(len(ds)))
+            sum_days.append(ds)
+        animals, days, sessions, windowshpm, windowsPC = [], [], [], [], []
+        for animal in results:
+            animals.append([animal] * len(results[animal]))
+            days.append(sorted(results[animal].keys()))
+            sessions.append(np.arange(len(results[animal])))
+            windowshpm.append(np.vstack([np.concatenate((results[animal][d]['hpm'], [np.nan]*(maxWindow-len(
+                results[animal][d]['hpm'])))) for d in sorted(results[animal])]))
+            windowsPC.append(np.vstack([np.concatenate((results[animal][d]['pc'], [np.nan] * (maxWindow-len(
+                    results[animal][d]['pc'])))) for d in sorted(results[animal])]))
+        windowshpm = np.vstack(windowshpm)
+        windowsPC = np.vstack(windowsPC)
+
+    else:
+        # TODO: NOT VALIDATED YET
+        windows = []
+        for animal in get_all_animals(processed):
+            animal_path = os.path.join(processed, animal)
+            winTot = 0
+            ds = get_animal_days(animal_path)
+            for i, d in enumerate(ds):
+                _, (hpm, totalHPM, HPMgain), (pc, totalPC, PCgain), _ = learning_params(folder, animal, d,
+                                                                       bin_size=binsize, total=True)
+                hpm = np.around(hpm, 2)
+                pc = np.around(pc, 4)
+                totalHPM, HPMgain = np.around((totalHPM, HPMgain), 2)
+                totalPC, PCgain = np.around((totalPC, PCgain), 4)
+                maxHPM = np.nanmax(hpm)
+                maxPC = np.nanmax(pc)
+                tPCs.append(totalPC)
+                tHPMs.append(totalHPM)
+                maxHPMs.append(maxHPM)
+                maxPCs.append(maxPC)
+                PCgains.append(PCgain)
+                HPMgains.append(HPMgain)
+
+                windowshpm.append(hpm)
+                windowsPC.append(pc)
+                winN = len(hpm)
+                windows.append(np.arange(winN))
+                days.append(winN * [d])
+                sessions.append(winN*[i])
+                winTot += winN
+            animals.append([animal] * winTot)
+
+            sum_animals.append([animal] * len(ds))
+            sum_sessions.append(np.arange(len(ds)))
+            sum_days.append(ds)
+        windows = np.concatenate(windows)
+        windowshpm = np.concatenate(windowshpm)
+        windowsPC = np.concatenate(windowsPC)
+
+    animals = np.concatenate(animals)
+    days = np.concatenate(days)
+    sessions = np.concatenate(sessions)
+
+    sum_animals = np.concatenate(sum_animals)
+    sum_sessions = np.concatenate(sum_sessions)
+    sum_days = np.concatenate(sum_days)
+
+    if NAN:
+        hpmdict = {'animal': animals, 'day': days, 'session': sessions}
+        hpmdict.update({f'window {i}': windowshpm[:, i] for i in range(windowshpm.shape[1])})
+        HPMS = pd.DataFrame(hpmdict)
+        PCdict = {'animal': animals, 'day': days, 'session': sessions}
+        PCdict.update({f'window {i}': windowsPC[:, i] for i in range(windowsPC.shape[1])})
+        PCS = pd.DataFrame(PCdict)
+        if to_csv:
+            HPMS.to_csv(os.path.join(out, f'learning_stats_HPM_bin_{binsize}.csv'), index=False)
+            PCS.to_csv(os.path.join(out, f'learning_stats_PC_bin_{binsize}.csv'), index=False)
+        else:
+            fname = os.path.join(out, f'learning_stats_bin_{binsize}_NAN.hdf5')
+            HPMS.to_hdf(fname, key='hpm', index=False)
+            PCS.to_hdf(fname, key='PC', index=False)
+    else:
+        PDF = pd.DataFrame({'animal': animals, 'day': days, 'session': sessions, 'window': windows,
+                            'PC': windowsPC, 'HPM': windowshpm})
+        if to_csv:
+            PDF.to_csv(os.path.join(out, f'learning_stats_detail_bin_{binsize}.csv'), index=False)
+        else:
+            fname = os.path.join(out, f'learning_stats_bin_{binsize}_NONAN.hdf5')
+            PDF.to_hdf(fname, key='detail', index=False)
+    sumPDF = pd.DataFrame({'animal': sum_animals, 'day': sum_days, 'session': sum_sessions,
+                  'maxPC': maxPCs, 'maxHPM': maxHPMs, 'totalPC': tPCs,
+                  'totalHPM': tHPMs, 'PC_gain': PCgains, 'HPM_gain': HPMgains})
+    if to_csv:
+        sumPDF.to_csv(os.path.join(out, f'learning_stats_summary_bin_{binsize}.csv'), index=False)
+    else:
+        sumPDF.to_hdf(fname, key='summary', index=False)
+
 
 def plot_all_sessions_hpm(sharey=False):
     folder = '/run/user/1000/gvfs/smb-share:server=typhos.local,share=data_01/NL/layerproject/'
@@ -42,13 +206,17 @@ def plot_all_sessions_hpm(sharey=False):
         IT_hit, PT_hit = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
         IT_pc, PT_pc = OnlineNormalEstimator(algor='moment'), OnlineNormalEstimator(algor='moment')
         IT_hits, PT_hits = [], []
-        IT_pcs, PT_pcs = [], []
+        IT_pcs, PT_pcs = {}, {}
         for animal in os.listdir(processed):
             animal_path = os.path.join(processed, animal)
             if not os.path.isdir(animal_path):
                 continue
             if not (animal.startswith('IT') or animal.startswith('PT')):
                 continue
+            if animal.startswith('IT'):
+                IT_pcs[animal] = []
+            else:
+                PT_pcs[animal] = []
             days = [decode_from_filename(d)[1] for d in os.listdir(animal_path) if d[:4] == 'full' or
                     d.isnumeric()]
             days.sort()
@@ -57,19 +225,23 @@ def plot_all_sessions_hpm(sharey=False):
                 _, hpm, pc, _ = learning_params(folder, animal, day, bin_size=b)
                 if animal.startswith('IT'):
                     t_hit, t_hits, t_pc, t_pcs = IT_hit, IT_hits, IT_pc, IT_pcs
-                    
+
                 else:
                     t_hit, t_hits, t_pc, t_pcs = PT_hit, PT_hits, PT_pc, PT_pcs
                 t_hit.handle(np.nanmax(hpm))
                 t_hits.append(hpm)
                 t_pc.handle(np.nanmax(pc))
-                t_pcs.append(pc)
+                t_pcs[animal].append(pc)
                 maxHit = max(maxHit, np.nanmax(hpm))
+        aLabel_pcs = IT_pcs.update(PT_pcs)
+
+        IT_pcs = [l for animal in IT_pcs for l in IT_pcs[animal]]
+        PT_pcs = [l for animal in PT_pcs for l in PT_pcs[animal]]
         tPC_PTs, tPC_ITs = [np.nanmean(s) for s in PT_pcs], [np.nanmean(s) for s in IT_pcs]
         tPC_alldist = tPC_PTs+tPC_ITs
-        PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:] - s[0]) for s in PT_pcs], [np.nanmean(s[1:] - s[0]) for s in IT_pcs]
+        PCgain_PTs, PCgain_ITs = [np.nanmean(s[1:]) - s[0] for s in PT_pcs], [np.nanmean(s[1:]) - s[0] for s in IT_pcs]
         PCgain_alldist = PCgain_PTs+PCgain_ITs
-        allGbins = np.histogram_bin_edges(PCgain_alldist)
+        allGbins = np.histogram_bin_edges(np.array(PCgain_alldist)[~np.isnan(PCgain_alldist)])
         binsTPC = np.linspace(0, 1, 11)
         fig, axes = plt.subplots(nrows=1, ncols=2)
         sns.distplot(tPC_ITs, hist=True, bins=binsTPC, color=PALETTE[0], hist_kws={"alpha": 0.1}, label='IT',
