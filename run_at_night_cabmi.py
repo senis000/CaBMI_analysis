@@ -39,7 +39,7 @@ def tonightSNR_uzsh():
 
 
 def tonightAllRun_uzsh():
-    folder = "/media/user/Seagate Backup Plus Drive1/"
+    #folder = "/media/user/Seagate Backup Plus Drive1/"
     # sessions = [('PT7', '181211', 1),
     #             ('IT5', '190129', 1),
     #             ('PT9', '181219', 0),
@@ -61,6 +61,7 @@ def tonightAllRun_uzsh():
     #         if os.path.exists(target):
     #             os.rename(os.path.join(fpath, f"bmi__{pl}.hdf5"), os.path.join(fpath, f"bmi__{pl}_old.hdf5"))
     #     pipe.all_run(folder, a, d, number_planes=planes)
+    folder = "/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/"
     all_run_tonight(folder=folder, animals=['PT19'])
 
 
@@ -200,10 +201,11 @@ def all_run_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('I
                 print("No target", target)
                 continue
             print('running animal: ' + str(animal) + "and day: " + str(day))
-            try:
-                pipe.all_run(folder, a, d)
-            except Exception as e:
-                fails[animal].append((day, e.args))
+            pipe.all_run(folder, animal, day)
+            # try:
+            #     pipe.all_run(folder, animal, day)
+            # except Exception as e:
+            #     fails[animal].append((day, e.args))
     print(fails)                 
     
 
