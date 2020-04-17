@@ -1005,14 +1005,12 @@ def online_dff_single_session(folder, animal, day):
     dayfile = encode_to_filename(folder, animal, day)
     print(f'processing {dayfile}')
     with h5py.File(dayfile, 'r') as session:
-        if not os.path.exists(outpath):
-            os.makedirs(outpath)
         Nens = session['online_data'].shape[1] - 2
-        online_dffs = np.full((Nens, session['C'].shape[1]), np.nan)
         od = session['online_data']
         frame = np.array(od[:, 1]).astype(np.int32) // 6
         datamat = np.array(od[:, 2:])
         Tdf = frame[-1] + 1
+        online_dffs = np.full((Nens, Tdf), np.nan)
         for i in range(Nens):
             data = datamat[:, i]
             sclean = ~np.isnan(data)

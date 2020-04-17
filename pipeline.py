@@ -616,8 +616,8 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     e2_neur = get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base)
     
     if tocut:
-        all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency = \
-        cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment)
+        all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency, online_data = \
+        cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment, online_data)
     
     # sanity checks
     if toplot:
@@ -1225,13 +1225,16 @@ def plot_Cs(fanal, C, nerden):
         plt.close('all')
 
 
-def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, len_base, len_experiment):
+def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, len_base, len_experiment, online_data):
     """
     Function to remove part of the experiment that was compromised by quality of image.
     Input: All variable to change
     Returns: variable changed """
     
     print ('Removing part of experiment due to lack of image quality')
+    frame = np.array(online_data[:, 1]).astype(np.int32) // 6
+    len_online = np.where(frame<(len_experiment-len_base))[0][-1]
+    online_data = online_data[:len_online,:]
     all_C = all_C [:,:len_experiment]
     all_dff = all_dff [:,:len_experiment]
     all_neuron_act = all_neuron_act [:,:len_experiment]
