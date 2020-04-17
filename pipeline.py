@@ -88,8 +88,8 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=F
     finfo = folder_path +  'wmat.mat'  #file name of the mat
     matinfo = scipy.io.loadmat(finfo)
 
-    ffull = [folder_path + lookup_with_default('fname', matinfo)[0]]            # filename to be processed
-    fbase = [folder_path + lookup_with_default('fbase', matinfo)[0]]
+    ffull = [folder_path + lookup_with_default('fname', matinfo, folder)[0]]            # filename to be processed
+    fbase = [folder_path + lookup_with_default('fbase', matinfo, folder)[0]]
     
     fbase1 = [folder + 'raw/' + animal + '/' + day + '/' + 'baseline_00001.tif']
     fbase2 = [folder + 'raw/' + animal + '/' + day + '/' + 'bmi_00001.tif']
@@ -368,9 +368,13 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
     return num_files, int(dims[0])
 
 
-def lookup_with_default(k, matinfo):
-    default = scipy.io.loadmat('/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/raw/PT19/190801/wmat.mat')
-    return default[k] if k not in matinfo else matinfo[k]
+def lookup_with_default(k, matinfo, folder):
+    if k not in matinfo:
+        default = scipy.io.loadmat(folder + '/raw/PT19/190801/wmat.mat')
+        print('DEFAAAAAAUUUUUUUULT')
+        return default[k]
+    else:
+        return matinfo[k]
 
 
 def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes=4, dend=False, display_images=True):
@@ -389,8 +393,8 @@ def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_plane
     folder_path = folder + 'raw/' + animal + '/' + day + '/separated/'
     finfo = folder + 'raw/' + animal + '/' + day + '/wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
-    initialZ = int(lookup_with_default('initialZ', matinfo)[0][0])
-    fr = lookup_with_default('fr', matinfo)[0][0]
+    initialZ = int(lookup_with_default('initialZ', matinfo, folder)[0][0])
+    fr = lookup_with_default('fr', matinfo, folder)[0][0]
     
     if dend:
         sec_var = 'Dend'
@@ -476,9 +480,9 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     vars = imp.load_source('readme', folder_path + 'readme.txt') 
     finfo = folder_path +  'wmat.mat'  #file name of the mat 
     matinfo = scipy.io.loadmat(finfo)
-    ffull = [folder_path + lookup_with_default('fname', matinfo)[0]]
+    ffull = [folder_path + lookup_with_default('fname', matinfo, folder)[0]]
     metadata = tifffile.TiffFile(ffull[0]).scanimage_metadata
-    fr = lookup_with_default('fr', matinfo)[0][0]   
+    fr = lookup_with_default('fr', matinfo, folder)[0][0]   
     folder_red = folder + 'raw/' + animal + '/' + day + '/'
     fmat = folder_red + 'red.mat' 
     redinfo = scipy.io.loadmat(fmat)
@@ -531,7 +535,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     print ('success!!')
             
     auxZ = np.zeros((all_com.shape))
-    auxZ[:,2] = np.repeat(lookup_with_default('initialZ', matinfo)[0][0],all_com.shape[0])
+    auxZ[:,2] = np.repeat(lookup_with_default('initialZ', matinfo, folder)[0][0],all_com.shape[0])
     all_com += auxZ
     
     # Reorganize sparse matrix of spatial components
@@ -561,7 +565,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     # for those experiments which had 2 BMIs files and didn't get attached correctly
     if bmi2:
         online_data0 = pd.read_csv(folder_path + 'bmi_IntegrationRois_00000.csv')
-        online_data1 = pd.read_csv(folder_path + lookup_with_default('fcsv', matinfo)[0])
+        online_data1 = pd.read_csv(folder_path + lookup_with_default('fcsv', matinfo, folder)[0])
         last_ts = np.asarray(online_data0['timestamp'])[-1]
         last_frame = np.asarray(online_data0['frameNumber'])[-1]
         online_data1['timestamp'] += last_ts
@@ -570,10 +574,10 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         vars.len_base = 9000
         vars.len_bmi += np.round(last_frame/number_planes_total).astype(int)
     else:
-        online_data = pd.read_csv(folder_path + lookup_with_default('fcsv', matinfo)[0])
+        online_data = pd.read_csv(folder_path + lookup_with_default('fcsv', matinfo, folder)[0])
         
     try:
-        mask = lookup_with_default('allmask', matinfo)
+        mask = lookup_with_default('allmask', matinfo, folder)
     except KeyError:
         mask = np.nan
             
@@ -634,7 +638,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
 
 
     # does fr exist?
-    fr = lookup_with_default('fr', matinfo)[0][0]
+    fr = lookup_with_default('fr', matinfo, folder)[0][0]
 
     #fill the file with all the correct data!
     try:
