@@ -30,6 +30,7 @@ def basic_entry (folder, animal, day):
     
     file_template = "full_{}_{}__data.hdf5"
     file_name = os.path.join(folder, animal, file_template.format(animal, day))
+    folder_proc = os.path.join(folder, 'processed')
     f = h5py.File(file_name, 'r')
 
     com = np.asarray(f['com'])
@@ -206,7 +207,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
                          'onstd_mean', 'onstd_max', 'post_whole_std_mean', 'post_whole_std_max', 'post_base_std_mean', \
                          'post_base_std_max', 'cursor_std']
     columns = columns_res + columns_basic
-    columns.insert(3,'label')
+    columns.insert(3,'ITPTlabel')
     df = pd.DataFrame(columns=columns)
 
     # obtain basic features
@@ -226,7 +227,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
         df_res_animal = df_results.loc[df_results['animal']==animal]
         if len(filenames) != len(df_res_animal):
             print('Experiment number missmatch!!. STOPING')
-#             break
+            break
         if animal[:2] == 'IT':
             aux_label = 0
         elif animal[:2] == 'PT':
@@ -248,15 +249,12 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
         folder_path = os.path.join(folder_snr, animal)
         filenames = os.listdir(folder_path)
         for dd,filename in enumerate(filenames):
-            if (animal=='IT8') & (filename=='190301'):
-                continue
-            else:
-                print ('Analyzing animal: ' + animal + ' day: ' + filename)
-                f = h5py.File(os.path.join(folder_path, filename,'onlineSNR.hdf5'), 'r')
-                aux_snr = np.asarray(f['SNR_ens'])
-                f.close()
-                snr_vector_mean.append(np.nanmean(aux_snr))
-                snr_vector_max.append(np.nanmax(aux_snr))
+            print ('Analyzing animal: ' + animal + ' day: ' + filename)
+            f = h5py.File(os.path.join(folder_path, filename,'onlineSNR.hdf5'), 'r')
+            aux_snr = np.asarray(f['SNR_ens'])
+            f.close()
+            snr_vector_mean.append(np.nanmean(aux_snr))
+            snr_vector_max.append(np.nanmax(aux_snr))
     try:
         df['onlineSNRmean'] = snr_vector_mean
         df['onlineSNRmax'] = snr_vector_max
@@ -270,16 +268,16 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
         
     
     # XGBOOOOOST MADAFACA!
-    labels_to_study = [columns[3]] +  columns[10:].tolist()
-    X_df = df.loc[:, labels_to_study]
-    Y_df = df.iloc[:, 6]
-    X_df_train, X_df_test, Y_df_train, Y_df_test = train_test_split(X_df, Y_df, test_size=size_split_test)
-    model = xgboost.train({"learning_rate": 0.1}, xgboost.DMatrix(X_df_train, label=Y_df_train), 100)
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_df_test)
-#     shap.force_plot(explainer.expected_value, shap_values[0,:], X_df.iloc[0,:], matplotlib=True)
-    shap.summary_plot(shap_values, X_df_test)
-    shap.summary_plot(shap_values, X_df_test, plot_type="bar")
+#     labels_to_study = [columns[3]] +  columns[10:].tolist()
+#     X_df = df.loc[:, labels_to_study]
+#     Y_df = df.iloc[:, 6]
+#     X_df_train, X_df_test, Y_df_train, Y_df_test = train_test_split(X_df, Y_df, test_size=size_split_test)
+#     model = xgboost.train({"learning_rate": 0.1}, xgboost.DMatrix(X_df_train, label=Y_df_train), 100)
+#     explainer = shap.TreeExplainer(model)
+#     shap_values = explainer.shap_values(X_df_test)
+# #     shap.force_plot(explainer.expected_value, shap_values[0,:], X_df.iloc[0,:], matplotlib=True)
+#     shap.summary_plot(shap_values, X_df_test)
+#     shap.summary_plot(shap_values, X_df_test, plot_type="bar")
     
     
 def bootstrap_pandas(len_df, X_df, Y_df, bts_n=1000):
@@ -487,7 +485,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                 # first check for the model (using bst632 is not the best option, TODO, find a better error fucntion)
                 error_bst = xga.calculate_bst632 (model_original, X_df_train, X_df_test, Y_df_train, Y_df_test)
                 if error_bst  < error_max[cc]:
-                    explainer_train = shap.TreeExplainer(model_original) #, data=X_df_test, feature_perturbation='interventional')
+                    explainer_train = shap.TreeExplainer(model_original, data=X_df_test, feature_perturbation='interventional')
                     all_shap_train_aux[0, :, :] = explainer_train.shap_values(X_df_train)
                     # bootstrap check for stability of features
                     while j<(mod_x+1):
@@ -499,7 +497,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                         model_bst = xga.calculate_model(X_df_train_bst, Y_df_train_bst)
                         error_bst = xga.calculate_bst632 (model_bst, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
                         if error_bst  < error_max[cc]:
-                            explainer_bst = shap.TreeExplainer(model_bst) #, data=X_df_test, feature_perturbation='interventional')
+                            explainer_bst = shap.TreeExplainer(model_bst, data=X_df_test, feature_perturbation='interventional')
                             all_shap_train_aux[j, :, :] = explainer_bst.shap_values(X_df_train)
                             # check correlation of features with features from original model
                             for ll, label_ts in enumerate(labels_to_study):
@@ -518,7 +516,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                         shap_correlations[cc, i, :, :] = shap_cor_aux
                         
                         # now calculate the shap_values with the X_df_test FINALLY!
-                        explainer_test = shap.TreeExplainer(model_original) #, data=X_df_train, feature_perturbation='interventional')
+                        explainer_test = shap.TreeExplainer(model_original, data=X_df_train, feature_perturbation='interventional')
                         all_shap[cc, i, :, :] = explainer_test.shap_values(X_df_test)
                         explainer_val[cc, i] = explainer_test.expected_value
                         all_df.append(X_df_test)

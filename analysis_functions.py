@@ -992,6 +992,38 @@ def online_SNR_single_session(folder, animal, day, out):
         except IOError:
             print(" OOPS!: The file already existed please try with another file, "
                   "new results will NOT be saved")
+            
+            
+def online_dff_single_session(folder, animal, day):
+    """
+    Returns dff calculated from online_data
+    :param folder: processed folder
+    :param animal
+    :param day
+    :return: online_dffs: (N_ens, T) N_ens: number of ens_neuron, T: length of experiment
+    """
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+    with h5py.File(dayfile, 'r') as session:
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        Nens = session['online_data'].shape[1] - 2
+        online_dffs = np.full((Nens, session['C'].shape[1]), np.nan)
+        od = session['online_data']
+        frame = np.array(od[:, 1]).astype(np.int32) // 6
+        datamat = np.array(od[:, 2:])
+        Tdf = frame[-1] + 1
+        for i in range(Nens):
+            data = datamat[:, i]
+            sclean = ~np.isnan(data)
+            try:
+                f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+                all_online_frames = np.arange(Tdf)
+                interp_online = f(all_online_frames)
+                online_dffs[i] = calcium_dff(all_online_frames, interp_online)
+            except:
+                print(f"Warning! Failure to calculate dff for online neuron {i} in {animal} {day}")
+    return online_dffs
 
 
 def dff_SNR_single_session(folder, animal, day, out):
