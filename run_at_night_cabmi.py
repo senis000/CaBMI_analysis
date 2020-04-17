@@ -39,28 +39,30 @@ def tonightSNR_uzsh():
 
 
 def tonightAllRun_uzsh():
-    folder = "/media/user/Seagate Backup Plus Drive1/"
-    sessions = [('PT7', '181211', 1),
-                ('IT5', '190129', 1),
-                ('PT9', '181219', 0),
-                ('PT6', '181128', 1),
-                ('IT2', '181001', 1),
-                ('PT6', '181126', 0),
-                ('PT9', '181128', 2)]
-    for a, d, p in sessions[5:]:
-        if a == 'PT7':
-            planes = [0, p]
-        else:
-            planes = [p]
-        fpath = os.path.join(folder, 'raw', a, d)
-        ana = os.path.join(fpath, 'analysis')
-        if os.path.exists(ana):
-            os.rename(ana, ana+'_old')
-        for pl in planes:
-            target = os.path.join(fpath, f"bmi__{pl}.hdf5")
-            if os.path.exists(target):
-                os.rename(os.path.join(fpath, f"bmi__{pl}.hdf5"), os.path.join(fpath, f"bmi__{pl}_old.hdf5"))
-        pipe.all_run(folder, a, d, number_planes=planes)
+    #folder = "/media/user/Seagate Backup Plus Drive1/"
+    # sessions = [('PT7', '181211', 1),
+    #             ('IT5', '190129', 1),
+    #             ('PT9', '181219', 0),
+    #             ('PT6', '181128', 1),
+    #             ('IT2', '181001', 1),
+    #             ('PT6', '181126', 0),
+    #             ('PT9', '181128', 2)]
+    # for a, d, p in sessions[5:]:
+    #     if a == 'PT7':
+    #         planes = [0, p]
+    #     else:
+    #         planes = [p]
+    #     fpath = os.path.join(folder, 'raw', a, d)
+    #     ana = os.path.join(fpath, 'analysis')
+    #     if os.path.exists(ana):
+    #         os.rename(ana, ana+'_old')
+    #     for pl in planes:
+    #         target = os.path.join(fpath, f"bmi__{pl}.hdf5")
+    #         if os.path.exists(target):
+    #             os.rename(os.path.join(fpath, f"bmi__{pl}.hdf5"), os.path.join(fpath, f"bmi__{pl}_old.hdf5"))
+    #     pipe.all_run(folder, a, d, number_planes=planes)
+    folder = "/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/"
+    all_run_tonight(folder=folder, animals=['PT19'])
 
 
 def tonight_dff_SNR_uzsh():
@@ -127,32 +129,85 @@ def cut_tonight():
         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
     
  
-#     folder = 'H:/Nuria_data/CaBMI/Layer_project/'
-#      
-#  
-#     animal = 'IT3'
-#     days = ['181004', '181017', '181018', '181031']
-#     lens = [48000, 40000, 40000, 40000]
-#       
-#     for ind, day in enumerate(days):
-#         print('runing animal: ' + str(animal) + "and day: " + str(day))
-#         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-#          
+    folder = 'H:/Nuria_data/CaBMI/Layer_project/'
+      
+    animal = 'IT3'
+    days = ['181004', '181017', '181018', '181031']
+    lens = [48000, 40000, 40000, 40000]
+       
+    for ind, day in enumerate(days):
+        print('runing animal: ' + str(animal) + "and day: " + str(day))
+        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+          
+    animal = 'IT4'
+    days = ['181001', '181203']
+    lens = [24000, 28000]
+       
+    for ind, day in enumerate(days):
+        print('runing animal: ' + str(animal) + "and day: " + str(day))
+        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+  
+    animal = 'PT9'
+    days = ['181219']
+    lens = [28000]
+       
+    for ind, day in enumerate(days):
+        print('runing animal: ' + str(animal) + "and day: " + str(day))
+        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+        
+
+    folder = 'G:/Nuria_data/CaBMI/Layer_project/'
+    animal = 'PT13'
+    days = ['190123']
+    lens = [18000]
+       
+    for ind, day in enumerate(days):
+        print('runing animal: ' + str(animal) + "and day: " + str(day))
+        pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+
+
+def all_run_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10')):
+    
+#     
 #     animal = 'IT4'
-#     days = ['181001', '181203']
-#     lens = [24000, 28000]
+#     days = ['181001']
 #       
-#     for ind, day in enumerate(days):
+#     for day in days:
 #         print('runing animal: ' + str(animal) + "and day: " + str(day))
-#         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
-#  
-#     animal = 'PT9'
-#     days = ['181219']
-#     lens = [28000]
-#       
-#     for ind, day in enumerate(days):
-#         print('runing animal: ' + str(animal) + "and day: " + str(day))
-#         pipe.put_together(folder, animal, day, toplot=False, tocut=True, len_experiment=lens[ind])
+#         pipe.put_together(folder, animal, day)       
+    
+    raw_folder = os.path.join(folder, 'raw')
+    processed = os.path.join(folder, 'processed')
+    ns = "full_{}_{}__data.hdf5"
+    fails = {}
+    for animal in animals:
+        fails[animal] = []
+        animal_path = os.path.join(raw_folder, animal)
+        days = []
+        
+        for d in os.listdir(animal_path):
+            if d.isalpha():
+                print(d)
+                continue
+            if os.path.exists(os.path.join(processed, animal, ns.format(animal, d))):
+                continue
+            else:
+                days.append(d)
+        print(animal, days)
+          
+        for day in days:
+            target = os.path.join(animal_path, day)
+            if not os.path.exists(target):
+                print("No target", target)
+                continue
+            print('running animal: ' + str(animal) + "and day: " + str(day))
+            pipe.all_run(folder, animal, day)
+            # try:
+            #     pipe.all_run(folder, animal, day)
+            # except Exception as e:
+            #     fails[animal].append((day, e.args))
+    print(fails)                 
+    
 
 
 def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('IT8', 'IT9', 'IT10'), toplot=False):
@@ -189,7 +244,7 @@ def put_together_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals 
             if not os.path.exists(target):
                 print("No target", target)
                 continue
-            print('runing animal: ' + str(animal) + "and day: " + str(day))
+            print('running animal: ' + str(animal) + "and day: " + str(day))
             try:
                 pipe.put_together(folder, animal, day, toplot=toplot)
             except Exception as e:
@@ -412,4 +467,4 @@ def tonight_caiman():
 
 
 if __name__ == '__main__':
-    tonightSNR_uzsh()
+    tonightAllRun_uzsh()
