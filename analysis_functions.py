@@ -1013,6 +1013,14 @@ def online_dff_single_session(folder, animal, day):
         online_dffs = np.full((Nens, Tdf), np.nan)
         for i in range(Nens):
             data = datamat[:, i]
+            cmask = ~np.isnan(data)
+            nonans = data[cmask]
+            nonans[nonans <= 0] = np.nan
+            data[cmask] = nonans
+            if np.isnan(data[0]):
+                data[0] = data[~np.isnan(data)][0]
+            if np.isnan(data[-1]): 
+                data[-1] = data[~np.isnan(data)][-1]
             sclean = ~np.isnan(data)
             try:
                 f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')

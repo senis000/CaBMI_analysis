@@ -577,7 +577,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
         online_data = pd.read_csv(folder_path + lookup_with_default('fcsv', matinfo, folder)[0])
         
     try:
-        mask = lookup_with_default('allmask', matinfo, folder)
+        mask = matinfo['allmask']
     except KeyError:
         mask = np.nan
             
@@ -615,6 +615,7 @@ def put_together(folder, animal, day, number_planes=4, number_planes_total=6, se
     # finding the correct E2 neurons
     e2_neur = get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, vars.len_base)
     
+    online_data = np.asarray(online_data)
     if tocut:
         all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency, online_data = \
         cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, cursor, frequency, vars.len_base, len_experiment, online_data)
@@ -1256,7 +1257,7 @@ def cut_experiment(all_C, all_dff, all_neuron_act, trial_end, trial_start, hits,
     for hh, hit in enumerate(hits): array_t1[hh] = np.where(trial_end==hit)[0][0]
     for mm, mi in enumerate(miss): array_miss[mm] = np.where(trial_end==mi)[0][0]    
     
-    return all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency
+    return all_C, all_dff, all_neuron_act, trial_end, trial_start, hits, miss, array_t1, array_miss, cursor, frequency, online_data
     
    
 def caiman_main(fpath, fr, fnames, z=0, dend=False, display_images=False):
