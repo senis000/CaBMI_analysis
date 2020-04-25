@@ -13,6 +13,7 @@ import xgboost
 import shap
 import xgboost_analysis as xga
 import analysis_functions as af
+import utils_cabmi as uc
 from matplotlib import interactive
 from scipy import stats
 from itertools import combinations
@@ -36,7 +37,7 @@ df = pd.read_hdf(to_load_df)
 bts_n=1000
 mod_n=10
 mod_x=10
-error_max=[0.02,0.5,0.02,0.15,0.04,0.15]
+error_max=[0.022,0.5,0.02,0.15,0.045,0.17]
 size_split_test=0.2
 max_iter=20
 stability_var=0.7
