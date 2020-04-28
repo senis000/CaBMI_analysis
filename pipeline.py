@@ -1488,6 +1488,8 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
     frames = (np.asarray(online_data['frameNumber']) / number_planes_total).astype('int')
     online_data = online_data[ens].to_numpy().T
     cursor = cursor[frames]
+    trial_end = trial_end[trial_end<(frames[-1]+len_base)]
+    trial_start = trial_start[trial_start<(frames[-1]+len_base)]
     
     if online_data.shape[1] != cursor.size:
         raise ValueError("Data and cursor appear to be mismatched in time.")
