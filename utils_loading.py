@@ -106,7 +106,14 @@ def get_animal_days(animal_path):
 
 
 def encode_to_filename(path, animal, day, hyperparams=None):
-    dirs = path.split('/')
+    """
+    :param path: str: root in which the target data file exists
+    :param animal: str
+    :param day: str, day of the animal or hdf5 file name (prefix free), e.g. 'full_IT2_181002.hdf5'
+    :param hyperparams: str
+    :return: file name
+    """
+    dirs = path.split(os.path.sep)
     if day[-5:] == '.hdf5':
         return os.path.join(path, animal, day)
     category = dirs[-1] if dirs[-1] else dirs[-2]

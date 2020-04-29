@@ -949,3 +949,97 @@ def stationarity():
     sns.regplot(x="window", y="mean", data=meanPDF)
     sns.regplot(x="window", y="std", data=stdPDF)
 
+def network_burst():
+    import h5py, os
+    animal, day = 'PT7', '181129'
+    folder = os.path.join("/Volumes/DATA_01/NL/layerproject", 'processed')
+    processed = folder
+    hf = h5py.File(encode_to_filename(processed, animal, day), 'r')
+    from utils_loading import encode_to_filename
+    hf = h5py.File(encode_to_filename(processed, animal, day), 'r')
+    dff = np.array(hf['dff'])
+    import matplotlib.pyplot as plt
+    import numpy as np
+    dff = np.array(hf['dff'])
+    hits = np.array(hf['hits'])
+    misses = np.array(hf['miss'])
+    SS = 0
+    MS = 1
+    plt.plot(np.mean(ens, axis=0));
+    plt.scatter(hits, np.full_like(hits, SS), s=MS, c='r');
+    plt.scatter(misses, np.full_like(misses, SS), s=MS, c='g');
+    plt.show()
+    ens = dff[np.array(hf['ens_neur']).astype(np.int)]
+    plt.plot(np.mean(ens, axis=0));
+    plt.scatter(hits, np.full_like(hits, SS), s=MS, c='r');
+    plt.scatter(misses, np.full_like(misses, SS), s=MS, c='g');
+    plt.show()
+    MS = -0.3
+    plt.plot(np.mean(ens, axis=0));
+    plt.scatter(hits, np.full_like(hits, SS), s=MS, c='r');
+    plt.scatter(misses, np.full_like(misses, SS), s=MS, c='g');
+    plt.show()
+    MS = 1
+    SS = -0.3
+    plt.plot(np.mean(ens, axis=0));
+    plt.scatter(hits, np.full_like(hits, SS), s=MS, c='r');
+    plt.scatter(misses, np.full_like(misses, SS), s=MS, c='g');
+    plt.show()
+    plt.plot(np.mean(ens, axis=0));
+    plt.scatter(hits, np.full_like(hits, SS), s=MS, c='r');
+    plt.scatter(misses, np.full_like(misses, SS), s=MS, c='g');
+    plt.show()
+    sig = np.mean(ens, axis=0)
+
+    def autocorr(x):
+        result = numpy.correlate(x, x, mode='full')
+        return result[result.size / 2:]
+
+    plt.plot(autocorr(sig))
+    import numpy
+    def autocorr(x):
+        result = numpy.correlate(x, x, mode='full')
+        return result[result.size / 2:]
+
+    plt.plot(autocorr(sig))
+
+    def autocorr(x):
+        result = np.correlate(x, x, mode='full')
+        return result[result.size // 2:]
+
+    plt.plot(autocorr(sig))
+    plt.show()
+    plt.plot(autocorr(sig))
+    plt.show()
+    firsthalf = sig[:, :9000]
+    sig.shape
+    firsthalf = sig[:9000]
+    lasthalf = sig[-9000:]
+    plt.plot(autocorr(firsthalf));
+    plt.plot(autocorr(lasthalf));
+    plt.legend();
+    plt.show()
+    plt.plot(autocorr(firsthalf));
+    plt.plot(autocorr(lasthalf));
+    plt.legend(['first', 'second']);
+    plt.show()
+    plt.plot(autocorr(firsthalf));
+    plt.plot(autocorr(lasthalf));
+    plt.legend(['first', 'second']);
+    plt.show()
+    plt.plot(np.diff(autocorr(firsthalf)));
+    plt.plot(np.diff(autocorr(lasthalf)));
+    plt.legend(['first', 'second']);
+    plt.show()
+    plt.plot(np.diff(autocorr(firsthalf)) + 2);
+    plt.plot(np.diff(autocorr(lasthalf)));
+    plt.legend(['first', 'second']);
+    plt.show()
+    plt.plot(np.diff(autocorr(firsthalf)) + 2);
+    plt.plot(np.diff(autocorr(lasthalf)));
+    plt.legend(['first', 'second']);
+    plt.show()
+    plt.plot(autocorr(firsthalf));
+    plt.plot(autocorr(lasthalf));
+    plt.legend(['first', 'second']);
+    plt.show()

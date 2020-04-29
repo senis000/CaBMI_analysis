@@ -5,6 +5,7 @@ import pickle
 from scipy.stats import zscore
 from utils_gte import *
 from utils_cabmi import *
+from utils_loading import encode_to_filename
 
 class ExpGTE:
     """A class that wraps around an experiment and runs GTE in various ways"""
@@ -12,7 +13,27 @@ class ExpGTE:
     reward_threshold = 4.0
     whole_exp_threshold = 10.0
 
-    def __init__(self, folder, animal, day, sec_var=''):
+    def __init__(self, folder, animal, day, sec_var='', method='te-extended', out=None):
+        """
+        method: str
+            xc, by finding the peak in the cross-correlogram between the two time series
+            mi, by finding the lag with the largest Mutual Information
+            gc, by computing the Granger Causality, based on: C.W.J. Granger, Investigating Causal Relations by Econometric Models and Cross-Spectral Methods , Econometrica, 1969
+            te-extended, by computing GTE as defined above.
+            TE and GTE without binning:
+            te-binless-Leonenko, based on: L.F. Kozachenko and N.N. Leonenko, 1987
+            te-binless-Kraskov, based on: A. Kraskov et al., 2004
+            te-binless-Frenzel, based on: S. Frenzel and B. Pompe, 2007
+            te-symbolic (experimental) based on: M. Staniek and K. Lehnertz, 2008.
+        out: str
+            path of the root output directory, if left None, default to {folder}/utils/FC/{method}/
+        """
+        if out is None:
+            out = os.path.join(folder, f'utils/FC/')
+        self.out_path = os.path.join(out, method, animal, day, '')
+        if not os.path.exists(self.out_path):
+            os.makedirs(self.out_path)
+
         self.folder = folder
         self.animal = animal
         self.day = day
@@ -20,15 +41,12 @@ class ExpGTE:
             'AutoBinNumberQ': True, 'SourceMarkovOrder':2, 'TargetMarkovOrder':2,
             'StartSampleIndex':2
             }
-        folder_path = folder +  'processed/' + animal + '/' + day + '/'
-        self.folder_path = folder_path
-        self.exp_file = h5py.File(
-            folder_path + 'full_' + animal + '_' + day + '_' +
-            sec_var + '_data.hdf5', 'r'
-            )
-        self.blen = self.exp_file.attrs['blen']
 
-    def baseline(self, parameters=None, pickle_results = True):
+        self.exp_file = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
+        self.blen = self.exp_file.attrs['blen']
+        self.method = method
+
+    def baseline(self, parameters=None, pickle_results=True):
         '''
         Run GTE over all neurons, over the baseline.
         Inputs:
@@ -52,9 +70,9 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, exp_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         if pickle_results:
-            with open(self.folder_path + 'baseline.p', 'wb') as p_file:
+            with open(self.out_path + 'baseline.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
 
@@ -82,9 +100,9 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, exp_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         if pickle_results:
-            with open(self.folder_path + 'whole_experiment.p', 'wb') as p_file:
+            with open(self.out_path + 'whole_experiment.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
 
@@ -121,9 +139,9 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, exp_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         if pickle_results:
-            with open(self.folder_path + 'experiment_end.p', 'wb') as p_file:
+            with open(self.out_path + 'experiment_end.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
     
@@ -154,9 +172,9 @@ class ExpGTE:
                 to_zscore=True, zscore_threshold=self.reward_threshold
                 )
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         if pickle_results:
-            with open(self.folder_path + 'reward_end.p', 'wb') as p_file:
+            with open(self.out_path + 'reward_end.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
 
@@ -209,10 +227,10 @@ class ExpGTE:
                 frame_size, frame_step=frame_step
                 )
         results = run_gte(
-            control_file_names, exclude_file_names, output_file_names
+            control_file_names, exclude_file_names, output_file_names, method=self.method
             )
         if pickle_results:
-            with open(self.folder_path + 'reward_sliding_'\
+            with open(self.out_path + 'reward_sliding_'\
                     + str(reward_idx) + '.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         return results
@@ -300,7 +318,7 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, shuffled_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         
         # Compute the average information transfer over shuffled instances.
         reward_shuffled_results = np.ones(results[0].shape)*np.nan
@@ -319,7 +337,7 @@ class ExpGTE:
                 if num_samples > 0: # Calculate the average
                     reward_shuffled_results[i][j] = value_sum/num_samples
         if pickle_results:
-            with open(self.folder_path + 'reward_shuffled.p', 'wb') as p_file:
+            with open(self.out_path + 'reward_shuffled.p', 'wb') as p_file:
                 pickle.dump(reward_shuffled_results, p_file)
         return reward_shuffled_results
 
@@ -362,7 +380,7 @@ class ExpGTE:
         control_file_names, exclude_file_names, output_file_names = \
             create_gte_input_files(exp_name, shuffled_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
-            output_file_names)
+            output_file_names, method=self.method)
         
         # Compute the average information transfer over shuffled instances.
         whole_shuffled_results = np.ones(results[0].shape)*np.nan
@@ -381,6 +399,6 @@ class ExpGTE:
                 if num_samples > 0: # Calculate the average
                     whole_shuffled_results[i][j] = value_sum/num_samples
         if pickle_results:
-            with open(self.folder_path + 'whole_shuffled.p', 'wb') as p_file:
+            with open(self.out_path + 'whole_shuffled.p', 'wb') as p_file:
                 pickle.dump(whole_shuffled_results, p_file)
         return whole_shuffled_results

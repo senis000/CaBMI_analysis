@@ -121,3 +121,25 @@ sudo apt-add-repository ppa:numix/ppa
 sudo apt-get update
 sudo apt-get install numix-icon-theme-circle
 ```
+
+#### Steps (MAC OS)
+1. Navigate to the root directory: CaBMI_analysis and clone the GTE repository:
+    ```
+    git clone https://github.com/olavolav/te-causality
+    ```
+2. Add the following to your `.bashrc` and source the file:
+    ```
+    export GTE=/path/to/te-causality
+    ```
+3. Install NEST for network simulation (in a separate virtual environment)
+    ```
+    conda create --name nest -c conda-forge nest-simulator
+    ```
+4. Install brew
+    ```
+    ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    ```
+5. Install GSL & yaml-cpp
+    ```
+    brew install gsl &&  brew install yaml-cpp
+    ```
