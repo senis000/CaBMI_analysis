@@ -82,8 +82,8 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=F
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
-    if not os.path.exists(folder_final):
-        os.makedirs(folder_final)
+    # if not os.path.exists(folder_final):
+    #     os.makedirs(folder_final)
 
     finfo = folder_path +  'wmat.mat'  #file name of the mat
     matinfo = scipy.io.loadmat(finfo)
