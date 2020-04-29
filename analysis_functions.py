@@ -1064,7 +1064,6 @@ def online_dff_single_session(folder, animal, day):
     """
     dayfile = encode_to_filename(folder, animal, day)
     print(f'processing {dayfile}')
-
     with h5py.File(dayfile, 'r') as session:
         Nens = session['online_data'].shape[1] - 2
         od = session['online_data']
@@ -1074,8 +1073,6 @@ def online_dff_single_session(folder, animal, day):
         online_dffs = np.full((Nens, Tdf), np.nan)
         for i in range(Nens):
             data = datamat[:, i]
-            # if np.any(data < 0):
-            #     data = data - np.min(data)
             cmask = ~np.isnan(data)
             nonans = data[cmask]
             nonans[nonans <= 0] = np.nan
@@ -1125,44 +1122,6 @@ def online_SNR_single_session(folder, animal, day, out):
         except IOError:
             print(" OOPS!: The file already existed please try with another file, "
                   "new results will NOT be saved")
-            
-            
-def online_dff_single_session(folder, animal, day):
-    """
-    Returns dff calculated from online_data
-    :param folder: processed folder
-    :param animal
-    :param day
-    :return: online_dffs: (N_ens, T) N_ens: number of ens_neuron, T: length of experiment
-    """
-    dayfile = encode_to_filename(folder, animal, day)
-    print(f'processing {dayfile}')
-    with h5py.File(dayfile, 'r') as session:
-        Nens = session['online_data'].shape[1] - 2
-        od = session['online_data']
-        frame = np.array(od[:, 1]).astype(np.int32) // 6
-        datamat = np.array(od[:, 2:])
-        Tdf = frame[-1] + 1
-        online_dffs = np.full((Nens, Tdf), np.nan)
-        for i in range(Nens):
-            data = datamat[:, i]
-            cmask = ~np.isnan(data)
-            nonans = data[cmask]
-            nonans[nonans <= 0] = np.nan
-            data[cmask] = nonans
-            if np.isnan(data[0]):
-                data[0] = data[~np.isnan(data)][0]
-            if np.isnan(data[-1]): 
-                data[-1] = data[~np.isnan(data)][-1]
-            sclean = ~np.isnan(data)
-            try:
-                f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
-                all_online_frames = np.arange(Tdf)
-                interp_online = f(all_online_frames)
-                online_dffs[i] = calcium_dff(all_online_frames, interp_online)
-            except:
-                print(f"Warning! Failure to calculate dff for online neuron {i} in {animal} {day}")
-    return online_dffs
 
 
 def dff_SNR_single_session(folder, animal, day, out):

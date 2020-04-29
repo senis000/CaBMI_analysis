@@ -46,7 +46,7 @@ class ExpGTE:
         self.blen = self.exp_file.attrs['blen']
         self.method = method
 
-    def baseline(self, parameters=None, pickle_results=True):
+    def baseline(self, roi='ens', input_type='dff', parameters=None, pickle_results=True):
         '''
         Run GTE over all neurons, over the baseline.
         Inputs:
@@ -56,9 +56,15 @@ class ExpGTE:
             RESULTS: An array of numpy matrices (GTE connectivity matrices)
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'baseline'
-        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
-        exp_data = exp_data[:,:self.blen] # Isolate the baseline
-        exp_data = exp_data[np.array(self.exp_file['nerden']),:]
+        exp_data = np.array(self.exp_file[input_type]) # (neurons x frames)
+        if roi == 'neuron':
+            exp_data = exp_data[np.array(self.exp_file['nerden']), :self.blen]
+        elif roi == 'red':
+            exp_data = exp_data[np.array(self.exp_file['redlabel']), :self.blen]
+        elif roi == 'ens':
+            ens = np.array(self.exp_file['ens_neur'])
+            ens = ens[~np.isnan(ens)].astype(np.int)
+            exp_data = exp_data[ens, :self.blen]
         exp_data = zscore(exp_data, axis=1)
         exp_data = np.nan_to_num(exp_data)
         exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
@@ -76,7 +82,8 @@ class ExpGTE:
                 pickle.dump(results, p_file)
         return results
 
-    def whole_experiment(self, parameters=None, pickle_results = True):
+    # TODO: fix input type for all following methods
+    def whole_experiment(self, roi='ens', input_type='dff', parameters=None, pickle_results = True):
         '''
         Run GTE over all neurons, over the whole experiment.
         Inputs:
@@ -86,7 +93,7 @@ class ExpGTE:
             RESULTS: An array of numpy matrices (GTE connectivity matrices)
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'whole'
-        exp_data = np.array(self.exp_file['C']) # (neurons x frames)
+        exp_data = np.array(self.exp_file[input_type]) # (neurons x frames)
         exp_data = exp_data[:,self.blen:] # Isolate the experiment
         exp_data = exp_data[np.array(self.exp_file['nerden']),:]
         exp_data = zscore(exp_data, axis=1)
