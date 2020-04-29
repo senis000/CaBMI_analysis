@@ -25,10 +25,15 @@ from scipy import stats
 from scipy import interpolate
 from scipy.stats.mstats import zscore
 from scipy.signal import correlate
+from statsmodels.tsa.stattools import grangercausalitytests
 import sklearn
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
+
+# neural data
+import nitime
+import nitime.analysis as nta
 
 # caiman
 try:
@@ -55,12 +60,87 @@ from matplotlib import interactive
 interactive(True)
 
 # utils
+from ExpGTE import ExpGTE
 import utils_cabmi as ut
 from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename, load_A
-from utils_loading import path_prefix_free, file_folder_path
+from utils_loading import path_prefix_free, file_folder_path, get_all_animals, get_animal_days
 from utils_cabmi import std_filter, median_filter
 from pipeline import separate_planes, separate_planes_multiple_baseline
 from preprocessing import get_roi_type
+
+""" ---------------------------------------------------------
+-------------------Functional Connectivity-------------------
+---------------------------------------------------------- """
+
+
+def nitime_granger(rois, fr, maxlag=5, onlyMax=True, cutoff=True):
+    # TODO: extend supports to more than 2 traces
+    rois_ts = nitime.TimeSeries(rois, sampling_interval=1 / fr)
+    def gc_helper(lag=None):
+        G = nta.GrangerAnalyzer(rois_ts, order=lag)
+        if cutoff:
+            sel = np.where(G.frequencies < fr)[0]
+            caus_xy = G.causality_xy[:, :, sel]
+            caus_yx = G.causality_yx[:, :, sel]
+            caus_sim = G.simultaneous_causality[:, :, sel]
+        else:
+            caus_xy = G.causality_xy
+            caus_yx = G.causality_yx
+            caus_sim = G.simultaneous_causality
+        g1 = np.mean(caus_xy, -1)
+        g2 = np.mean(caus_yx, -1)
+        g3 = np.mean(caus_sim, -1)
+        g4 = g1-g2
+    #     fig03 = drawmatrix_channels(g1, ['E11', 'E12', 'E21', 'E22'], size=[10., 10.], color_anchor = 0)
+    #     plt.colorbar()
+        return g1[0, 1], g2[0, 1], g3[0, 1]
+    if onlyMax:
+        try:
+            g1, g2, g3 = gc_helper(lag=None)
+            return g1, g2, g3
+        except ValueError:
+            print('unable to find best option, do maxlag instead')
+    gcs = np.array([gc_helper(i) for i in range(1, maxlag+1)])
+    return gcs[:, 0], gcs[:, 1], gcs[:, 2]
+
+
+def statsmodel_granger(rois, maxlag=5):
+    gcs_val = np.zeros((rois.shape[0], rois.shape[0], maxlag))
+    tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
+    p_vals = {t:np.zeros((rois.shape[0], rois.shape[0], maxlag)) for t in tests}
+    for i in range(rois.shape[0]):
+        for j in range(rois.shape[0]):
+            res = grangercausalitytests(rois[[j, i]].T, maxlag, verbose=False)
+            for k in res:
+                test, reg = res[k]
+                ssrEig = reg[0].ssr
+                ssrBeid = reg[1].ssr
+                gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
+                for t in tests:
+                    p_vals[t][i, j, k-1] = test[t][1]
+            #TODO: USE LOG stats of two ssrs
+    return gcs_val, p_vals
+
+## TODO: implement aic criterion
+
+def calculate_fc(folder, out=None, method='statsmodel'):
+    # folder: root folder containing processed/ and raw/
+    # out: root folder for all analysis util data
+    processed = os.path.join(folder, 'processed')
+    if out is not None:
+        out = os.path.join(out, 'FC')
+        if not os.path.exists(out):
+            os.makedirs(out)
+    for animal in get_all_animals(folder):
+        animal_path = os.path.join(processed, animal)
+        for day in get_animal_days(animal_path):
+            if 'te-package' in method:
+                _, m = method.split('_')
+                exp = ExpGTE(folder, animal, day, method=m, out=out)
+                result = exp.baseline()
+            elif method == 'statsmodel':
+                pass
+
 
 
 def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
@@ -125,6 +205,7 @@ def learning_params(
         DAY: String; date of the experiment in YYMMDD format
         BIN_SIZE: The number of minutes to bin over. Default is one minute
         TO_PLOT: Bool; whether to generate hpm plots or not.
+        end_bin: float: minutes
     Outputs:
         HPM: Numpy array; hits per minute
         PERCENTAGE_CORRECT: float; the proportion of hits out of all trials
@@ -138,44 +219,48 @@ def learning_params(
     fr = f.attrs['fr']
     blen = f.attrs['blen']
     blen_min = blen//600
-    hits = np.asarray(f['hits'])
-    miss = np.asarray(f['miss'])
+    # loading and blen time offset & 1-index -> 0-index
+    hits = np.asarray(f['hits']) - blen - 1 # keep frame as units but most calc are carried in s
+    miss = np.asarray(f['miss']) - blen - 1
     array_t1 = np.asarray(f['array_t1'])
     array_miss = np.asarray(f['array_miss'])
-    trial_end = np.asarray(f['trial_end'])
-    trial_start = np.asarray(f['trial_start'])
-    bigbin = bin_size * 60
-    first_bin_end = bigbin * fr + blen
-    trial_durs = trial_end + 1 - trial_start
-    totalPC = hits.shape[0]/ trial_end.shape[0]
+    trial_end = np.asarray(f['trial_end']) - blen - 1
+    trial_start = np.asarray(f['trial_start']) - blen - 1
+    # binning variables
+    bigbin = bin_size * 60  # int: seconds
+    first_bin_end = bigbin * fr  # frame number: float
+    DELTA = fr * 60 # frame length of one minute
+
+    trial_durs = trial_end + 1 - trial_start  # add the start frame itself
+    totalPC = hits.shape[0] / trial_end.shape[0]
     # TODO: Greedy way to calculate HPM
-    DELTA = fr * 60
-    totalHPM = hits.shape[0] * DELTA / (trial_end[-1] - trial_start[0])
+    totalHPM = hits.shape[0] * DELTA / (trial_end[-1] - trial_start[0]+1)
     #totalHPM = hits.shape[0] * fr * 60 / (np.sum(trial_durs)) # use sum of all trial times
     #percentage_correct = hits.shape[0]/trial_end.shape[0]
 
+    # TODO: DETERMINE WHETHER LAST BIN IS T or trial_end[-1]
     if dropend:
         ebin = trial_end[-1]/fr + 1
     else:
         ebin = int(np.ceil(trial_end[-1]/fr / bigbin)) * bigbin + 1
-    bins = np.arange(0, ebin, bigbin)
-    # TODO: RESOLVE BINNING ISSUE
+    bins = np.arange(0, ebin, bigbin) # in seconds
+    # TODO: RESOLVE BINNING ISSUE (time overflow)
     [hpm, xx] = np.histogram(hits/fr, bins)
     [mpm, _] = np.histogram(miss/fr, bins)
-    hpm = hpm[blen_min//bin_size:]
-    mpm = mpm[blen_min//bin_size:]
+
     percentage_correct = hpm / (hpm+mpm)
     # TODO: CONSIDER SETTING THRESHOLD USING ONLY THE WHOLE WINDOWS
-    xx = -1*(xx[blen_min//bin_size]) + xx[blen_min//bin_size:]
+
     xx = xx[1:]
-    if not dropend:
+    if not dropend: # TODO: scrutinize last bin appending, prevent last-bin bias in normal sessions
         last_binsize = (trial_end[-1] / fr - bins[-2])
         hpm[-1] *= bigbin / last_binsize
         xx[-1] = last_binsize + xx[-2]
-    # TODO: ADD BACK THE LAST BIN
+
     hpm = hpm / bin_size
-    if end_bin is not None:
-        end_frame = end_bin//bin_size + 1
+    if end_bin is not None: # TODO: move forward
+        # end_frame = end_bin//bin_size + 1
+        end_frame = end_bin // bin_size
         hpm = hpm[:end_frame]
         xx = xx[:end_frame]
     tth = trial_end[array_t1] + 1 - trial_start[array_t1]
@@ -245,12 +330,19 @@ def learning_params(
     xx_axis = xx/bigbin
     xx_axis = np.expand_dims(xx_axis, axis=1)
     if total:
-        evohits = hits[hits > first_bin_end]
-        evomiss = miss[miss > first_bin_end]
-        evoPC = len(evohits) / (len(evohits) + len(evomiss))
-        evoHPM = len(evohits) * DELTA / (trial_end[-1]+1-first_bin_end)
-        hpm = (hpm, totalHPM, evoHPM - hpm[0])
-        percentage_correct = (percentage_correct, totalPC, evoPC - percentage_correct[0])
+        evohits = np.sum(hits >= first_bin_end)
+        evomiss = np.sum(miss >= first_bin_end)
+        evoPC = evohits / (evohits + evomiss)
+        evoHPM = evohits * 60 / (trial_end[-1]/fr-bigbin)
+        if len(hpm) == 0:
+            hpm_gain = np.nan
+            pc_gain = np.nan
+        else:
+            hpm_gain = (evoHPM - hpm[0]) / hpm[0]
+            basePC = percentage_correct[0]
+            pc_gain = (evoPC - basePC) / basePC
+        hpm = (hpm, totalHPM, hpm_gain)
+        percentage_correct = (percentage_correct, totalPC, pc_gain)
 
     return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
@@ -960,6 +1052,47 @@ def caiman_SNR(xs, ys, source='raw', verbose=False):
         print(source, f'snr: {snr:.5f}', f'noise: {sn:.5f}', f'sigpower: {sigpower:.5f}',
               f'putative power: {(np.mean(np.square(ys-bl))-sn**2):.5f}')
     return snr
+
+
+def online_dff_single_session(folder, animal, day):
+    """
+    Returns dff calculated from online_data
+    :param folder: processed folder
+    :param animal
+    :param day
+    :return: online_dffs: (N_ens, T) N_ens: number of ens_neuron, T: length of experiment
+    """
+    dayfile = encode_to_filename(folder, animal, day)
+    print(f'processing {dayfile}')
+
+    with h5py.File(dayfile, 'r') as session:
+        Nens = session['online_data'].shape[1] - 2
+        od = session['online_data']
+        frame = np.array(od[:, 1]).astype(np.int32) // 6
+        datamat = np.array(od[:, 2:])
+        Tdf = frame[-1] + 1
+        online_dffs = np.full((Nens, Tdf), np.nan)
+        for i in range(Nens):
+            data = datamat[:, i]
+            # if np.any(data < 0):
+            #     data = data - np.min(data)
+            cmask = ~np.isnan(data)
+            nonans = data[cmask]
+            nonans[nonans <= 0] = np.nan
+            data[cmask] = nonans
+            if np.isnan(data[0]):
+                data[0] = data[~np.isnan(data)][0]
+            if np.isnan(data[-1]):
+                data[-1] = data[~np.isnan(data)][-1]
+            sclean = ~np.isnan(data)
+            try:
+                f = interpolate.interp1d(frame[sclean], data[sclean], fill_value='extrapolate')
+                all_online_frames = np.arange(Tdf)
+                interp_online = f(all_online_frames)
+                online_dffs[i] = calcium_dff(all_online_frames, interp_online)
+            except:
+                print(f"Warning! Failure to calculate dff for online neuron {i} in {animal} {day}")
+    return online_dffs
 
 
 def online_SNR_single_session(folder, animal, day, out):

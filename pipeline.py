@@ -368,9 +368,17 @@ def separate_planes_multiple_baseline(folder, animal, day, fbase1, fbase2, var='
     return num_files, int(dims[0])
 
 
+# def lookup_with_default(k, matinfo):
+#     default = scipy.io.loadmat('/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/raw/PT19/190801/wmat.mat')
+#     return default[k] if k not in matinfo else matinfo[k]
+
 def lookup_with_default(k, matinfo):
-    default = scipy.io.loadmat('/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/raw/PT19/190801/wmat.mat')
-    return default[k] if k not in matinfo else matinfo[k]
+    if k not in matinfo:
+        default = scipy.io.loadmat('/media/user/Seagate Backup Plus Drive1/Nuria_data/CaBMI/Layer_project/raw/PT19/190801/wmat.mat')
+        return default[k]
+    else:
+        return matinfo[k]
+
 
 
 def analyze_raw_planes(folder, animal, day, num_files, num_files_b, number_planes=4, dend=False, display_images=True):
