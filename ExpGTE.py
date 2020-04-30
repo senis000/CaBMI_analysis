@@ -2,6 +2,7 @@ import warnings
 import h5py
 import numpy as np
 import pickle
+import shutil
 from scipy.stats import zscore
 from utils_gte import *
 from utils_cabmi import *
@@ -30,7 +31,7 @@ class ExpGTE:
         """
         if out is None:
             out = os.path.join(folder, f'utils/FC/')
-        self.out_path = os.path.join(out, method, animal, day, '')
+        self.out_path = os.path.join(out, f'te-package_'+method, animal, day, '')
         if not os.path.exists(self.out_path):
             os.makedirs(self.out_path)
 
@@ -46,7 +47,7 @@ class ExpGTE:
         self.blen = self.exp_file.attrs['blen']
         self.method = method
 
-    def baseline(self, roi='ens', input_type='dff', parameters=None, pickle_results=True):
+    def baseline(self, roi='ens', input_type='dff', parameters=None, pickle_results=True, clean=True):
         '''
         Run GTE over all neurons, over the baseline.
         Inputs:
@@ -80,6 +81,12 @@ class ExpGTE:
         if pickle_results:
             with open(self.out_path + 'baseline.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
+        if clean:
+            exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
+            try:
+                shutil.rmtree(exp_path)
+            except OSError as e:
+                print("Error: %s - %s." % (e.filename, e.strerror))
         return results
 
     # TODO: fix input type for all following methods
