@@ -79,7 +79,8 @@ class ExpGTE:
         results = run_gte(control_file_names, exclude_file_names,
             output_file_names, method=self.method)
         if pickle_results:
-            with open(self.out_path + 'baseline.p', 'wb') as p_file:
+            order = self.parameters['SourceMarkovOrder']
+            with open(self.out_path + f'baseline_{roi}_{input_type}_order{order}.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         if clean:
             exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
