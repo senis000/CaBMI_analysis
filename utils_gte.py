@@ -72,10 +72,12 @@ def parse_mathematica_list(file_name):
     with open(file_name) as f:
         x = f.read()    # Gets the whole mathematica array
     x1 = x[1:-2]    #Strip off the outer brackets
+
     matches = re.findall('{(.*?)}\\n', x1, flags=0) # Collects each matrix row
-    matrix = [m.split(', ') for m in matches]
-    matrix = [np.array(row).astype(np.float) for row in matrix]
-    connectivity_matrix = np.array(matrix)
+    matrix = np.array([eval(m.replace('{', '[').replace('}', ']')) for m in matches], dtype=np.float)
+    if matrix.shape[-1] == 1:
+        matrix.reshape(matrix.shape[:2])
+    connectivity_matrix = matrix
     return connectivity_matrix
 
 def heatmap(data, row_labels, col_labels, ax=None,
