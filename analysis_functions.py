@@ -13,6 +13,7 @@ import time
 import math
 import random
 import copy
+import pickle
 import shutil, traceback
 import multiprocessing as mp
 
@@ -105,6 +106,11 @@ def nitime_granger(rois, fr, maxlag=5, onlyMax=True, cutoff=True):
 
 
 def statsmodel_granger(rois, maxlag=5):
+    """
+    :param rois: N x T where N is the number of variables and T the total number of time frames
+    :param maxlag:
+    :return:
+    """
     gcs_val = np.zeros((rois.shape[0], rois.shape[0], maxlag))
     tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
     p_vals = {t:np.zeros((rois.shape[0], rois.shape[0], maxlag)) for t in tests}
@@ -121,26 +127,62 @@ def statsmodel_granger(rois, maxlag=5):
             #TODO: USE LOG stats of two ssrs
     return gcs_val, p_vals
 
-## TODO: implement aic criterion
 
-def calculate_fc(folder, out=None, method='statsmodel'):
+# TODO: implement aic criterion; ALSO CHECK stationarity before
+def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='statsmodel'):
     # folder: root folder containing processed/ and raw/
     # out: root folder for all analysis util data
     processed = os.path.join(folder, 'processed')
     if out is not None:
         out = os.path.join(out, 'FC')
-        if not os.path.exists(out):
-            os.makedirs(out)
+    else:
+        out = os.path.join(folder, 'utils/FC/')
     for animal in get_all_animals(folder):
         animal_path = os.path.join(processed, animal)
         for day in get_animal_days(animal_path):
             if 'te-package' in method:
                 _, m = method.split('_')
-                exp = ExpGTE(folder, animal, day, method=m, out=out)
-                result = exp.baseline()
+                exp = ExpGTE(folder, animal, day, lag=lag, method=m, out=out)
+                result = exp.baseline(roi=roi, input_type=input_type)
             elif method == 'statsmodel':
-                pass
+                if lag == 'auto':
+                    lag = 2
+                    pass
+                fname = os.path.join(out, animal, day,
+                                     'statsmodel', f"baseline_{roi}_{input_type}_order{lag}.p")
+                with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
+                    exp_data = np.array(hf[input_type])
+                    blen = hf.attrs['blen']
+                    if roi == 'neuron':
+                        exp_data = exp_data[np.array(hf['nerden']), :blen]
+                    elif roi == 'red':
+                        exp_data = exp_data[np.array(hf['redlabel']), :blen]
+                    elif roi == 'ens':
+                        ens = np.array(hf['ens_neur'])
+                        ens = ens[~np.isnan(ens)].astype(np.int)
+                        exp_data = exp_data[ens, :blen]
+                gcs_val, p_val = statsmodel_granger(exp_data, maxlag=lag)
+                result = gcs_val[:, :, -1]
+                with open(fname, 'wb') as p_file:
+                    pickle.dump(result, p_file)
+            else:
+                raise NotImplementedError("Unknown Method")
+    return result
 
+
+def connection_summary(folder, out, roi='red', input_type='dff', order=2):
+    for animal in get_all_animals(folder):
+        animal_path = os.path.join(folder, animal)
+        for day in get_animal_days(animal_path):
+            token = f"baseline_{roi}_{input_type}_order{order}"
+            fname = os.path.join(animal_path, day, token+'.p')
+            with open(fname, 'rb') as f:
+                mat = pickle.load(f)
+                plt.imshow(mat)
+                outname = os.path.join(out, animal, day, token)
+                plt.savefig(outname+'.eps')
+                plt.savefig(outname + '.png')
+                plt.close()
 
 
 def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
@@ -1096,13 +1138,13 @@ def online_SNR_single_session(folder, animal, day, out):
     # Calculates SNR for single session then saves it to 4 decimal accuracy and saves in hdf5 file
     dayfile = encode_to_filename(folder, animal, day)
     print(f'processing {dayfile}')
-    outpath = os.path.join(out, animal, day)
+    outpath = os.path.join(out, animal)
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
     targetfile = os.path.join(outpath, f'onlineSNR_{animal}_{day}.hdf5')
     if os.path.exists(targetfile):
         print(f'{animal} {day} already done, skipping...')
     with h5py.File(dayfile, 'r') as session:
-        if not os.path.exists(outpath):
-            os.makedirs(outpath)
         Nens = session['online_data'].shape[1] - 2
         od = session['online_data']
         frame = np.array(od[:, 1]).astype(np.int32) // 6

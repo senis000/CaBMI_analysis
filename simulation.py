@@ -29,6 +29,7 @@ import time
 import json
 import h5py
 import re
+import subprocess
 # data
 import numpy as np
 import random
@@ -66,6 +67,12 @@ def spike_pairs_to_hdf5(folder):
                 hf.create_dataset('spike', data=s_times)
     for r in removes:
         os.remove(r)
+
+
+def spike_to_calcium_C():
+    exe_code = subprocess.call([
+        f"./te-causality/transferentropy-sim/{method}", control_file_name
+    ])
 
 
 """-------------------------------------------------

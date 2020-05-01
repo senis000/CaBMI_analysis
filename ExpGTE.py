@@ -14,7 +14,7 @@ class ExpGTE:
     reward_threshold = 4.0
     whole_exp_threshold = 10.0
 
-    def __init__(self, folder, animal, day, sec_var='', method='te-extended', out=None):
+    def __init__(self, folder, animal, day, sec_var='', lag=2, method='te-extended', out=None):
         """
         method: str
             xc, by finding the peak in the cross-correlogram between the two time series
@@ -30,7 +30,7 @@ class ExpGTE:
             path of the root output directory, if left None, default to {folder}/utils/FC/{method}/
         """
         if out is None:
-            out = os.path.join(folder, f'utils/FC/')
+            out = os.path.join(folder, 'utils/FC/')
         self.out_path = os.path.join(out, f'te-package_'+method, animal, day, '')
         if not os.path.exists(self.out_path):
             os.makedirs(self.out_path)
@@ -39,15 +39,17 @@ class ExpGTE:
         self.animal = animal
         self.day = day
         self.parameters = {
-            'AutoBinNumberQ': True, 'SourceMarkovOrder':2, 'TargetMarkovOrder':2,
+            "AutoConditioningLevelQ": True,
+            'AutoBinNumberQ': True, 'SourceMarkovOrder': lag, 'TargetMarkovOrder': lag,
             'StartSampleIndex':2
-            }
+            } # update conditioning level for gte
 
         self.exp_file = h5py.File(encode_to_filename(os.path.join(folder, 'processed'), animal, day), 'r')
         self.blen = self.exp_file.attrs['blen']
         self.method = method
 
-    def baseline(self, roi='ens', input_type='dff', parameters=None, pickle_results=True, clean=True):
+    def baseline(self, roi='red', input_type='dff', parameters=None, pickle_results=True,
+                 zclean=False, clean=True):
         '''
         Run GTE over all neurons, over the baseline.
         Inputs:
@@ -66,11 +68,12 @@ class ExpGTE:
             ens = np.array(self.exp_file['ens_neur'])
             ens = ens[~np.isnan(ens)].astype(np.int)
             exp_data = exp_data[ens, :self.blen]
-        exp_data = zscore(exp_data, axis=1)
-        exp_data = np.nan_to_num(exp_data)
-        exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
-        exp_data = np.minimum(exp_data, self.whole_exp_threshold)
-        exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
+        if zclean:
+            exp_data = zscore(exp_data, axis=1)
+            exp_data = np.nan_to_num(exp_data)
+            exp_data = np.maximum(exp_data, -1*self.whole_exp_threshold)
+            exp_data = np.minimum(exp_data, self.whole_exp_threshold)
+            exp_data = np.expand_dims(exp_data, axis=0) # (1 x neurons x frames)
         neuron_locations = np.array(self.exp_file['com_cm'])
         if parameters is None:
             parameters = self.parameters
