@@ -27,6 +27,8 @@ from scipy import interpolate
 from scipy.stats.mstats import zscore
 from scipy.signal import correlate
 from statsmodels.tsa.stattools import grangercausalitytests
+import statsmodels.tsa.api as smt
+from statsmodels.tsa.api import VAR
 import sklearn
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -137,7 +139,7 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
         out = os.path.join(out, 'FC')
     else:
         out = os.path.join(folder, 'utils/FC/')
-    for animal in get_all_animals(folder):
+    for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
         for day in get_animal_days(animal_path):
             if 'te-package' in method:
@@ -148,26 +150,113 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
                 if lag == 'auto':
                     lag = 2
                     pass
-                fname = os.path.join(out, animal, day,
-                                     'statsmodel', f"baseline_{roi}_{input_type}_order{lag}.p")
+                out_path = os.path.join(out, method, animal, day)
+                if not os.path.exists(out_path):
+                    os.makedirs(out_path)
+                fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order{lag}.p")
                 with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
-                    exp_data = np.array(hf[input_type])
                     blen = hf.attrs['blen']
+                    exp_data = np.array(hf[input_type][:, :blen])
                     if roi == 'neuron':
-                        exp_data = exp_data[np.array(hf['nerden']), :blen]
+                        exp_data = exp_data[np.array(hf['nerden'])]
                     elif roi == 'red':
-                        exp_data = exp_data[np.array(hf['redlabel']), :blen]
+                        exp_data = exp_data[np.array(hf['redlabel'])]
                     elif roi == 'ens':
                         ens = np.array(hf['ens_neur'])
                         ens = ens[~np.isnan(ens)].astype(np.int)
-                        exp_data = exp_data[ens, :blen]
+                        exp_data = exp_data[ens]
+                    zclean = True
+                    if zclean:
+                        fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order{lag}_zscore.p")
+                        exp_data = zscore(exp_data, axis=1)
+                        exp_data = np.nan_to_num(exp_data)
+                        exp_data = np.maximum(exp_data, -1 * ExpGTE.whole_exp_threshold)
+                        exp_data = np.minimum(exp_data, ExpGTE.whole_exp_threshold)
                 gcs_val, p_val = statsmodel_granger(exp_data, maxlag=lag)
                 result = gcs_val[:, :, -1]
+
                 with open(fname, 'wb') as p_file:
                     pickle.dump(result, p_file)
             else:
                 raise NotImplementedError("Unknown Method")
     return result
+
+
+def granger_select_order(rois, maxlag=5, ic='bic'):
+    # rois: N x T
+    mod = smt.VAR(rois.T)
+    #res = mod.fit(maxlags=maxlag, ic=ic) # TOOD: fix bug in statsmodel OVERFLOW
+    orders = mod.select_order(maxlags=maxlag)
+    # OverflowError: (34, 'Result too large')
+    #TODO: FIND OUT THE BEST IC
+    return orders.selected_orders['aic'], orders.selected_orders['bic'], orders.selected_orders['hqic']
+
+
+def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
+    # TODO: only calculated for baseline
+    processed = os.path.join(folder, 'processed')
+    if out is not None:
+        out = os.path.join(out, 'FC/')
+    else:
+        out = os.path.join(folder, 'utils/FC/')
+
+    if not os.path.exists(out):
+        os.makedirs(out)
+    outname = os.path.join(out, 'granger_order_selections.csv')
+    all_entries = []
+    first_run = True
+    for animal in get_all_animals(processed):
+        animal_path = os.path.join(processed, animal)
+        for day in get_animal_days(animal_path):
+            if first_run:
+                t0 = time.time()
+
+            result = (np.nan, np.nan, np.nan)
+            roitype = 'FAIL'
+            success = False
+            first_encounter = True
+            while not success:
+                try:
+                    with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
+                        blen = hf.attrs['blen']
+                        exp_data_full = np.array(hf[input_type][:, :blen])
+                        nerden = np.array(hf['nerden'])
+                        redlabel = np.array(hf['redlabel'])
+                        ens = np.array(hf['ens_neur'])
+                        ens = ens[~np.isnan(ens)].astype(np.int)
+                    success = True
+                except (OSError,FileNotFoundError) as e:
+                    if first_encounter:
+                        print(e.args, 'check connection for {animal}, {day}')
+                        first_encounter = False
+            for roi in ['neuron', 'red', 'ens']:
+                if roi == 'neuron':
+                    exp_data = exp_data_full[nerden]
+                elif roi == 'red':
+                    exp_data = exp_data_full[redlabel]
+                elif roi == 'ens':
+                    exp_data = exp_data_full[ens]
+                else:
+                    raise NotImplementedError(f'Unknown ROI type {roi}')
+                try:
+                    result = granger_select_order(exp_data, maxlag=maxlags)
+                    roitype = roi
+                    break
+                except:
+                    print(f"Something went wrong with roi {roi}, try next")
+            all_entries.append(list((animal, day, roitype) + result))
+            # TODO: think of the best way to make the time reporting a function
+            tstr = lambda t: f"{int(ETA // 3600)}h:{int(ETA % 3600 // 60)}m:{ETA%60:.1f}s"
+            if first_run:
+                run_time = time.time() - t0
+                first_run = False
+                ETA = run_time * 287
+                print(f'Done with {animal}, {day}, estimated run time left: {tstr(ETA)}')
+            else:
+                ETA -= run_time
+                print(f'Done with {animal}, {day}, estimated run time left: {tstr(ETA)}')
+    pdf = pd.DataFrame(all_entries, columns=['animal', 'day', 'roi', 'aic', 'bic', 'hqic'])
+    pdf.to_csv(outname, index=False)
 
 
 def connection_summary(folder, out, roi='red', input_type='dff', order=2):
@@ -183,6 +272,21 @@ def connection_summary(folder, out, roi='red', input_type='dff', order=2):
                 plt.savefig(outname+'.eps')
                 plt.savefig(outname + '.png')
                 plt.close()
+
+
+def cointegration_test(folder, alpha=0.05):
+    # TODO: implement a series of tests including this and stationarity adfuller test
+    from statsmodels.tsa.vector_ar.vecm import coint_johansen
+    animal_dff = None # transpose for using cointjohansen
+    out = coint_johansen(animal_dff, -1, 5)
+    traces = out.lr1
+    cvt = out.cvt[:, int(np.round((0.1-alpha) / 0.05))]
+
+    # TODO: VAR model critical to lag selection
+    import statsmodels.tsa.api as smt
+    from statsmodels.tsa.api import VAR
+    mod = smt.VAR(animal_dff)
+    res = mod.fit(maxlags=15, ic='aic')
 
 
 def learning(folder, animal, day, sec_var='', to_plot=True, out=None):

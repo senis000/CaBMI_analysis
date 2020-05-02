@@ -1043,3 +1043,170 @@ def network_burst():
     plt.plot(autocorr(lasthalf));
     plt.legend(['first', 'second']);
     plt.show()
+
+def irgendwas():
+    pdf = pd.DataFrame(expdata.T, columns=[0, 1, 2, 3])
+    pdf = pd.DataFrame(exp_data.T, columns=[0, 1, 2, 3])
+    out = coint_johansen(pdf)
+    from statsmodels.tsa.vector_ar.vecm import coint_johansen
+    out = coint_johansen(transform_data. - 1, 5)
+    out = coint_johansen(transform_data, -1, 5)
+    out = coint_johansen(pdf, -1, 5)
+    out
+    out.lr1
+    out.cvt[:, 1]
+    out.cvt
+    alpha = 0.01
+    cvt = out.cvt[:, int(np.round((0.1 - alpha) / alpha))]
+    cvt = out.cvt[:, int(np.round((0.1 - alpha) / 0.05))]
+    int(np.round((0.1 - alpha) / 0.05))
+    alpha = 0.05
+    int(np.round((0.1 - alpha) / 0.05))
+    alpha = 0.1
+    int(np.round((0.1 - alpha) / 0.05))
+    alpha = 0.05
+    cvt = out.cvt[:, int(np.round((0.1 - alpha) / 0.05))]
+    cvt
+    traces
+    out.lr1
+    import statsmodels.tsa.api as smt
+    from statsmodels.tsa.api import VAR
+
+
+mod = smt.VAR(pdf)
+res = mod.fit(maxlags=5, ic='aic')
+res
+res.summary()
+print(res.summary())
+mod.lag
+lag_order = results.k_ar
+lag_order = res.k_ar
+lag_order
+res.forecast(pdf.values[-lag_order:], 5)
+res.plot_forecast(10)
+pred = res.forcast(pdf.values[-2 * lag_order: -lag_order], 5)
+pred = res.forecast(pdf.values[-2 * lag_order: -lag_order], 5)
+pred
+res.forecast(pdf.values[-lag_order:], 5)
+res.plot_forecast(10)
+pred = res.forcast(pdf.values[-2 * lag_order: -lag_order], 5)
+pred = res.forecast(pdf.values[-2 * lag_order: -lag_order], 5)
+actual = pdf.values[-lag_order:]
+actual
+pred
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(actual[:, i])
+    axes[i].plot(pred[:, i])
+    axes[i].legend(['actual', 'prediction'])
+plt.show()
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(actual[:, i])
+    axes[i].plot(pred[:, i])
+    axes[i].legend(['actual', 'prediction'])
+pred = res.forecast(pdf.values[-2 * lag_order: -lag_order], 10)
+pred.shape
+pred = res.forecast(pdf.values[:4500], 4500)
+pred.shape
+actual = pdf.values[-4500:]
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(actual[:, i])
+    axes[i].plot(pred[:, i])
+    axes[i].legend(['actual', 'prediction'])
+mod
+mod.select_order(15)
+mod.k_ar
+orderRes = mod.select_order(15)
+orderRes.summary()
+print(orderRes.summary())
+res = mod.fit(maxlags=15, ic='aic')
+res.summary()
+res.summary()
+res.summary
+res['AIC']
+orderRes = mod.select_order(5)
+orderRes
+orderRes.summary()
+print(orderRes.summary())
+res = mod.fit(maxlags=5, ic='aic')
+res
+res.summary
+res.summary()
+res.sigma_u
+res.resid
+res.sigma_u
+res.resid.mean()
+sigma = res.sigma_u
+numpy.linalg.det(sigma)
+np.linalg.det(sigma)
+pdf[0]
+mod1_eig = smt.VAR(pdf[0])
+mod1_eig = smt.VAR(pdf[[0, 1, 2]])
+res1_eig = mod1_eig.fit(maxlags=5, ic='aic')
+res1_eig.k_ar
+res1_eig.resid.mean()
+mod
+mod.endog_names
+reses = [mod.fit(i) for i in range(1, 6)]
+pdf.shape
+pdf.iloc[:-30]
+pdf.iloc[:-30].shape
+train = pdf.iloc[:-30]
+test = pdf.iloc[-30:]
+mod = smt.VAR(train)
+reses = [mod.fit(i) for i in range(1, 6)]
+pred0 = reses[0].forecast(pdf.iloc[-31:-30], 30)
+pdf.iloc[-31:-30]
+pred0 = reses[0].forecast(pdf.iloc[-31:-30].values, 30)
+pred1 = reses[0].forecast(pdf.iloc[:-30].values, 30)
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(pred0[:, i])
+    axes[i].plot(pred1[:, i])
+    axes[i].plot(test.values[:, i])
+    axes[i].legend(['pred0', 'pred1', 'actual'])
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(pred0[:, i])
+    axes[i].plot(pred1[:, i] + 1)
+    axes[i].plot(test.values[:, i])
+    axes[i].legend(['pred0', 'pred1', 'actual'])
+fig, axes = plt.subplots(nrows=4, ncols=1)
+for i in range(4):
+    axes[i].plot(pred0[:, i])
+    axes[i].plot(pred1[:, i])
+    axes[i].plot(test.values[:, i])
+    axes[i].legend(['pred0', 'pred1', 'actual'])
+diffs = [np.linalg.norm(res.forecast(train.values, 30) - test.values) for res in reses]
+diffs
+reses = [mod.fit(i) for i in range(1, 16)]
+diffs = [np.linalg.norm(res.forecast(train.values, 30) - test.values) for res in reses]
+diffs.shape
+diffs
+plt.plot(np.arange(1, 16), diffs);
+plt.plot(np.arange(1, 16), diffs);
+plt.ylabel('residual (30 held out frames)');
+plt.xlabel('lag')
+plt.plot(np.arange(1, 16), diffs);
+plt.ylabel('residual (30 held out frames)');
+plt.xlabel('lag');
+plt.xticks(np.arange(1, 16), np.arange(1, 16))
+aics = mod.select_order(15).selected_orders['aic']
+aics
+aics = mod.select_order(15).ics['aic']
+aics.shape
+aics
+len(aics)
+plt.plot(np.arange(16), aics);
+plt.plot(np.arange(16), mod.select_order(15).ics['bic']);
+plt.ylabel('IC');
+plt.xlabel('lag');
+plt.xticks(np.arange(0, 16), np.arange(0, 16))
+plt.plot(np.arange(16), aics);
+plt.plot(np.arange(16), mod.select_order(15).ics['bic']);
+plt.ylabel('IC');
+plt.xlabel('lag');
+plt.legend(['aic', 'bic']);
+plt.xticks(np.arange(0, 16), np.arange(0, 16))
