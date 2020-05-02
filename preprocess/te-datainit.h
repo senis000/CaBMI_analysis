@@ -33,6 +33,9 @@
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_sf_gamma.h>
 
+#include <vector>
+#include <limits>
+
 
 //#define ENABLE_YAML_IMPORT_AT_COMPILE_TIME
 
