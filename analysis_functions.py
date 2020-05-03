@@ -1303,6 +1303,60 @@ def dff_SNR_single_session(folder, animal, day, out):
                   "new results will NOT be saved")
 
 
+def cursor_occupancy(folder_main, to_plot=True):
+    folder = os.path.join(folder_main, 'processed') 
+    folder_plots = os.path.join(folder_main, 'plots', 'Cursor_histograms')
+    file_plot_template = "{}_{}_cursor"
+    animals = os.listdir(folder)
+    mat_CBT = np.zeros((len(animals),25)) + np.nan
+    mat_CAT = np.zeros((len(animals),25)) + np.nan
+    mat_CBTb = np.zeros((len(animals),25)) + np.nan
+    mat_CATb = np.zeros((len(animals),25)) + np.nan
+    mat_T = np.zeros((len(animals),25)) + np.nan
+    for aa,animal in enumerate(animals):
+        folder_path = os.path.join(folder, animal)
+        filenames = os.listdir(folder_path)
+        for dd,filename in enumerate(filenames):
+            day = filename[-17:-11]
+            T, cursor = ut.obtain_target(folder_main, animal, day)
+            [h,b] = np.histogram(cursor[6000:][~np.isnan(cursor[6000:])], np.arange(-2,2,0.01))
+            [hb,b] = np.histogram(cursor[:6000][~np.isnan(cursor[:6000])], np.arange(-2,2,0.01))
+            hbsmooth = ut.sliding_mean(hb,10)
+            center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+            if len(center_hist)>1:
+                hbsmooth = ut.sliding_mean(hb,20)
+                center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+                if len(center_hist)>1:
+                    hbsmooth = ut.sliding_mean(hbsmooth,5)
+                    center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+            mat_CBTb[aa,dd] = len(cursor[:6000][cursor[:6000]<T])
+            mat_CATb[aa,dd] = len(cursor[:6000][cursor[:6000]>(-T+2*center_hist)])
+            mat_CBT[aa,dd] = len(cursor[6000:][cursor[6000:]<T])
+            mat_CAT[aa,dd] = len(cursor[6000:][cursor[6000:]>(-T+2*center_hist)])
+            mat_T[aa,dd] = T
+
+            if to_plot:
+                plt.bar(b[1:],h/np.nanmax(h), width=0.01)
+                plt.bar(b[1:],hb/np.nanmax(hb), width=0.01)
+                plt.plot(b[1:],hbsmooth/np.nanmax(hb),'k')
+                plt.vlines(x=T, ymin=0, ymax=1)
+                plt.vlines(x=-T+2*center_hist, ymin=0, ymax=1)
+                plt.vlines(x=center_hist, ymin=0, ymax=1, color='r')
+                fileplotname = os.path.join(folder_plots, file_plot_template.format(animal, day))
+                plt.savefig(fileplotname + '.png', bbox_inches="tight")
+                plt.savefig(fileplotname + '.eps', bbox_inches="tight")
+                plt.close('all')
+    cursor_dif = (mat_CBT-mat_CBTb)/mat_CBTb
+    cursor_oc_tl = (mat_CBT+mat_CBTb)/(mat_CBT+mat_CBTb + mat_CAT+mat_CATb)
+    cursor_ocrel = (mat_CBT/(mat_CAT+mat_CBT))/(mat_CBTb/(mat_CATb+mat_CBTb))
+    cursor_der = ((mat_CBT-mat_CBTb)/mat_CBTb)/((mat_CAT-mat_CATb)/mat_CATb)
+    cursor_dif[np.isinf(cursor_dif)] = np.nan #max(cursor_dif[~np.isinf(cursor_dif)])
+    cursor_der[np.isinf(cursor_der)] = np.nan #max(cursor_der[~np.isinf(cursor_der)])
+    cursor_ocrel[np.isinf(cursor_ocrel)] = np.nan #max(cursor_ocrel[~np.isinf(cursor_ocrel)])
+
+    
+        
+
 
 if __name__ == '__main__':
     home = "/home/user/"

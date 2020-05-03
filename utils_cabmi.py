@@ -9,6 +9,8 @@ __author__ = 'Nuria & Ching & Albert'
 
 import numpy as np
 import pdb, os, h5py
+import imp
+import scipy.io as io
 from math import sqrt
 from collections import deque
 
@@ -292,3 +294,26 @@ def median_filter(width=20, s=2):
         # print(sigs[i], dc.get_val())
         return dc.get_val()
     return fil, dc
+
+
+def obtain_target(folder_main, animal, day):
+    # Folder to load/save
+    folder_dest = os.path.join(folder_main, 'Ts', animal)  
+    folder = os.path.join(folder_main, 'processed') 
+    file_template = "full_{}_{}__data.hdf5"
+    file_name = os.path.join(folder, animal, file_template.format(animal, day))
+    if not os.path.exists(folder_dest):
+        os.makedirs(folder_dest)
+
+    
+    # Load information
+    print ('loading info')
+    f = h5py.File(file_name, 'r')
+    cursor = np.asarray(f['cursor'])
+    hits = np.asarray(f['hits'])
+    len_base = f.attrs['blen']
+    f.close()
+    ht = (hits - len_base).astype('int')
+    T = np.nanmax(cursor[ht-1])
+    return T, cursor
+    # check first 10 trials

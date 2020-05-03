@@ -61,6 +61,7 @@ def basic_entry (folder, animal, day):
         # depth
         depth_mean = np.nanmean(com_ens[:,2])
         depth_max = np.nanmax(com_ens[:,2])
+        depth_min = np.nanmin(com_ens[:,2])
         
     #     if len(e2_neur) > 0:
     #         depth_mean_e2 = np.nanmean(com_e2[:,2])
@@ -78,6 +79,7 @@ def basic_entry (folder, animal, day):
             
             dist_mean = np.nanmean(auxdist)
             dist_max = np.nanmax(auxdist)
+            dist_min = np.nanmin(auxdist)
     
         
             # diff of depth
@@ -87,7 +89,8 @@ def basic_entry (folder, animal, day):
                     auxddepth.append(scipy.spatial.distance.euclidean(com_ens[nn,2], com_ens[nns,2]))
             
             diffdepth_mean = np.nanmean(auxddepth)
-            diffdepth_max = np.nanmax(auxddepth)   
+            diffdepth_max = np.nanmax(auxddepth) 
+            diffdepth_min = np.nanmin(auxddepth)   
             
             # diff in xy
             auxdxy = []
@@ -97,13 +100,17 @@ def basic_entry (folder, animal, day):
             
             diffxy_mean = np.nanmean(auxdxy)
             diffxy_max = np.nanmax(auxdxy)  
+            diffxy_min = np.nanmin(auxdxy)  
         else:
             dist_mean = np.nan
             dist_max = np.nan
+            dist_min = np.nan
             diffdepth_mean = np.nan
             diffdepth_max = np.nan
+            diffdepth_min = np.nan
             diffxy_mean = np.nan
             diffxy_max = np.nan
+            diffxy_min = np.nan
         
         # dynamic range
         # there are some dff that are crazy weird, to avoid them for deteriorating the dataset any std>1 will be ignored
@@ -115,6 +122,7 @@ def basic_entry (folder, animal, day):
             
         post_whole_std_mean = np.nanmean(auxpostwhostd)
         post_whole_std_max = np.nanmax(auxpostwhostd)
+        post_whole_std_min = np.nanmin(auxpostwhostd)
         
         auxpostbasestd = []
         for nn in np.arange(dff_ens.shape[0]):
@@ -124,20 +132,27 @@ def basic_entry (folder, animal, day):
             
         post_base_std_mean = np.nanmean(auxpostbasestd)
         post_base_std_max = np.nanmax(auxpostbasestd)
+        post_base_std_min = np.nanmin(auxpostbasestd)
     
     else:
         depth_mean = np.nan
         depth_max = np.nan
+        depth_min = np.nan
         dist_mean = np.nan
         dist_max = np.nan
+        dist_min = np.nan
         diffdepth_mean = np.nan
         diffdepth_max = np.nan
+        diffdepth_min = np.nan
         diffxy_mean = np.nan
         diffxy_max = np.nan
+        diffxy_min = np.nan
         post_whole_std_mean = np.nan
         post_whole_std_max = np.nan
+        post_whole_std_min = np.nan
         post_base_std_mean = np.nan
         post_base_std_max = np.nan
+        post_base_std_min = np.nan
     
     auxonstd = []
     for nn in np.arange(online_data.shape[1]):
@@ -146,14 +161,15 @@ def basic_entry (folder, animal, day):
         
     onstd_mean = np.nanmean(auxonstd)
     onstd_max = np.nanmax(auxonstd)
+    onstd_min = np.nanmin(auxonstd)
 
     auxcursorstd = []
     cursor_std = np.nanstd(cursor)
     
-    row_entry = np.asarray([depth_mean, depth_max, dist_mean, dist_max, diffdepth_mean, diffdepth_max, \
-                             diffxy_mean, diffxy_max, \
-                             onstd_mean, onstd_max, post_whole_std_mean, post_whole_std_max, post_base_std_mean, \
-                             post_base_std_max, cursor_std])
+    row_entry = np.asarray([depth_mean, depth_max, depth_min, dist_mean, dist_max, dist_min, diffdepth_mean, diffdepth_max, \
+                             diffdepth_min, diffxy_mean, diffxy_max, diffxy_min, \
+                             onstd_mean, onstd_max, onstd_min, post_whole_std_mean, post_whole_std_max, post_whole_std_min, \
+                             post_base_std_mean, post_base_std_max, post_base_std_min, cursor_std])
     
     return row_entry
 
@@ -167,12 +183,17 @@ def plot_results(folder_plots, df_aux, first_ind=0, single_animal=True, mode='ba
     columns_ler = columns[4:10]
 
     if mode =='basic':
-        columns_aux = columns[10:25]  ## basic
+        columns_aux = columns[10:32]  ## basic
         figsiz = (12, 20)
-        sbx = 4
-        sby = 4
+        sbx = 5
+        sby = 5
     elif mode == 'SNR':
-        columns_aux = columns[25:27]  ## SNR
+        columns_aux = columns[32:34]  ## SNR
+        figsiz = (8, 4)
+        sbx = 1
+        sby = 2
+    elif mode == 'ce':
+        columns_aux = [columns[34]]  ## SNR
         figsiz = (8, 4)
         sbx = 1
         sby = 2
@@ -206,13 +227,15 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
     folder_plots = os.path.join(folder_main, 'plots', 'learning_regressions')
     folder_snr = os.path.join(folder_main, 'onlineSNR')
     to_save_df = os.path.join(folder_main, 'df_all.hdf5')
+    to_load_pick = os.path.join(folder_main, 'cursor_engagement.p')
     animals = os.listdir(folder)
     df_results = pd.read_csv(file_csv)
+    df_ce = pd.read_pickle(to_load_pick)
     columns_res = df_results.columns.tolist()
-    columns_basic = ['depth_mean', 'depth_max', 'dist_mean', 'dist_max', 'diffdepth_mean', 'diffdepth_max', \
-                         'diffxy_mean', 'diffxy_max', \
-                         'onstd_mean', 'onstd_max', 'post_whole_std_mean', 'post_whole_std_max', 'post_base_std_mean', \
-                         'post_base_std_max', 'cursor_std']
+    columns_basic = ['depth_mean', 'depth_max', 'depth_min', 'dist_mean', 'dist_max', 'dist_min', 'diffdepth_mean', 'diffdepth_max', \
+                         'diffdepth_min', 'diffxy_mean', 'diffxy_max', 'diffxy_min', \
+                         'onstd_mean', 'onstd_max', 'onstd_min', 'post_whole_std_mean', 'post_whole_std_max', 'post_whole_std_min',
+                         'post_base_std_mean', 'post_base_std_max', 'post_base_std_min', 'cursor_std']
     columns = columns_res + columns_basic
     columns.insert(3,'ITPTlabel')
     df = pd.DataFrame(columns=columns)
@@ -248,16 +271,19 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
     if to_plot:
         plot_results(folder_plots, df, single_animal=False)
     df['ITPTlabel'] = pd.to_numeric(df['ITPTlabel'])
-    #obtain snr features
+    
+    # obtain snr features
     print('obtaining snrs')
     snr_vector_mean = []#np.zeros(len(df))
     snr_vector_max = []#np.zeros(len(df))
+    number_snrs = np.zeros(len(animals))
     for aa,animal in enumerate(animals):
         folder_path = os.path.join(folder_snr, animal)
         filenames = os.listdir(folder_path)
+        number_snrs[aa] = len(filenames)
         for dd,filename in enumerate(filenames):
             print ('Analyzing animal: ' + animal + ' day: ' + filename)
-            f = h5py.File(os.path.join(folder_path, filename,'onlineSNR.hdf5'), 'r')
+            f = h5py.File(os.path.join(folder_path, filename), 'r')
             aux_snr = np.asarray(f['SNR_ens'])
             f.close()
             snr_vector_mean.append(np.nanmean(aux_snr))
@@ -270,7 +296,23 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
     if to_plot:
         plot_results(folder_plots, df, single_animal=False, mode='SNR')
     
-    
+    # obtain cursor engagement
+    print('obtaining cursor engagement')
+    df['cursor_eng'] = np.nan
+    for aa,animal in enumerate(animals):
+        folder_path = os.path.join(folder, animal)
+        filenames = os.listdir(folder_path)
+        andf = df_ce.loc[df_ce['Animal']==animal]
+        for dd,filename in enumerate(filenames):
+            day = filename[-17:-11]
+            auxr2 = andf[andf['Date']==day]['R2 Values'].values
+            if len(auxr2)>0:
+                dfind = df.index[(df['animal']==animal)&(df['day']==int(day))]
+                df.loc[dfind,'cursor_eng']=auxr2
+    if to_plot:
+        plot_results(folder_plots, df, single_animal=False, mode='ce')
+
+    # save!
     df.to_hdf(to_save_df, key='df', mode='w')
         
     
