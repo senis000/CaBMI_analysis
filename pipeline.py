@@ -57,6 +57,7 @@ from caiman.source_extraction.cnmf.utilities import detrend_df_f
 from caiman.components_evaluation import estimate_components_quality_auto
 from caiman.components_evaluation import evaluate_components_CNN
 from caiman.motion_correction import motion_correct_iteration
+from caiman.utils.stats import df_percentile
 import bokeh.plotting as bpl
 
 from skimage.feature import peak_local_max
@@ -1533,8 +1534,6 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
         best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
 
-
-from caiman.utils.stats import df_percentile
 
 def novel_detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=250,
                  flag_auto=True, use_fast=False, scaleC=False):

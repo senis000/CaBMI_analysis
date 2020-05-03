@@ -72,10 +72,12 @@ def parse_mathematica_list(file_name):
     with open(file_name) as f:
         x = f.read()    # Gets the whole mathematica array
     x1 = x[1:-2]    #Strip off the outer brackets
+
     matches = re.findall('{(.*?)}\\n', x1, flags=0) # Collects each matrix row
-    matrix = [m.split(', ') for m in matches]
-    matrix = [np.array(row).astype(np.float) for row in matrix]
-    connectivity_matrix = np.array(matrix)
+    matrix = np.array([eval(m.replace('{', '[').replace('}', ']')) for m in matches], dtype=np.float)
+    if matrix.shape[-1] == 1:
+        matrix.reshape(matrix.shape[:2])
+    connectivity_matrix = matrix
     return connectivity_matrix
 
 def heatmap(data, row_labels, col_labels, ax=None,
@@ -200,6 +202,7 @@ def create_gte_input_files_sliding(
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
+
 def create_gte_input_files(exp_name, exp_data,
         parameters, to_zscore=False, zscore_threshold=0.0):
     """
@@ -278,7 +281,8 @@ def create_gte_input_files(exp_name, exp_data,
         output_file_names.append(output_file_name)
     return control_file_names, exclude_file_names, output_file_names
 
-def run_gte(control_file_names, exclude_file_names, output_file_names):
+
+def run_gte(control_file_names, exclude_file_names, output_file_names, method='te-extended'):
     """
     Runs GTE on each control file.
 
@@ -300,7 +304,7 @@ def run_gte(control_file_names, exclude_file_names, output_file_names):
     for idx, control_file_name in enumerate(control_file_names): # TODO: parallelize
         print(control_file_name)
         exe_code = subprocess.call([
-            "./te-causality/transferentropy-sim/te-extended", control_file_name
+            f"./te-causality/transferentropy-sim/{method}", control_file_name
             ])
         result = parse_mathematica_list(output_file_names[idx])
         exclude_file_name = exclude_file_names[idx]
