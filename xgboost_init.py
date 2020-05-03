@@ -26,10 +26,14 @@ interactive(True)
 
 folder_main = 'I:/Nuria_data/CaBMI/Layer_project'
 out = 'I:/Nuria_data/CaBMI/Layer_project/learning_stats'
-file_csv = os.path.join(out, 'learning_stats_summary_bin_5.csv')
+file_csv = os.path.join(out, 'learning_stats_summary_bin_1.csv')
+file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_1.csv')
+file_csv_PC = os.path.join(out, 'learning_stats_PC_bin_1.csv')
 
+to_load_pick = os.path.join(folder_main, 'cursor_engagement.p')
 to_load_df = os.path.join(folder_main, 'df_all.hdf5')
 df = pd.read_hdf(to_load_df)
+df_ce = pd.read_pickle(to_load_pick)
 
 #until new df
 # df = df.rename(columns={'label': 'ITPTlabel'})
@@ -42,3 +46,11 @@ size_split_test=0.2
 max_iter=20
 stability_var=0.7
 toplot=False
+
+
+
+
+
+####
+df_hpm = pd.read_csv(file_csv_hpm)
+df_PC = pd.read_csv(file_csv_PC)
