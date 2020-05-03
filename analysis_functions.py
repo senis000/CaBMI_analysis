@@ -341,7 +341,7 @@ def learning(folder, animal, day, sec_var='', to_plot=True, out=None):
 
 def learning_params(
     folder, animal, day, sec_var='', bin_size=1,
-    to_plot=None, end_bin=None, reg=False, dropend=True, out=None, total=False):
+    to_plot=None, end_bin=None, reg=False, dropend=True, out=None, total=2):
     '''
     Obtain the learning rate over time, including the fitted linear regression
     model. This function also allows for longer bin sizes.
@@ -487,8 +487,14 @@ def learning_params(
             hpm_gain = (evoHPM - hpm[0]) / hpm[0]
             basePC = percentage_correct[0]
             pc_gain = (evoPC - basePC) / basePC
+        if total > 1:
+            cumu_hpm = np.cumsum(hpm)
+            cumu_mpm = np.cumsum(mpm)
+            cumu_pc = cumu_hpm / (cumu_hpm+cumu_mpm)
+            percentage_correct = (percentage_correct, cumu_pc, totalPC, pc_gain)
+        else:
+            percentage_correct = (percentage_correct, totalPC, pc_gain)
         hpm = (hpm, totalHPM, hpm_gain)
-        percentage_correct = (percentage_correct, totalPC, pc_gain)
 
     return xx_axis, hpm, percentage_correct, LinearRegression().fit(xx_axis, hpm) if reg else None
 
