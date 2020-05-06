@@ -649,8 +649,11 @@ double** generate_time_series_from_spike_data(std::string inputfile_spiketimes, 
   // test if read data appears valid
   for (long tt=0; tt<nr_spikes; tt++) {
     assert((xindex[tt]>=0)&&(xindex[tt]<size)); // indices are in allowed range
-    if(tt>0) assert(xtimes[tt]>=xtimes[tt-1]); // spike times are an ordered sequence
-    if(tt<nr_spikes-1) assert(xtimes[tt]<=xtimes[tt+1]);
+    // if(tt>0) assert(xtimes[tt]>=xtimes[tt-1]); // spike times are an ordered sequence
+    // if(tt<nr_spikes-1) {
+    //     IOSTREAMC << "tt:" << tt << " nr_spikes: " << nr_spikes << " xtimes tt:" << xtimes[tt] << " tt+1:" << xtimes[tt+1]<<IOSTREAMENDL;
+    //     assert(xtimes[tt]<=xtimes[tt+1]);
+    // }
   }
   
   // choose switch key for the fluorescence model
@@ -1685,7 +1688,7 @@ void write_result(double** const array, long size, std::string outputfile_result
   strcpy(name,outputfile_results_name.c_str());
   ofstream fileout1(name);
   delete[] name;
-  if (fileout1 == NULL) {
+  if (!fileout1) {
     IOSTREAMC <<IOSTREAMENDL<<"error in write_result: cannot open output file!"<<IOSTREAMENDL;
     exit(1);
   }
