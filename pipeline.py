@@ -70,6 +70,9 @@ import imp
 import shutil
 interactive(True)
 
+# utils
+from utils_loading import get_all_animals, get_animal_days, encode_to_filename
+
 
 def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=False):
     """
@@ -83,8 +86,8 @@ def all_run(folder, animal, day, number_planes=4, number_planes_total=6, fresh=F
     folder_path = folder + 'raw/' + animal + '/' + day + '/'
     folder_final = folder + 'processed/' + animal + '/' + day + '/'
     err_file = open(folder_path + "errlog.txt", 'a+')  # ERROR HANDLING
-    if not os.path.exists(folder_final):
-        os.makedirs(folder_final)
+    # if not os.path.exists(folder_final):
+    #     os.makedirs(folder_final)
 
     finfo = folder_path +  'wmat.mat'  #file name of the mat
     matinfo = scipy.io.loadmat(finfo)
@@ -1533,6 +1536,24 @@ def get_best_e2_combo(ens_neur, online_data, cursor, trial_start, trial_end, len
     else:
         best_e2_neurons = [ens_neur[best_e2_combo[0]], ens_neur[best_e2_combo[1]]]
     return np.array(best_e2_neurons)
+
+
+def test_copy_finish(remote, local):
+    missed = []
+    for animal in get_all_animals(remote):
+        animal_path = os.path.join(remote, animal)
+        for day in get_animal_days(animal_path):
+            print(f'{animal} {day}')
+            hf1 = h5py.File(encode_to_filename(remote, animal, day), 'r')
+            hf1.close()
+            try:
+                hf2 = h5py.File(encode_to_filename(local, animal, day), 'r')
+                hf2.close()
+            except (OSError, FileNotFoundError) as e:
+                missed.append((animal, day))
+    return missed
+
+
 
 
 def novel_detrend_df_f(A, b, C, f, YrA=None, quantileMin=8, frames_window=250,

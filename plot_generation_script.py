@@ -56,9 +56,9 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
             ds = get_animal_days(animal_path)
             for d in ds:
                 try:
-                    _, (hpm, totalHPM, HPMgain), (pc, totalPC, PCgain) , _ = learning_params(folder,
+                    _, (hpm, totalHPM, HPMgain), (pc, cumuPC, totalPC, PCgain) , _ = learning_params(folder,
                                                                                              animal, d,
-                                                                            bin_size=binsize, total=True)
+                                                                            bin_size=binsize, total=2)
                 except KeyError:
                     exceptions.append((animal, d))
                     tPCs.append(np.nan)
@@ -67,6 +67,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
                     maxPCs.append(np.nan)
                     PCgains.append(np.nan)
                     HPMgains.append(np.nan)
+                    hpm, pc, cumuPC = [np.nan], [np.nan], [np.nan]
                     continue
                 except IndexError:
                     misaligned.append((animal, d))
@@ -76,6 +77,7 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
                     maxPCs.append(np.nan)
                     PCgains.append(np.nan)
                     HPMgains.append(np.nan)
+                    hpm, pc, cumuPC = [np.nan], [np.nan], [np.nan]
                     continue
                 except OSError:
                     print(f'cannot open {animal} {d}')
@@ -86,8 +88,11 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
                     maxPCs.append(np.nan)
                     PCgains.append(np.nan)
                     HPMgains.append(np.nan)
+                    hpm, pc, cumuPC = [np.nan], [np.nan], [np.nan]
+                    continue
                 hpm = np.around(hpm, 2)
                 pc = np.around(pc, 4)
+                cumuPC = np.around(cumuPC, 4)
                 totalHPM, HPMgain = np.around((totalHPM, HPMgain), 2)
                 totalPC, PCgain = np.around((totalPC, PCgain), 4)
                 maxHPM = np.nanmax(hpm) if len(hpm) else np.nan
@@ -99,13 +104,13 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
                 PCgains.append(PCgain)
                 HPMgains.append(HPMgain)
 
-                results[animal][d] = {'hpm': hpm, 'pc': pc}
+                results[animal][d] = {'hpm': hpm, 'pc': pc, 'cumuPC': cumuPC}
                 maxWindow = max(maxWindow, len(hpm))
                 nsession += 1
             sum_animals.append([animal] * len(ds))
             sum_sessions.append(np.arange(len(ds)))
             sum_days.append(ds)
-        animals, days, sessions, windowshpm, windowsPC = [], [], [], [], []
+        animals, days, sessions, windowshpm, windowsPC, windows_cumuPC = [], [], [], [], [], []
         for animal in results:
             animals.append([animal] * len(results[animal]))
             days.append(sorted(results[animal].keys()))
@@ -114,8 +119,12 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
                 results[animal][d]['hpm'])))) for d in sorted(results[animal])]))
             windowsPC.append(np.vstack([np.concatenate((results[animal][d]['pc'], [np.nan] * (maxWindow-len(
                     results[animal][d]['pc'])))) for d in sorted(results[animal])]))
+            windows_cumuPC.append(np.vstack([np.concatenate((results[animal][d]['cumuPC'],
+                                            [np.nan] * (maxWindow - len(results[animal][d]['cumuPC']))))
+                                             for d in sorted(results[animal])]))
         windowshpm = np.vstack(windowshpm)
         windowsPC = np.vstack(windowsPC)
+        windows_cumuPC = np.vstack(windows_cumuPC)
 
     else:
         # TODO: NOT VALIDATED YET
@@ -171,9 +180,13 @@ def store_hpm_pc(folder, out, binsize=5, NAN=True, to_csv=False):
         PCdict = {'animal': animals, 'day': days, 'session': sessions}
         PCdict.update({f'window {i}': windowsPC[:, i] for i in range(windowsPC.shape[1])})
         PCS = pd.DataFrame(PCdict)
+        cumuPCdict = {'animal': animals, 'day': days, 'session': sessions}
+        cumuPCdict.update({f'window {i}': windows_cumuPC[:, i] for i in range(windows_cumuPC.shape[1])})
+        cumuPCS = pd.DataFrame(cumuPCdict)
         if to_csv:
             HPMS.to_csv(os.path.join(out, f'learning_stats_HPM_bin_{binsize}.csv'), index=False)
             PCS.to_csv(os.path.join(out, f'learning_stats_PC_bin_{binsize}.csv'), index=False)
+            cumuPCS.to_csv(os.path.join(out, f'learning_stats_cumuPC_bin_{binsize}.csv'), index=False)
         else:
             fname = os.path.join(out, f'learning_stats_bin_{binsize}_NAN.hdf5')
             HPMS.to_hdf(fname, key='hpm', index=False)

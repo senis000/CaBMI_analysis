@@ -263,7 +263,7 @@ def all_run_tonight(folder = 'J:/Nuria_data/CaBMI/Layer_project/', animals = ('I
             if d.isalpha():
                 print(d)
                 continue
-            if os.path.exists(os.path.join(processed, animal, ns.format(animal, d))):
+            if os.path.exists(os.path.join(processed, animal, ns.format(animal, d))) or os.path.exists(os.path.join(raw_folder, animal, d, 'bmi__1.hdf5')): # TODO: modify for general cases
                 continue
             else:
                 days.append(d)
