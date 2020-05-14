@@ -267,7 +267,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
         df_animal = df_res_animal.join(df_basic)
         if to_plot:
             plot_results(folder_plots, df_animal,  df_res_animal.index[0])
-        df = df.append(df_animal)
+        df = df.append(df_animal, ignore_index=True)
     if to_plot:
         plot_results(folder_plots, df, single_animal=False)
     df['ITPTlabel'] = pd.to_numeric(df['ITPTlabel'])
@@ -357,6 +357,9 @@ def split_df(df, bts_n=1000, learn_stat_colum='totalPC', size_split_test=0.2):
     labels_to_study = [columns[3]] +  columns[10:].tolist()
     X_df = df.loc[:, labels_to_study]
     Y_df = df.loc[:, learn_stat_colum]
+    if np.isinf(np.nansum(Y_df)):
+        X_df = X_df[~np.isinf(Y_df)]
+        Y_df = Y_df[~np.isinf(Y_df)]
     if np.sum(np.isnan(Y_df))>0:
         X_df = X_df[~np.isnan(Y_df)]
         Y_df = Y_df[~np.isnan(Y_df)]
@@ -467,7 +470,7 @@ def calculate_xgbrep_optimal(df, rep=100, xgrep_num=None):
     return error_bst  
 
 
-def calculate_learn_stat_optimal(df, rep=100):
+def calculate_learn_stat_optimal(df, rep=100, bts_n=1000):
     '''
     function to calculate the error for each learning stat for the XGboost depending on the rule 0.632
     '''
@@ -501,14 +504,14 @@ def calculate_all_errors(df, folder_main, rep=100):
     f.close()
     
 
-def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_max=[0.022,0.5,0.02,0.15,0.045,0.17], \
+def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_max=[0.022,1,0.018,0.18,0.12,0.23], \
                      size_split_test=0.2, max_iter=20, stability_var=0.7, toplot=True):
     '''
     obtain shap values of mod_n different XGboost model if the conditions for error of the model and stability are set
     obtain stabitlity of feature: correlation of original shap values and bootstrap values to see if values are miningful or noise
     '''
     columns = df.columns.tolist()
-    columns_ler = columns[4:10] #[columns[6]]#
+    columns_ler = columns[6:8] #columns[4:10] #[columns[6]]#
     labels_to_study = [columns[3]] +  columns[10:]
     
     test_size = np.ceil(len(df)*(size_split_test)).astype(int)
@@ -578,7 +581,10 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                         explainer_test = shap.TreeExplainer(model_original, data=X_df_train, feature_perturbation='interventional')
                         all_shap[cc, i, :len(X_df_test), :] = explainer_test.shap_values(X_df_test)
                         explainer_val[cc, i] = explainer_test.expected_value
-                        all_df[cc,i,:len(X_df_test)] = X_df_test.index
+                        ind_aux = np.zeros(X_df_test.shape[0], dtype=np.int16) 
+                        for xx in np.arange(X_df_test.shape[0]):
+                            ind_aux[xx] = df.index.get_loc(X_df_test.index[xx])
+                        all_df[cc,i,:len(X_df_test)] = ind_aux
                         
                         # update
                         i+=1 
@@ -593,7 +599,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                     iteri += 1
                     
             else:
-                print('Error to high to continue. Maxiter reached')
+                print('Error too high to continue. Maxiter reached')
                 print('   ')
                 print('I REPEAT!!!!! Error to high to continue. Maxiter reached')
                 break
@@ -615,7 +621,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                 aux_shap = all_shap_reshape[cc,aux_ind,:]
                 shap_experiment_mean[cc,ind,:] = np.nanmean(aux_shap,0)
                 shap_experiment_std[cc,ind,:] = np.nanstd(aux_shap,0)
-                shap_experiment_sem[cc,ind,:] = np.nanstd(aux_shap,0)/np.sqrt(aux_shap.shape[0])
+                shap_experiment_sem[cc,ind,:] = np.nanstd(aux_shap,0)/np.sqrt(len(aux_ind))
                 for ll, label_ts in enumerate(labels_to_study):
                     [h,b] = np.histogram(zscore(aux_shap[:,ll]), bins_zscore)
                     spread[cc,ind,ll,:] = h
