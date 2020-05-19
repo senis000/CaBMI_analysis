@@ -367,31 +367,37 @@ def compare_fc_metrics(folder, relative=True):
             if not os.path.exists(inet_path):
                 os.makedirs(inet_path)
             nfile, sfile, cfile = get_sim_files(simu, inet, m.group(3))
-            for record_type in 'calcium', 'dff':
+            for record_type in ['calcium']: #'calcium', 'dff':
                 with h5py.File(cfile, 'r') as hf:
                     cdata = np.array(hf[record_type])
+                cdata = cdata - np.min(cdata, axis=1, keepdims=True)
                 # TODO: if name scheme gets too confusing use __ as separater
-                autolag = granger_select_order(cdata, MAXLAG)[METRIC]
-                common_keywords = f'{record_type}_'
-                # Run GC with te causality and save with pickle
-                # results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
-                #                                     pickle_path=inet_path)
-                # results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc_auto',
-                #                                             lag=autolag, pickle_path=inet_path)
+                try:
+                    autolag = granger_select_order(cdata, MAXLAG)[METRIC]
+                    common_keywords = f'{record_type}_'
+                    # Run GC with te causality and save with pickle
+                    results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
+                                                        pickle_path=inet_path)
+                    results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc_auto',
+                                                                lag=autolag, pickle_path=inet_path)
 
-                # RUN gc with statsmodel
-                biggerLag = max(autolag, DEFAULT_LAG)
-                fstats_dlag = os.path.join(inet_path,
-                                           f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
-                fstats_autolag = os.path.join(inet_path,
-                                           f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
-                gcs_vals, pc_vals = statsmodel_granger(cdata, maxlag=biggerLag)
-                results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
-                results_stats_autolag = gcs_vals[:, :, autolag-1]
-                with open(fstats_dlag, 'wb') as p_file:
-                    pickle.dump(results_stats_dlag, p_file)
-                with open(fstats_autolag, 'wb') as p_file:
-                    pickle.dump(results_stats_autolag, p_file)
+                    # RUN gc with statsmodel
+                    biggerLag = max(autolag, DEFAULT_LAG)
+                    fstats_dlag = os.path.join(inet_path,
+                                               f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
+                    fstats_autolag = os.path.join(inet_path,
+                                               f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
+
+                    gcs_vals, pc_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
+
+                    results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
+                    results_stats_autolag = gcs_vals[:, :, autolag-1]
+                    with open(fstats_dlag, 'wb') as p_file:
+                        pickle.dump(results_stats_dlag, p_file)
+                    with open(fstats_autolag, 'wb') as p_file:
+                        pickle.dump(results_stats_autolag, p_file)
+                except scipy.linalg.LinAlgError:
+                    print(f"skipping {inet}")
             pbar.loop_end(inet)
 
 
