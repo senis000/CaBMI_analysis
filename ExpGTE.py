@@ -429,6 +429,8 @@ def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-causality',
             "AutoConditioningLevelQ": True,
             'AutoBinNumberQ': True, 'SourceMarkovOrder': lag, 'TargetMarkovOrder': lag,
             'StartSampleIndex': 2}
+    if len(exp_data.shape) == 2:
+        exp_data = np.expand_dims(exp_data, axis=0)
     control_file_names, exclude_file_names, output_file_names = \
         create_gte_input_files(exp_name, exp_data, parameters)
     results = run_gte(control_file_names, exclude_file_names,
