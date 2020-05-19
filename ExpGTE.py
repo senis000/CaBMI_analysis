@@ -423,7 +423,7 @@ class ExpGTE:
         return whole_shuffled_results
 
 
-def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-causality',
+def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-extended',
                                pickle_path=None, clean=True):
     parameters = {
             "AutoConditioningLevelQ": True,
