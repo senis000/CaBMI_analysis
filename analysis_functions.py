@@ -107,7 +107,7 @@ def nitime_granger(rois, fr, maxlag=5, onlyMax=True, cutoff=True):
     return gcs[:, 0], gcs[:, 1], gcs[:, 2]
 
 
-def statsmodel_granger(rois, maxlag=5):
+def statsmodel_granger(rois, maxlag=5, useLast=True):
     """
     :param rois: N x T where N is the number of variables and T the total number of time frames
     :param maxlag:
@@ -127,10 +127,15 @@ def statsmodel_granger(rois, maxlag=5):
                 for t in tests:
                     p_vals[t][i, j, k-1] = test[t][1]
             #TODO: USE LOG stats of two ssrs
-    return gcs_val, p_vals
+    if useLast:
+        return gcs_val[:, :, -1]
+    else:
+        return gcs_val, p_vals
 
 
-# TODO: implement aic criterion; ALSO CHECK stationarity before
+    # TODO: implement aic criterion; ALSO CHECK stationarity before
+
+
 def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='statsmodel'):
     # folder: root folder containing processed/ and raw/
     # out: root folder for all analysis util data
@@ -172,8 +177,7 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
                         exp_data = np.nan_to_num(exp_data)
                         exp_data = np.maximum(exp_data, -1 * ExpGTE.whole_exp_threshold)
                         exp_data = np.minimum(exp_data, ExpGTE.whole_exp_threshold)
-                gcs_val, p_val = statsmodel_granger(exp_data, maxlag=lag)
-                result = gcs_val[:, :, -1]
+                result = statsmodel_granger(exp_data, maxlag=lag)
 
                 with open(fname, 'wb') as p_file:
                     pickle.dump(result, p_file)
@@ -183,13 +187,13 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
 
 
 def granger_select_order(rois, maxlag=5, ic='bic'):
-    # rois: N x T
+    # rois: N x T, Returns dictionary containing different criterion ('aic', 'bic', 'hqic')
     mod = smt.VAR(rois.T)
     #res = mod.fit(maxlags=maxlag, ic=ic) # TOOD: fix bug in statsmodel OVERFLOW
     orders = mod.select_order(maxlags=maxlag)
     # OverflowError: (34, 'Result too large')
     #TODO: FIND OUT THE BEST IC
-    return orders.selected_orders['aic'], orders.selected_orders['bic'], orders.selected_orders['hqic']
+    return orders.selected_orders
 
 
 def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
@@ -204,6 +208,7 @@ def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
         os.makedirs(out)
     outname = os.path.join(out, 'granger_order_selections.csv')
     all_entries = []
+
     first_run = True
     for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
@@ -1314,11 +1319,13 @@ def cursor_occupancy(folder_main, to_plot=True):
     folder_plots = os.path.join(folder_main, 'plots', 'Cursor_histograms')
     file_plot_template = "{}_{}_cursor"
     animals = os.listdir(folder)
+    mat_CUR = np.zeros((len(animals),25)) + np.nan
     mat_CBT = np.zeros((len(animals),25)) + np.nan
     mat_CAT = np.zeros((len(animals),25)) + np.nan
     mat_CBTb = np.zeros((len(animals),25)) + np.nan
     mat_CATb = np.zeros((len(animals),25)) + np.nan
     mat_T = np.zeros((len(animals),25)) + np.nan
+    mat_c = np.zeros((len(animals),25)) + np.nan
     for aa,animal in enumerate(animals):
         folder_path = os.path.join(folder, animal)
         filenames = os.listdir(folder_path)
@@ -1328,37 +1335,98 @@ def cursor_occupancy(folder_main, to_plot=True):
             [h,b] = np.histogram(cursor[6000:][~np.isnan(cursor[6000:])], np.arange(-2,2,0.01))
             [hb,b] = np.histogram(cursor[:6000][~np.isnan(cursor[:6000])], np.arange(-2,2,0.01))
             hbsmooth = ut.sliding_mean(hb,10)
+            hsmooth = ut.sliding_mean(h,10)
             center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+            center_exp = b[np.where(hsmooth==np.nanmax(hsmooth))[0]+1]
             if len(center_hist)>1:
                 hbsmooth = ut.sliding_mean(hb,20)
                 center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
                 if len(center_hist)>1:
                     hbsmooth = ut.sliding_mean(hbsmooth,5)
                     center_hist = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+            if len(center_exp)>1:
+                hbsmooth = ut.sliding_mean(hb,20)
+                center_exp = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+                if len(center_exp)>1:
+                    hbsmooth = ut.sliding_mean(hbsmooth,5)
+                    center_exp = b[np.where(hbsmooth==np.nanmax(hbsmooth))[0]+1]
+            mat_CUR[aa,dd] = len(cursor[~np.isnan(cursor)])
             mat_CBTb[aa,dd] = len(cursor[:6000][cursor[:6000]<T])
             mat_CATb[aa,dd] = len(cursor[:6000][cursor[:6000]>(-T+2*center_hist)])
             mat_CBT[aa,dd] = len(cursor[6000:][cursor[6000:]<T])
             mat_CAT[aa,dd] = len(cursor[6000:][cursor[6000:]>(-T+2*center_hist)])
             mat_T[aa,dd] = T
+            mat_c[aa,dd] = center_hist - center_exp
 
             if to_plot:
                 plt.bar(b[1:],h/np.nanmax(h), width=0.01)
                 plt.bar(b[1:],hb/np.nanmax(hb), width=0.01)
                 plt.plot(b[1:],hbsmooth/np.nanmax(hb),'k')
-                plt.vlines(x=T, ymin=0, ymax=1)
-                plt.vlines(x=-T+2*center_hist, ymin=0, ymax=1)
+                plt.vlines(x=T, ymin=0, ymax=1, color='gray', linewidth=1)
+                plt.vlines(x=-T+2*center_hist, ymin=0, ymax=1, color='gray', linewidth=1)
                 plt.vlines(x=center_hist, ymin=0, ymax=1, color='r')
+                plt.vlines(x=center_exp, ymin=0, ymax=0.5, color='c')
                 fileplotname = os.path.join(folder_plots, file_plot_template.format(animal, day))
                 plt.savefig(fileplotname + '.png', bbox_inches="tight")
                 plt.savefig(fileplotname + '.eps', bbox_inches="tight")
                 plt.close('all')
-    cursor_dif = (mat_CBT-mat_CBTb)/mat_CBTb
-    cursor_oc_tl = (mat_CBT+mat_CBTb)/(mat_CBT+mat_CBTb + mat_CAT+mat_CATb)
-    cursor_ocrel = (mat_CBT/(mat_CAT+mat_CBT))/(mat_CBTb/(mat_CATb+mat_CBTb))
+    cursor_dif = mat_CBT/mat_CBTb
+    cursor_len = mat_CBT/mat_CUR*100
+    cursor_ocrel = (mat_CBT/mat_CAT)/(mat_CBTb/mat_CATb)
     cursor_der = ((mat_CBT-mat_CBTb)/mat_CBTb)/((mat_CAT-mat_CATb)/mat_CATb)
     cursor_dif[np.isinf(cursor_dif)] = np.nan #max(cursor_dif[~np.isinf(cursor_dif)])
     cursor_der[np.isinf(cursor_der)] = np.nan #max(cursor_der[~np.isinf(cursor_der)])
     cursor_ocrel[np.isinf(cursor_ocrel)] = np.nan #max(cursor_ocrel[~np.isinf(cursor_ocrel)])
+    
+    
+    plt.bar([0,1], [np.nanmean(cursor_dif[:9,:]), np.nanmean(cursor_dif[9:,:])], \
+            yerr=[pd.DataFrame(np.nanmean(cursor_dif[:9,:],1)).sem(0)[0], \
+                  pd.DataFrame(np.nanmean(cursor_dif[9:,:],1)).sem(0)[0]])
+    _, p_value = stats.ttest_ind(np.nanmean(cursor_dif[:9,:],1), np.nanmean(cursor_dif[9:,:],1), nan_policy='omit')
+    p = ut.calc_pvalue(p_value)
+    plt.text(0.5,12,p)
+    plt.xticks([0,1],['IT', 'PT'])
+    plt.ylabel('Ratio of Occupancy C/Cb')
+    
+    plt.figure()
+    plt.bar([0,1], [np.nanmean(cursor_len[:9,:]), np.nanmean(cursor_len[9:,:])], \
+            yerr=[pd.DataFrame(np.nanmean(cursor_len[:9,:],1)).sem(0)[0], \
+                  pd.DataFrame(np.nanmean(cursor_len[9:,:],1)).sem(0)[0]])
+    _, p_value = stats.ttest_ind(np.nanmean(cursor_len[:9,:],1), np.nanmean(cursor_len[9:,:],1), nan_policy='omit')
+    p = ut.calc_pvalue(p_value)
+    plt.text(0.5,0.8,p)
+    plt.xticks([0,1],['IT', 'PT'])
+    plt.ylabel('% Occupancy')
+    
+    plt.figure()
+    plt.bar([0,1], [np.nanmean(cursor_ocrel[:9,:]), np.nanmean(cursor_ocrel[9:,:])], \
+            yerr=[pd.DataFrame(np.nanmean(cursor_ocrel[:9,:],1)).sem(0)[0], \
+                  pd.DataFrame(np.nanmean(cursor_ocrel[9:,:],1)).sem(0)[0]])
+    _, p_value = stats.ttest_ind(np.nanmean(cursor_ocrel[:9,:],1), np.nanmean(cursor_ocrel[9:,:],1), nan_policy='omit')
+    p = ut.calc_pvalue(p_value)
+    plt.text(0.5,12,p)
+    plt.xticks([0,1],['IT', 'PT'])
+    plt.ylabel('Ratio with -T')
+    
+    plt.figure()
+    plt.bar([0,1], [np.nanmean(cursor_der[:9,:]), np.nanmean(cursor_der[9:,:])], \
+            yerr=[pd.DataFrame(np.nanmean(cursor_der[:9,:],1)).sem(0)[0], \
+                  pd.DataFrame(np.nanmean(cursor_der[9:,:],1)).sem(0)[0]])
+    _, p_value = stats.ttest_ind(np.nanmean(cursor_der[:9,:],1), np.nanmean(cursor_der[9:,:],1), nan_policy='omit')
+    p = ut.calc_pvalue(p_value)
+    plt.text(0.5,12,p)
+    plt.xticks([0,1],['IT', 'PT'])
+    plt.ylabel('Relative Ratio with -T')
+    
+    plt.figure()
+    plt.bar([0,1], [np.nanmean(mat_c[:9,:]), np.nanmean(mat_c[9:,:])], \
+            yerr=[pd.DataFrame(np.nanmean(mat_c[:9,:],1)).sem(0)[0], \
+                  pd.DataFrame(np.nanmean(mat_c[9:,:],1)).sem(0)[0]])
+    _, p_value = stats.ttest_ind(np.nanmean(mat_c[:9,:],1), np.nanmean(mat_c[9:,:],1), nan_policy='omit')
+    p = ut.calc_pvalue(p_value)
+    plt.text(0.5,0.005,p)
+    plt.xticks([0,1],['IT', 'PT'])
+    plt.ylabel('Shift in Hist')
 
     
         

@@ -21,7 +21,7 @@ def fig2():
     out = 'I:/Nuria_data/CaBMI/Layer_project/learning_stats'
     file_csv = os.path.join(out, 'learning_stats_summary_bin_1.csv')
     file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_1.csv')
-    file_csv_PC = os.path.join(out, 'learning_stats_PC_bin_1.csv')
+    file_csv_PC = os.path.join(out, 'learning_stats_cumuPC_bin_1.csv')
     
     to_load_df = os.path.join(folder_main, 'df_all.hdf5')
     df = pd.read_hdf(to_load_df)
@@ -40,6 +40,8 @@ def fig2():
     PC_5bin = np.zeros((len(animals), 76)) + np.nan
     hpm_smoo = np.zeros((len(animals), 76)) + np.nan
     PC_smoo = np.zeros((len(animals), 76)) + np.nan
+    hpm_gsmoo = np.zeros((len(animals), 76)) + np.nan
+    PC_gsmoo = np.zeros((len(animals), 76)) + np.nan
     hpm_ses = np.zeros((len(animals), 15)) + np.nan
     PC_ses = np.zeros((len(animals), 15)) + np.nan
     hpm_g = np.zeros((len(animals), 76)) + np.nan
@@ -68,6 +70,10 @@ def fig2():
          (hpm_5bin[aa,0] - np.nanmean(hpm_5bin[aa,:]))/np.nanmean(hpm_5bin[aa,:])*100
         PC_g[aa,:] = (PC_5bin[aa,:] - np.nanmean(PC_5bin[aa,:]))/np.nanmean(PC_5bin[aa,:])*100 - \
          (PC_5bin[aa,0] - np.nanmean(PC_5bin[aa,:]))/np.nanmean(PC_5bin[aa,:])*100
+        hpm_gsmoo[aa,:] = (hpm_smoo[aa,:] - np.nanmean(hpm_smoo[aa,:]))/np.nanmean(hpm_smoo[aa,:])*100 - \
+         (hpm_smoo[aa,0] - np.nanmean(hpm_smoo[aa,:]))/np.nanmean(hpm_smoo[aa,:])*100
+        PC_gsmoo[aa,:] = (PC_smoo[aa,:] - np.nanmean(PC_smoo[aa,:]))/np.nanmean(PC_smoo[aa,:])*100 - \
+         (PC_smoo[aa,0] - np.nanmean(PC_smoo[aa,:]))/np.nanmean(PC_smoo[aa,:])*100
         
     #
     fig1 = plt.figure(figsize=(8,8))
@@ -77,19 +83,19 @@ def fig2():
     ax4 = fig1.add_subplot(2, 2, 4)
     for aa, animal in enumerate(animals):
         if animal[:2]=='IT':
-            ax1.plot(bins, hpm_5bin[aa,:50], 'r', linewidth=0.5, alpha=0.5)
+            ax1.plot(bins, hpm_smoo[aa,:50], 'r', linewidth=0.5, alpha=0.5)
             ax3.plot(bins, PC_5bin[aa,:50], 'r', linewidth=0.5, alpha=0.5)
         else:
-            ax2.plot(bins, hpm_5bin[aa,:50], 'b', linewidth=0.5, alpha=0.5)
+            ax2.plot(bins, hpm_smoo[aa,:50], 'b', linewidth=0.5, alpha=0.5)
             ax4.plot(bins, PC_5bin[aa,:50], 'b', linewidth=0.5, alpha=0.5)
-    ax1.plot(bins, np.nanmean(hpm_5bin[:9,:50],0),'r', linewidth=2)
-    ax2.plot(bins, np.nanmean(hpm_5bin[9:,:50],0),'b', linewidth=2)
+    ax1.plot(bins, np.nanmean(hpm_smoo[:9,:50],0),'r', linewidth=2)
+    ax2.plot(bins, np.nanmean(hpm_smoo[9:,:50],0),'b', linewidth=2)
     ax3.plot(bins, np.nanmean(PC_5bin[:9,:50],0),'r', linewidth=2)
     ax4.plot(bins, np.nanmean(PC_5bin[9:,:50],0),'b', linewidth=2)
     ax1.set_ylim([0.3,1.6])
     ax2.set_ylim([0.3,1.6])
-    ax3.set_ylim([0.2,0.6])
-    ax4.set_ylim([0.2,0.6])
+    ax3.set_ylim([0.1,0.5])
+    ax4.set_ylim([0.1,0.5])
     ax1.set_ylabel('hpm')
     ax2.set_ylabel('hpm')
     ax3.set_ylabel('PC')
@@ -128,8 +134,8 @@ def fig2():
     bx3.legend(loc=4)
     bx1.set_ylim([0.4,1.1])
     bx2.set_ylim([0.4,1.1])
-    bx3.set_ylim([0.15,0.4])
-    bx4.set_ylim([0.15,0.4])
+    bx3.set_ylim([0.2,0.45])
+    bx4.set_ylim([0.2,0.45])
     bx3.set_ylabel('PC')
     bx3.set_xlabel('Time (min)')
     bx4.legend(loc=4)
@@ -246,16 +252,26 @@ def fig2():
     ex1 = fig5.add_subplot(1, 2, 1)
     ex2 = fig5.add_subplot(1, 2, 2)
 
-    ex1.errorbar(bins[0:10]-0.1, uc.sliding_mean(np.nanmean(hpm_g[:9,1:11],0),2), yerr= pd.DataFrame(hpm_g[:9,1:11]).sem(0),c='r', linewidth=2)
-    ex1.errorbar(bins[0:10]+0.1, uc.sliding_mean(np.nanmean(hpm_g[9:,1:11],0),2), yerr= pd.DataFrame(hpm_g[9:,1:11]).sem(0),c='b', linewidth=2)
+#     ex1.errorbar(bins[0:10]-0.1, uc.sliding_mean(np.nanmean(hpm_g[:9,1:11],0),2), yerr= pd.DataFrame(hpm_g[:9,1:11]).sem(0),c='r', linewidth=2)
+#     ex1.errorbar(bins[0:10]+0.1, uc.sliding_mean(np.nanmean(hpm_g[9:,1:11],0),2), yerr= pd.DataFrame(hpm_g[9:,1:11]).sem(0),c='b', linewidth=2)
 
-    ex1.plot(bins[0:10], uc.sliding_mean(np.nanmean(hpm_g[9:,1:11],0),2),'b', linewidth=2)
-    ex2.plot(bins[0:10], uc.sliding_mean(np.nanmean(PC_g[:9,1:11],0),2),'r', linewidth=2)
-    ex2.plot(bins[0:10], uc.sliding_mean(np.nanmean(PC_g[9:,1:11],0),2),'b', linewidth=2)
-    ex1.set_ylim([-60,160])
-    ex2.set_ylim([-75,100])
-    ex1.set_ylabel('hpm (% increase)')
-    ex2.set_ylabel('PC (% increase)')
+#     ex1.plot(bins[0:10], uc.sliding_mean(np.nanmean(hpm_g[:9,1:11],0),2),'r', linewidth=2)
+#     ex1.plot(bins[0:10], uc.sliding_mean(np.nanmean(hpm_g[9:,1:11],0),2),'b', linewidth=2)
+#     ex2.plot(bins[0:10], uc.sliding_mean(np.nanmean(PC_g[:9,1:11],0),2),'r', linewidth=2)
+#     ex2.plot(bins[0:10], uc.sliding_mean(np.nanmean(PC_g[9:,1:11],0),2),'b', linewidth=2)
+
+    ex1.plot(bins[0:10], np.nanmean(hpm_gsmoo[:9,1:11],0),'r', linewidth=2)
+    ex1.plot(bins[0:10], np.nanmean(hpm_gsmoo[9:,1:11],0),'b', linewidth=2)
+    ex2.plot(bins[0:10], np.nanmean(PC_gsmoo[:9,1:11],0),'r', linewidth=2)
+    ex2.plot(bins[0:10], np.nanmean(PC_gsmoo[9:,1:11],0),'b', linewidth=2)
+    ex1.plot(bins[0:11]-1.1, hpm_gsmoo[:9,0:11].T, 'r.', alpha=0.3)
+    ex1.plot(bins[0:11]-0.9, hpm_gsmoo[9:,0:11].T, 'b.', alpha=0.3)
+    ex2.plot(bins[0:11]-1.1, PC_gsmoo[:9,0:11].T, 'r.', alpha=0.3)
+    ex2.plot(bins[0:11]-0.9, PC_gsmoo[9:,0:11].T, 'b.', alpha=0.3)
+#     ex1.set_ylim([0,75])
+#     ex2.set_ylim([0,45])
+    ex1.set_ylabel('hpm gain')
+    ex2.set_ylabel('PC gain')
     ex1.set_xlabel('IT')
     ex2.set_xlabel('PT')
     fig5.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)

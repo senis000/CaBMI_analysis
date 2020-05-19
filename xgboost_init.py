@@ -26,9 +26,9 @@ interactive(True)
 
 folder_main = 'I:/Nuria_data/CaBMI/Layer_project'
 out = 'I:/Nuria_data/CaBMI/Layer_project/learning_stats'
-file_csv = os.path.join(out, 'learning_stats_summary_bin_1.csv')
+file_csv = os.path.join(out, 'learning_stats_summary_bin_5.csv')
 file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_1.csv')
-file_csv_PC = os.path.join(out, 'learning_stats_PC_bin_1.csv')
+file_csv_PC = os.path.join(out, 'learning_stats_cumuPC_bin_1.csv')
 
 to_load_pick = os.path.join(folder_main, 'cursor_engagement.p')
 to_load_df = os.path.join(folder_main, 'df_all.hdf5')
@@ -41,7 +41,7 @@ df_ce = pd.read_pickle(to_load_pick)
 bts_n=1000
 mod_n=10
 mod_x=10
-error_max=[0.022,0.5,0.02,0.15,0.045,0.17]
+error_max=[0.022,0.5,0.018,0.18,0.12,0.23]
 size_split_test=0.2
 max_iter=20
 stability_var=0.7

@@ -26,17 +26,29 @@
 # system
 import sys, os
 import time
-import json
+import json, pickle
 import h5py
 import re
 import subprocess
 # data
 import numpy as np
+import scipy
+from scipy.sparse import linalg as sp_linalg
+from scipy.sparse import diags as spdiags
 import random
+import pandas as pd
 # plotting
 import matplotlib.pyplot as plt
+# utils
+from analysis_functions import calcium_dff, statsmodel_granger, granger_select_order
+from utils_gte import run_gte, create_gte_input_files
+from utils_cabmi import ProgressBar
+from ExpGTE import fc_te_caulsaity
 # simulation
-import nest
+try:
+    import nest
+except ModuleNotFoundError:
+    print('NEST package not installed, some functions are unusable')
 
 
 """-------------------------------------------------
@@ -44,6 +56,7 @@ import nest
 ----------------------------------------------------"""
 
 
+# TODO: create topologies with positions of neuron, with connection probability related to distance
 def create_jsons(size):
     # TODO add creation time
     jsonobj = {'size': size, 'nodes': [None] * size}
@@ -51,28 +64,212 @@ def create_jsons(size):
         jsonobj['nodes'][i] = {'id': i}
 
 
-def spike_pairs_to_hdf5(folder):
+def spike_pairs_to_hdf5(folder, rm=False):
     removes = []
     for f in os.listdir(folder):
-        m = re.match("s_index_(\w+).dat", f)
+        m = re.search(r"s_index_(\w+).dat", f)
         if m:
             f1 = os.path.join(folder, f)
-            f2 = os.path.join(folder, f"s_times_{m.group(0)}.dat")
+            f2 = os.path.join(folder, f"s_times_{m.group(1)}.dat")
             removes.append(f1)
             removes.append(f2)
             s_index = np.loadtxt(f1, dtype=np.int)
             s_times = np.loadtxt(f2, dtype=np.float)
-            with h5py.File(os.path.join(folder, f'sim_spike_{m.group(9)}.hdf5'), 'w-') as hf:
+            with h5py.File(os.path.join(folder, f'sim_spike_{m.group(1)}.hdf5'), 'w-') as hf:
                 hf.create_dataset('neuron', data=s_index)
                 hf.create_dataset('spike', data=s_times)
-    for r in removes:
-        os.remove(r)
+    if rm:
+        for r in removes:
+            os.remove(r)
 
 
-def spike_to_calcium_C():
-    exe_code = subprocess.call([
-        f"./te-causality/transferentropy-sim/{method}", control_file_name
-    ])
+def get_sim_files(simulation, inet, keywords, ntype='exc'):
+    # returns network, spike, calcium files
+    identifier = f"{inet}_{keywords}"
+    spike = os.path.join(simulation, 'spikes', f'sim_spike_{identifier}.hdf5')
+    calcium = os.path.join(simulation, 'calcium', f'calcium_{identifier}.hdf5')
+    network = os.path.join(simulation, 'networks', f'sim_{ntype}_{identifier}.json')
+    assert os.path.exists(spike), f"Can't find file {spike}"
+    assert os.path.exists(calcium), f"Can't find file {calcium}"
+    assert os.path.exists(network), f"Can't find file {network}"
+    return network, spike, calcium
+
+
+def regularize_simulation_name_codes(simulation):
+    # Loop throw network folder and change filenames in calcium & spike folder so that their keywords match
+    network = os.path.join(simulation, 'networks')
+
+    def change_names(folder, opt, inet, keywords, change_original=None):
+        netw = os.path.join(folder, 'networks')
+        dest = os.path.join(folder, opt)
+        for fi in os.listdir(dest):
+            m = re.search(fr"(\w+)_{inet}_(\w+).(\w+)", fi)
+            if m:
+                pk = m.group(2).split("_")[1]
+                identifier = f"{inet}_{keywords}_{pk}"
+                newname = os.path.join(dest, f"{m.group(1)}_{identifier}.{m.group(3)}")
+                if change_original is not None:
+                    prefix, ftype = change_original
+                    noriginal = os.path.join(netw, f'{prefix}_{identifier}{ftype}')
+                    original = os.path.join(netw, f'{prefix}_{inet}_{keywords}{ftype}')
+                    if os.path.exists(original):
+                        # print(original, noriginal)
+                        os.rename(original, noriginal)
+
+                os.rename(os.path.join(dest, fi), newname)
+                # print(fi, newname, m.group(2))
+    for f in os.listdir(network):
+        if f[-5:] == '.json':
+            fparts = f[:-5].split("_")
+            inet = fparts[2]
+            keywords = f"{fparts[3]}_{fparts[4]}"
+            change_names(simulation, 'spikes', inet, keywords, (f"{fparts[0]}_{fparts[1]}", f[-5:]))
+            change_names(simulation, 'calcium', inet, keywords)
+
+
+"""-------------------------------------------------
+--------------- calcium simulation -----------------
+----------------------------------------------------"""
+# def spike_to_calcium_C():
+# #     exe_code = subprocess.call([
+# #         f"./te-causality/transferentropy-sim/{method}", control_file_name
+# #     ])
+
+
+class SpikeCalciumizer:
+
+    MODELS = ['Leogang']
+    tauImg = 100 #ms;
+    fluorescence_model = "Leogang"
+    std_noise = 0.03 # percentage of the saturation level
+    fluorescence_saturation = 300.
+    cutoff = 1000.
+    DeltaCalciumOnAP = 50. #uM
+    tauCa = 400. #ms
+    ALIGN_TO_FIRST_SPIKE = True
+
+    def __init__(self, params=None):
+        if params is not None:
+            for p in params:
+                if hasattr(self, p):
+                    setattr(self, p, params[p])
+                else:
+                    raise RuntimeError(f'Unknown Parameter: {p}')
+        assert self.fluorescence_model in self.MODELS
+
+    # TODO: potentially offset the time signature such that file is aligned with the first spike
+    def apply_transform(self, spikes, size=None, sample=None):
+        # spikes: pd.DataFrame
+        times, neurons = spikes['spike'].values, spikes['neuron'].values
+        if self.ALIGN_TO_FIRST_SPIKE:
+            times = times - np.min(times) # alignment to 1st spike
+        if size is None:
+            size = int(np.max(neurons)) + 1
+        if sample is None:
+            # only keep up to largest multiples of tauImg
+            t_end = np.max(times)
+        else:
+            t_end = sample * self.tauImg
+        time_bins = np.arange(0, t_end+1, self.tauImg)
+        all_neuron_acts = np.empty((size, len(time_bins) - 1))
+        for i in range(size):
+            neuron = neurons == i
+            all_neuron_acts[i] = np.histogram(times[neuron], time_bins)[0]
+        return self.binned_spikes_to_calcium(all_neuron_acts)
+
+    def apply_tranform_from_file(self, *args, sample=None): #TODO: add #neurons to simulated spike,
+        # last item possibly
+        # args: (index, time) or one single hdf5 file
+        if len(args) == 2:
+            fneurons, ftimes = args
+            assert ftimes[-4:] == '.dat' and fneurons[-4:] == '.dat' \
+                   and 'times' in ftimes and 'index' in fneurons
+            s_index = np.loadtxt(fneurons, dtype=np.int)
+            s_times = np.loadtxt(ftimes, dtype=np.float)
+            spikes = pd.DataFrame({'spike': s_times, 'neuron': s_index})
+        elif len(args) == 1:
+            fspike = args[0]
+            assert fspike[-5:] == '.hdf5'
+            with h5py.File(fspike, 'r') as hf:
+                spikes = pd.DataFrame({'spike': hf['spike'], 'neuron': hf['neuron']})
+        else:
+            raise RuntimeError("Bad Arguments")
+        return self.apply_transform(spikes, sample=sample)
+
+    def binned_spikes_to_calcium(self, neuron_acts, fast_inverse=False):
+        """
+        :param neuron_acts: np.ndarray N x T (neuron x samples)
+        :param fast_inverse: whether to use fast reverse. two methods return the same values
+        :return:
+        """
+        # TODO; determine how many spikes were in the first bin
+        calcium = np.zeros_like(neuron_acts)
+        T = neuron_acts.shape[-1]
+        gamma = 1-self.tauImg/self.tauCa
+        fluor_gain = self.DeltaCalciumOnAP * neuron_acts
+        if self.fluorescence_model == 'Leogang':
+            if fast_inverse:
+                G = spdiags([np.ones(T), np.full(T, -gamma)], [0, -1], format='csc')
+                calcium = fluor_gain @ sp_linalg.inv(G.T)
+            else:
+                calcium[:, 0] = fluor_gain[:, 0]
+                for t in range(1, T):
+                    calcium[:, t] = calcium[:, t-1] + fluor_gain[:, t]
+        else:
+            raise NotImplementedError(f"Unidentified Model {self.fluorescence_model}")
+        if self.fluorescence_saturation > 0:
+            calcium = self.fluorescence_saturation * calcium / (calcium + self.fluorescence_saturation)
+        if self.std_noise:
+            calcium += np.random.normal(0, self.std_noise * self.fluorescence_saturation, calcium.shape)
+        return calcium
+
+    def loop_test(self, length, iterations=1000, fast_inv=False):
+        # Run time tests of simulation algorithms
+        times = [None] * iterations
+        N = 10
+        for j in range(iterations):
+            t0 = time.time()
+            rs = np.random.randint(0, 30, (N, length))
+            # rs = np.random.random(length)
+            self.binned_spikes_to_calcium(rs, fast_inv)
+            times[j] = time.time() - t0
+        return times
+
+
+def generate_calcium_data_from_spikes(folder, out):
+    if not os.path.exists(out):
+        os.makedirs(out)
+    networks = set()
+    s_calc = SpikeCalciumizer()
+    for f in os.listdir(folder):
+        m = re.search(r"(\w+)_net(\d+)_(\w+).(\w+)", f)
+        if m:
+            ind = m.group(1)
+            n = int(m.group(2))
+            opts = m.group(3)
+            ftype = m.group(4)
+            if n not in networks and (ftype == 'dat' or ftype == 'hdf5'):
+                print(networks, 'processing', n)
+                networks.add(n)
+                outname = os.path.join(out, f"calcium_net{n}_{opts}.hdf5")
+                if ftype == 'hdf5':
+                    calcium = s_calc.apply_tranform_from_file(os.path.join(folder, f))
+                elif ftype == 'dat':
+                    s_index = os.path.join(folder, f"s_index_net{n}_{opts}.dat")
+                    s_times = os.path.join(folder, f"s_times_net{n}_{opts}.dat")
+                    calcium = s_calc.apply_tranform_from_file(s_index, s_times)
+                elif ftype == 'txt':
+                    continue
+                else:
+                    raise NotImplementedError(f"Unknown file type {ftype}")
+                xs = np.arange(calcium.shape[-1])
+                dff = np.empty_like(calcium)
+                for i in range(calcium.shape[0]):
+                    dff[i] = calcium_dff(xs, calcium[0])
+
+                with h5py.File(outname, 'w-') as hf:
+                    hf.create_dataset('calcium', data=calcium)
+                    hf.create_dataset('dff', data=dff)
 
 
 """-------------------------------------------------
@@ -142,6 +339,73 @@ def determine_burst_rate(xindex, xtimes, tauMS, total_timeMS, size):
             sys.exit()
 
 
+def compare_fc_metrics(folder, relative=True):
+    # TODO: visualize calcium traces, dff
+    # TODO: compare statsmodel, tcgc, stats_autolag, tcgc_autolag
+    if relative:
+        simu = os.path.join(folder, 'utils', 'simulation')
+    else:
+        simu = folder
+    spike = os.path.join(simu, 'spikes')
+    calcium = os.path.join(simu, 'calcium')
+    network = os.path.join(simu, 'networks')
+    FC = os.path.join(simu, 'FC')
+    # granger causality params
+    DEFAULT_LAG = 2
+    MAXLAG = 5
+    METRIC = 'bic'
+
+    # Comparisons start
+    totalS = sum([1 for f in os.listdir(calcium) if re.search(r"(\w+)_net(\d+)_(\w+).(\w+)", f)])
+    pbar = ProgressBar(totalS)
+    for f in os.listdir(calcium):
+        m = re.search(r"(\w+)_net(\d+)_(\w+).(\w+)", f)
+        if m:
+            pbar.loop_start()
+            inet = f'net{m.group(2)}'
+            inet_path = os.path.join(FC, inet)
+            if not os.path.exists(inet_path):
+                os.makedirs(inet_path)
+            nfile, sfile, cfile = get_sim_files(simu, inet, m.group(3))
+            for record_type in ['calcium']: #'calcium', 'dff':
+                with h5py.File(cfile, 'r') as hf:
+                    cdata = np.array(hf[record_type])
+                cdata = cdata - np.min(cdata, axis=1, keepdims=True)
+                # TODO: if name scheme gets too confusing use __ as separater
+                try:
+                    autolag = granger_select_order(cdata, MAXLAG)[METRIC]
+                    common_keywords = f'{record_type}_'
+                    # Run GC with te causality and save with pickle
+                    results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
+                                                        pickle_path=inet_path)
+                    results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc_auto',
+                                                                lag=autolag, pickle_path=inet_path)
+
+                    # RUN gc with statsmodel
+                    biggerLag = max(autolag, DEFAULT_LAG)
+                    fstats_dlag = os.path.join(inet_path,
+                                               f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
+                    fstats_autolag = os.path.join(inet_path,
+                                               f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
+
+                    gcs_vals, pc_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
+
+                    results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
+                    results_stats_autolag = gcs_vals[:, :, autolag-1]
+                    with open(fstats_dlag, 'wb') as p_file:
+                        pickle.dump(results_stats_dlag, p_file)
+                    with open(fstats_autolag, 'wb') as p_file:
+                        pickle.dump(results_stats_autolag, p_file)
+                except scipy.linalg.LinAlgError:
+                    print(f"skipping {inet}")
+            pbar.loop_end(inet)
+
+
+def connection_probability(jfile):
+    N = int(jfile['size'])
+    return int(jfile['con']) * 2 / (N * (N - 1))
+
+
 """-------------------------------------------------
 ------------- nest network generation ----------
 ----------------------------------------------------"""
@@ -163,7 +427,7 @@ def voltmeter_example():
                      "E_L": -70.0,
                      "V_th": -55.0}
     nest.SetDefaults(models[0], neuron_params)
-    nest.SetDefaults("tsodyks_synapse",{"delay":1.5,"tau_rec":500.0,"tau_fac":0.0,"U":0.3})
+    nest.SetDefaults("tsodyks_synapse",{"delay": 1.5,"tau_rec": 500.0, "tau_fac": 0.0,"U":0.3})
 
     neuron = nest.Create(NMODEL)
     neuron2 = nest.Create(NMODEL)
@@ -383,6 +647,7 @@ def main_simulation():
     iteration = 0
     iterations = len(network_indices) * len(p_list) * len(cc_indices)
     print("launching " + str(iterations) + " iterations...")
+    # TODO: make inet a unique identifier of networks, take in network folder and generate ID = #+1
     for inet in network_indices:  # this is outermost to be able to use an intermediate result of the computation
         for icc in cc_indices:
             for ip in p_indices:
@@ -525,6 +790,7 @@ def main_simulation():
                         else:
                             s_index -= GIDoffset
                         with h5py.File(hf_name, 'w-') as hf:
+                            hf.attrs['size'] = size
                             hf.create_dataset('neuron', data=s_index)
                             hf.create_dataset('spike', data=s_times)
                         # spiketimefilename = os.path.join(str(OUTPUT_PATH),
@@ -559,12 +825,22 @@ def main_simulation():
 ----------------------------------------------------"""
 
 
-def spike_raster_plots(spike_file):
+def spike_raster_plots(spike_file, ax=None):
     with h5py.File(spike_file, 'r') as hf:
         neurons = np.array(hf['neuron'])
         spikes = np.array(hf['spikes'])
     for n in np.unique(neurons):
-        plt.eventplot(spikes[neurons==n], lineoffsets=n, linelengths=0.3)
+        if ax is None:
+            plt.eventplot(spikes[neurons==n], lineoffsets=n, linelengths=0.3)
+        else:
+            ax.eventplot(spikes[neurons==n], lineoffsets=n, linelengths=0.3)
+
+
+def visualize_simulated_activity(simulation):
+    pass
+
+
+
 
 if __name__ == '__main__':
     main_simulation()
