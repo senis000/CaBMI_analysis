@@ -9,6 +9,7 @@ __author__ = 'Nuria & Ching & Albert'
 
 import numpy as np
 import pdb, os, h5py
+import time
 import imp
 import scipy.io as io
 from math import sqrt
@@ -317,3 +318,45 @@ def obtain_target(folder_main, animal, day):
     T = np.nanmax(cursor[ht-1])
     return T, cursor
     # check first 10 trials
+
+
+class ProgressBar:
+
+    """
+    Prints remaining time of the process
+
+    Example:
+    --------
+    >>> N_task = 3
+    >>> pbar = ProgressBar(N_task)
+    >>> for i in range(N_task):
+    ...     pbar.loop_start()
+    ...     time.sleep(1)
+    ...     pbar.loop_end(i)
+    prints:
+    Done with 0, estimated run time left: 0h:0m:2.0s
+    Done with 1, estimated run time left: 0h:0m:1.0s
+    Done with 2, estimated run time left: 0h:0m:0.0s
+    TODO: implement more detailed progress with subtasks
+    TODO: implement ability to resume interrupted processes
+    """
+
+    def __init__(self, total_sessions):
+        self.N = total_sessions
+        self.start = None
+        self.avgtime = 0
+        self.numberDone = 0
+
+    def tstr(self, t):
+        return f"{int(t // 3600)}h:{int(t % 3600 // 60)}m:{t % 60:.1f}s"
+
+    def loop_start(self):
+        if self.start is None:
+            self.start = time.time()
+
+    def loop_end(self, task_name):
+        run_time = time.time() - self.start
+        self.numberDone += 1
+        self.avgtime = run_time / self.numberDone
+        ETA = self.avgtime * (self.N - self.numberDone)
+        print(f'Done with {task_name}, estimated run time left: {self.tstr(ETA)}')

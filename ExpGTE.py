@@ -84,7 +84,7 @@ class ExpGTE:
                           output_file_names, method=self.method)
         if pickle_results:
             order = self.parameters['SourceMarkovOrder']
-            with open(self.out_path + f'baseline_{roi}_{input_type}_order{order}.p', 'wb') as p_file:
+            with open(self.out_path + f'baseline_{roi}_{input_type}_order_{order}.p', 'wb') as p_file:
                 pickle.dump(results, p_file)
         if clean:
             exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
@@ -421,3 +421,25 @@ class ExpGTE:
             with open(self.out_path + 'whole_shuffled.p', 'wb') as p_file:
                 pickle.dump(whole_shuffled_results, p_file)
         return whole_shuffled_results
+
+
+def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-causality',
+                               pickle_path=None, clean=True):
+    parameters = {
+            "AutoConditioningLevelQ": True,
+            'AutoBinNumberQ': True, 'SourceMarkovOrder': lag, 'TargetMarkovOrder': lag,
+            'StartSampleIndex': 2}
+    control_file_names, exclude_file_names, output_file_names = \
+        create_gte_input_files(exp_name, exp_data, parameters)
+    results = run_gte(control_file_names, exclude_file_names,
+                      output_file_names, method=method)
+    if pickle_path is not None:
+        order = parameters['SourceMarkovOrder']
+        with open(os.path.join(pickle_path, f'{exp_name}_{keywords}_order_{order}.p'), 'wb') as p_file:
+            pickle.dump(results, p_file)
+    if clean:
+        exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
+        try:
+            shutil.rmtree(exp_path)
+        except OSError as e:
+            print("Error: %s - %s." % (e.filename, e.strerror))

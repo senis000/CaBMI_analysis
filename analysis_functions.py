@@ -107,7 +107,7 @@ def nitime_granger(rois, fr, maxlag=5, onlyMax=True, cutoff=True):
     return gcs[:, 0], gcs[:, 1], gcs[:, 2]
 
 
-def statsmodel_granger(rois, maxlag=5):
+def statsmodel_granger(rois, maxlag=5, useLast=True):
     """
     :param rois: N x T where N is the number of variables and T the total number of time frames
     :param maxlag:
@@ -127,7 +127,10 @@ def statsmodel_granger(rois, maxlag=5):
                 for t in tests:
                     p_vals[t][i, j, k-1] = test[t][1]
             #TODO: USE LOG stats of two ssrs
-    return gcs_val, p_vals
+    if useLast:
+        return gcs_val[:, :, -1]
+    else:
+        return gcs_val, p_vals
 
 
 # TODO: implement aic criterion; ALSO CHECK stationarity before
@@ -172,8 +175,7 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
                         exp_data = np.nan_to_num(exp_data)
                         exp_data = np.maximum(exp_data, -1 * ExpGTE.whole_exp_threshold)
                         exp_data = np.minimum(exp_data, ExpGTE.whole_exp_threshold)
-                gcs_val, p_val = statsmodel_granger(exp_data, maxlag=lag)
-                result = gcs_val[:, :, -1]
+                result = statsmodel_granger(exp_data, maxlag=lag)
 
                 with open(fname, 'wb') as p_file:
                     pickle.dump(result, p_file)
@@ -183,13 +185,13 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
 
 
 def granger_select_order(rois, maxlag=5, ic='bic'):
-    # rois: N x T
+    # rois: N x T, Returns dictionary containing different criterion ('aic', 'bic', 'hqic')
     mod = smt.VAR(rois.T)
     #res = mod.fit(maxlags=maxlag, ic=ic) # TOOD: fix bug in statsmodel OVERFLOW
     orders = mod.select_order(maxlags=maxlag)
     # OverflowError: (34, 'Result too large')
     #TODO: FIND OUT THE BEST IC
-    return orders.selected_orders['aic'], orders.selected_orders['bic'], orders.selected_orders['hqic']
+    return orders.selected_orders
 
 
 def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
@@ -204,6 +206,7 @@ def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
         os.makedirs(out)
     outname = os.path.join(out, 'granger_order_selections.csv')
     all_entries = []
+
     first_run = True
     for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
