@@ -409,15 +409,20 @@ def compare_fc_metrics(folder, relative=True):
                                                f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
                     fstats_autolag = os.path.join(inet_path,
                                                f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
+                    fstats_autolag_pvals = os.path.join(inet_path,
+                                                  f'{inet}_{common_keywords}statsautoPVAL_order_{autolag}.p')
 
-                    gcs_vals, pc_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
+                    gcs_vals, p_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
 
                     results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
                     results_stats_autolag = gcs_vals[:, :, autolag-1]
+                    results_stats_autolag_pvals = p_vals['ssr_chi2test'][:, :, autolag-1]
                     with open(fstats_dlag, 'wb') as p_file:
                         pickle.dump(results_stats_dlag, p_file)
                     with open(fstats_autolag, 'wb') as p_file:
                         pickle.dump(results_stats_autolag, p_file)
+                    with open(fstats_autolag_pvals, 'wb') as p_file:
+                        pickle.dump(results_stats_autolag_pvals, p_file)
                 except scipy.linalg.LinAlgError:
                     print(f"skipping {inet}")
             pbar.loop_end(inet)
