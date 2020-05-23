@@ -67,7 +67,7 @@ from ExpGTE import ExpGTE
 import utils_cabmi as ut
 from utils_loading import get_PTIT_over_days, parse_group_dict, encode_to_filename, load_A
 from utils_loading import path_prefix_free, file_folder_path, get_all_animals, get_animal_days
-from utils_cabmi import std_filter, median_filter
+from utils_cabmi import std_filter, median_filter, ProgressBar
 from pipeline import separate_planes, separate_planes_multiple_baseline
 from preprocessing import get_roi_type
 
@@ -132,11 +132,36 @@ def statsmodel_granger(rois, maxlag=5, useLast=True):
     else:
         return gcs_val, p_vals
 
-
     # TODO: implement aic criterion; ALSO CHECK stationarity before
 
 
-def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='statsmodel'):
+def statsmodel_granger_asymmetric(rois_from, rois_to, maxlag=5, useLast=True):
+    """ Check assymetric_granger_causality from [rois_from] to [rois_to]
+    :param rois: N x T where N is the number of variables and T the total number of time frames
+    :param maxlag:
+    :return:
+    """
+    gcs_val = np.zeros((rois_from.shape[0], rois_to.shape[0], maxlag))
+    tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
+    p_vals = {t:np.zeros((rois_from.shape[0], rois_to.shape[0], maxlag)) for t in tests}
+    for i in range(rois_from.shape[0]):
+        for j in range(rois_to.shape[0]):
+            res = grangercausalitytests(np.vstack([rois_to[j], rois_from[i]]).T, maxlag, verbose=False)
+            for k in res:
+                test, reg = res[k]
+                ssrEig = reg[0].ssr
+                ssrBeid = reg[1].ssr
+                gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
+                for t in tests:
+                    p_vals[t][i, j, k-1] = test[t][1]
+            #TODO: USE LOG stats of two ssrs
+    if useLast:
+        return gcs_val[:, :, -1]
+    else:
+        return gcs_val, p_vals
+
+
+def calculate_fc(folder, roi='red', input_type='dff', out=None, lag='auto', method='statsmodel', ic='bic'):
     # folder: root folder containing processed/ and raw/
     # out: root folder for all analysis util data
     processed = os.path.join(folder, 'processed')
@@ -144,33 +169,48 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
         out = os.path.join(out, 'FC')
     else:
         out = os.path.join(folder, 'utils/FC/')
+    granger_df = None
     for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
         for day in get_animal_days(animal_path):
+            if lag == 'auto':
+                while granger_df is None:
+                    gdf_file = os.path.join(out, "granger_order_selections.csv")
+                    if os.path.exists(gdf_file):
+                        granger_df = pd.read_csv(gdf_file)
+                        granger_df['day'] = granger_df['day'].astype(str)
+                        lag = granger_df.loc[(granger_df.animal == animal) & (granger_df.day == day)][ic]
+                    else:
+                        calculate_granger_orders(folder, input_type, out=out)
+
             if 'te-package' in method:
                 _, m = method.split('_')
                 exp = ExpGTE(folder, animal, day, lag=lag, method=m, out=out)
                 result = exp.baseline(roi=roi, input_type=input_type)
             elif method == 'statsmodel':
-                if lag == 'auto':
-                    lag = 2
-                    pass
                 out_path = os.path.join(out, method, animal, day)
                 if not os.path.exists(out_path):
                     os.makedirs(out_path)
                 fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order{lag}.p")
                 with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
                     blen = hf.attrs['blen']
-                    exp_data = np.array(hf[input_type][:, :blen])
+                    exp_data = hf[input_type][:, :blen]
+                    if not isinstance(exp_data, np.ndarray):
+                        exp_data = np.array(exp_data)
+                    indices = np.arange(exp_data.shape[0])
                     if roi == 'neuron':
-                        exp_data = exp_data[np.array(hf['nerden'])]
+                        selectors = np.array(hf['nerden'])
                     elif roi == 'red':
-                        exp_data = exp_data[np.array(hf['redlabel'])]
+                        selectors = np.array(hf['redlabel'])
                     elif roi == 'ens':
                         ens = np.array(hf['ens_neur'])
                         ens = ens[~np.isnan(ens)].astype(np.int)
-                        exp_data = exp_data[ens]
-                    zclean = True
+                        selectors = ens
+                    else:
+                        raise NotImplementedError(f"Unknown roi {roi}")
+                    exp_data = exp_data[selectors]
+                    indices = indices[selectors]
+                    zclean = False
                     if zclean:
                         fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order{lag}_zscore.p")
                         exp_data = zscore(exp_data, axis=1)
@@ -178,12 +218,12 @@ def calculate_fc(folder, roi='red', input_type='dff', out=None, lag=2, method='s
                         exp_data = np.maximum(exp_data, -1 * ExpGTE.whole_exp_threshold)
                         exp_data = np.minimum(exp_data, ExpGTE.whole_exp_threshold)
                 result = statsmodel_granger(exp_data, maxlag=lag)
+                # save indices
 
                 with open(fname, 'wb') as p_file:
                     pickle.dump(result, p_file)
             else:
                 raise NotImplementedError("Unknown Method")
-    return result
 
 
 def granger_select_order(rois, maxlag=5, ic='bic'):
@@ -196,7 +236,7 @@ def granger_select_order(rois, maxlag=5, ic='bic'):
     return orders.selected_orders
 
 
-def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
+def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10, sessions=None, save=True):
     # TODO: only calculated for baseline
     processed = os.path.join(folder, 'processed')
     if out is not None:
@@ -208,60 +248,52 @@ def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10):
         os.makedirs(out)
     outname = os.path.join(out, 'granger_order_selections.csv')
     all_entries = []
-
-    first_run = True
-    for animal in get_all_animals(processed):
-        animal_path = os.path.join(processed, animal)
-        for day in get_animal_days(animal_path):
-            if first_run:
-                t0 = time.time()
-
-            result = (np.nan, np.nan, np.nan)
-            roitype = 'FAIL'
-            success = False
-            first_encounter = True
-            while not success:
-                try:
-                    with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
-                        blen = hf.attrs['blen']
-                        exp_data_full = np.array(hf[input_type][:, :blen])
-                        nerden = np.array(hf['nerden'])
-                        redlabel = np.array(hf['redlabel'])
-                        ens = np.array(hf['ens_neur'])
-                        ens = ens[~np.isnan(ens)].astype(np.int)
-                    success = True
-                except (OSError,FileNotFoundError) as e:
-                    if first_encounter:
-                        print(e.args, 'check connection for {animal}, {day}')
-                        first_encounter = False
-            for roi in ['neuron', 'red', 'ens']:
-                if roi == 'neuron':
-                    exp_data = exp_data_full[nerden]
-                elif roi == 'red':
-                    exp_data = exp_data_full[redlabel]
-                elif roi == 'ens':
-                    exp_data = exp_data_full[ens]
-                else:
-                    raise NotImplementedError(f'Unknown ROI type {roi}')
-                try:
-                    result = granger_select_order(exp_data, maxlag=maxlags)
-                    roitype = roi
-                    break
-                except:
-                    print(f"Something went wrong with roi {roi}, try next")
-            all_entries.append(list((animal, day, roitype) + result))
-            # TODO: think of the best way to make the time reporting a function
-            tstr = lambda t: f"{int(ETA // 3600)}h:{int(ETA % 3600 // 60)}m:{ETA%60:.1f}s"
-            if first_run:
-                run_time = time.time() - t0
-                first_run = False
-                ETA = run_time * 287
-                print(f'Done with {animal}, {day}, estimated run time left: {tstr(ETA)}')
+    if sessions is None:
+        sessions = [(animal, day) for animal in get_all_animals(processed)
+                      for day in get_animal_days(os.path.join(processed, animal))]
+    pbar = ProgressBar(len(sessions))
+    for animal, day in sessions:
+        pbar.loop_start()
+        result = (np.nan, np.nan, np.nan)
+        roitype = 'FAIL'
+        success = False
+        first_encounter = True
+        while not success:
+            try:
+                with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
+                    blen = hf.attrs['blen']
+                    exp_data_full = np.array(hf[input_type][:, :blen])
+                    nerden = np.array(hf['nerden'])
+                    redlabel = np.array(hf['redlabel'])
+                    ens = np.array(hf['ens_neur'])
+                    ens = ens[~np.isnan(ens)].astype(np.int)
+                success = True
+            except (OSError,FileNotFoundError) as e:
+                if first_encounter:
+                    print(e.args, 'check connection for {animal}, {day}')
+                    first_encounter = False
+        for roi in ['red']: #['neuron', 'red', 'ens']:
+            if roi == 'neuron':
+                exp_data = exp_data_full[nerden]
+            elif roi == 'red':
+                exp_data = exp_data_full[redlabel]
+            elif roi == 'ens':
+                exp_data = exp_data_full[ens]
             else:
-                ETA -= run_time
-                print(f'Done with {animal}, {day}, estimated run time left: {tstr(ETA)}')
+                raise NotImplementedError(f'Unknown ROI type {roi}')
+            try:
+                result = granger_select_order(exp_data, maxlag=maxlags)
+                roitype = roi
+                break
+            except:
+                print(f"Something went wrong with roi {roi}, try next")
+        all_entries.append(list((animal, day, roitype) + (result['aic'], result['bic'], result['hqic'])))
+        # TODO: think of the best way to make the time reporting a function
+        pbar.loop_end(f'{animal}, {day}')
     pdf = pd.DataFrame(all_entries, columns=['animal', 'day', 'roi', 'aic', 'bic', 'hqic'])
-    pdf.to_csv(outname, index=False)
+    if save:
+        pdf.to_csv(outname, index=False)
+    return pdf
 
 
 def connection_summary(folder, out, roi='red', input_type='dff', order=2):
