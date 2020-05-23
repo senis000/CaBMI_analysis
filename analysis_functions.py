@@ -192,15 +192,25 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                     else:
                         calculate_granger_orders(folder, input_type, out=ogOUT)
             pbar.loop_start()
+            out_path = os.path.join(out, method, animal, day)
+            if not os.path.exists(out_path):
+                os.makedirs(out_path)
+            fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order_{ogLAG}.p")
+            if os.path.exists(fname):
+                try:
+                    with open(fname, 'wb') as p_file:
+                        fw = pickle.load(p_file)
+                    pbar.loop_skip(f'{animal}, {day}')
+                    continue
+                except:
+                    pass
+            # TODO: resolve TE package
             if 'te-package' in method:
                 _, m = method.split('_')
                 exp = ExpGTE(folder, animal, day, lag=lag, method=m, out=out)
                 # AUTO tag to filename
                 result = exp.baseline(roi=roi, input_type=input_type)
             elif method == 'statsmodel':
-                out_path = os.path.join(out, method, animal, day)
-                if not os.path.exists(out_path):
-                    os.makedirs(out_path)
                 with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
                     blen = hf.attrs['blen']
                     exp_data = hf[input_type][:, :blen]
@@ -230,7 +240,6 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                 else:
                     rois = roi.split('_')
                 pickle_dict = {'order': lag}
-                fname = os.path.join(out_path, f"baseline_{roi}_{input_type}_order_{ogLAG}.p")
                 for i, sel in enumerate(selectors):
                     iroi = rois[i]
                     if '-' in iroi:

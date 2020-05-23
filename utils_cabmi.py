@@ -362,3 +362,13 @@ class ProgressBar:
         print(f'Done with {task_name}, estimated run time left: {self.tstr(ETA)}')
         if ETA == 0.:
             print(f'Finished all {self.N} tasks. Total Run Time: {self.tstr(time.time()-self.start)}.')
+
+    def loop_skip(self, task_name):
+        self.N -= 1
+        assert self.N >= 0
+        run_time = time.time() - self.start
+        self.avgtime = run_time / self.numberDone
+        ETA = self.avgtime * (self.N - self.numberDone)
+        print(f'Skipping {task_name}, estimated run time left: {self.tstr(ETA)}')
+        if ETA == 0.:
+            print(f'Finished all {self.N} tasks. Total Run Time: {self.tstr(time.time()-self.start)}.')
