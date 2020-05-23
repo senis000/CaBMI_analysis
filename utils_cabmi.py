@@ -351,6 +351,7 @@ class ProgressBar:
 
     def loop_start(self):
         if self.start is None:
+            print(f'Starting {self.N} tasks...')
             self.start = time.time()
 
     def loop_end(self, task_name):
@@ -359,3 +360,5 @@ class ProgressBar:
         self.avgtime = run_time / self.numberDone
         ETA = self.avgtime * (self.N - self.numberDone)
         print(f'Done with {task_name}, estimated run time left: {self.tstr(ETA)}')
+        if ETA == 0.:
+            print(f'Finished all {self.N} tasks. Total Run Time: {self.tstr(time.time()-self.start)}.')
