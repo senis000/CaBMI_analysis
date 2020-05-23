@@ -188,7 +188,7 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                         granger_df['day'] = granger_df['day'].astype(str)
                         lag = granger_df.loc[(granger_df.animal == animal) & (granger_df.day == day), ic]
                         if isinstance(lag, pd.Series):
-                            lag = lag.values.item()
+                            lag = max(lag.values.item(), 1)
                     else:
                         calculate_granger_orders(folder, input_type, out=ogOUT)
             pbar.loop_start()
@@ -277,7 +277,7 @@ def granger_select_order(rois, maxlag=5, ic='bic'):
     return orders.selected_orders
 
 
-def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10, sessions=None, save=True):
+def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=5, sessions=None, save=True):
     # TODO: only calculated for baseline
     processed = os.path.join(folder, 'processed')
     if out is not None:
