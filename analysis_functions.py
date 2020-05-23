@@ -168,6 +168,7 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
     processed = os.path.join(folder, 'processed')
     ogOUT = out
     ogLAG = lag
+    skips = []
     if out is not None:
         out = os.path.join(out, 'FC')
     else:
@@ -205,75 +206,81 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                 except:
                     pass
             # TODO: resolve TE package
-            if 'te-package' in method:
-                _, m = method.split('_')
-                exp = ExpGTE(folder, animal, day, lag=lag, method=m, out=out)
-                # AUTO tag to filename
-                result = exp.baseline(roi=roi, input_type=input_type)
-            elif method == 'statsmodel':
-                with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
-                    blen = hf.attrs['blen']
-                    exp_data = hf[input_type][:, :blen]
-                    if not isinstance(exp_data, np.ndarray):
-                        exp_data = np.array(exp_data)
-                    indices = np.arange(exp_data.shape[0])
-                    if roi == 'neuron':
-                        selectors = np.array(hf['nerden'])
-                    elif roi == 'red':
-                        selectors = np.array(hf['redlabel'])
-                    elif roi == 'ens':
-                        ens = np.array(hf['ens_neur'])
-                        ens = ens[~np.isnan(ens)].astype(np.int)
-                        selectors = ens
+            try:
+                if 'te-package' in method:
+                    _, m = method.split('_')
+                    exp = ExpGTE(folder, animal, day, lag=lag, method=m, out=out)
+                    # AUTO tag to filename
+                    result = exp.baseline(roi=roi, input_type=input_type)
+                elif method == 'statsmodel':
+                    with h5py.File(encode_to_filename(processed, animal, day), 'r') as hf:
+                        blen = hf.attrs['blen']
+                        exp_data = hf[input_type][:, :blen]
+                        if not isinstance(exp_data, np.ndarray):
+                            exp_data = np.array(exp_data)
+                        indices = np.arange(exp_data.shape[0])
+                        if roi == 'neuron':
+                            selectors = np.array(hf['nerden'])
+                        elif roi == 'red':
+                            selectors = np.array(hf['redlabel'])
+                        elif roi == 'ens':
+                            ens = np.array(hf['ens_neur'])
+                            ens = ens[~np.isnan(ens)].astype(np.int)
+                            selectors = ens
+                        else:
+                            # 'red_ens-indirect'
+                            ens = np.array(hf['ens_neur'])
+                            ens = ens[~np.isnan(ens)].astype(np.int)
+                            neurs = np.array(hf['nerden'])
+                            reds = np.array(hf['redlabel'])
+                            selectors = [reds, (ens, (~reds) & neurs)]
+                        # else:
+                        #     raise NotImplementedError(f"Unknown roi {roi}")
+                    if '_' not in roi:
+                        selectors = [selectors]
+                        rois = [roi]
                     else:
-                        # 'red_ens-indirect'
-                        ens = np.array(hf['ens_neur'])
-                        ens = ens[~np.isnan(ens)].astype(np.int)
-                        neurs = np.array(hf['nerden'])
-                        reds = np.array(hf['redlabel'])
-                        selectors = [reds, (ens, (~reds) & neurs)]
-                    # else:
-                    #     raise NotImplementedError(f"Unknown roi {roi}")
-                if '_' not in roi:
-                    selectors = [selectors]
-                    rois = [roi]
+                        rois = roi.split('_')
+                    pickle_dict = {'order': lag}
+                    for i, sel in enumerate(selectors):
+                        iroi = rois[i]
+                        if '-' in iroi:
+                            ir1, ir2 = iroi.split('-')
+                            isel1, isel2 = sel[0], sel[1]
+                            exp_data_temp = {ir1: exp_data[isel1], ir2: exp_data[isel2]}
+                            indices_temp = {ir1: indices[isel1], ir2: indices[isel2]}
+
+                            gcs_val1, p_vals1 = statsmodel_granger_asymmetric(exp_data_temp[ir1],
+                                                                              exp_data_temp[ir2], lag, False)
+                            gcs_val2, p_vals2 = statsmodel_granger_asymmetric(exp_data_temp[ir2],
+                                                                              exp_data_temp[ir1], lag, False)
+                            p_vals1 = p_vals1['ssr_chi2test']
+                            p_vals2 = p_vals2['ssr_chi2test']
+                            pickle_dict[f'indices_{ir1}-{ir2}'] = indices_temp[ir1]
+                            pickle_dict[f'indices_{ir2}-{ir1}'] = indices_temp[ir2]
+                            pickle_dict[f'FC_{ir1}-{ir2}'] = gcs_val1[:, :, -1]
+                            pickle_dict[f'FC_pval_{ir1}-{ir2}'] = p_vals1[:, :, -1]
+                            pickle_dict[f'FC_{ir2}-{ir1}'] = gcs_val2[:, :, -1]
+                            pickle_dict[f'FC_pval_{ir2}-{ir1}'] = p_vals2[:, :, -1]
+                        else:
+                            exp_data_temp = exp_data[sel]
+                            indices_temp = indices[sel]
+                            gcs_val, p_vals = statsmodel_granger(exp_data_temp, lag, False)
+                            p_vals = p_vals['ssr_chi2test']
+                            pickle_dict[f'indices_{iroi}'] = indices_temp
+                            pickle_dict[f'FC_{iroi}'] = gcs_val[:, :, -1]
+                            pickle_dict[f'FC_pval_{iroi}'] = p_vals[:, :, -1]
+
+                    with open(fname, 'wb') as p_file:
+                        pickle.dump(pickle_dict, p_file)
                 else:
-                    rois = roi.split('_')
-                pickle_dict = {'order': lag}
-                for i, sel in enumerate(selectors):
-                    iroi = rois[i]
-                    if '-' in iroi:
-                        ir1, ir2 = iroi.split('-')
-                        isel1, isel2 = sel[0], sel[1]
-                        exp_data_temp = {ir1: exp_data[isel1], ir2: exp_data[isel2]}
-                        indices_temp = {ir1: indices[isel1], ir2: indices[isel2]}
+                    raise NotImplementedError("Unknown Method")
+                pbar.loop_end(f'{animal}, {day}')
+            except:
+                pbar.loop_skip(f'{animal}, {day} due to error')
+                skips.append((animal, day))
+    return skips
 
-                        gcs_val1, p_vals1 = statsmodel_granger_asymmetric(exp_data_temp[ir1],
-                                                                          exp_data_temp[ir2], lag, False)
-                        gcs_val2, p_vals2 = statsmodel_granger_asymmetric(exp_data_temp[ir2],
-                                                                          exp_data_temp[ir1], lag, False)
-                        p_vals1 = p_vals1['ssr_chi2test']
-                        p_vals2 = p_vals2['ssr_chi2test']
-                        pickle_dict[f'indices_{ir1}-{ir2}'] = indices_temp[ir1]
-                        pickle_dict[f'indices_{ir2}-{ir1}'] = indices_temp[ir2]
-                        pickle_dict[f'FC_{ir1}-{ir2}'] = gcs_val1[:, :, -1]
-                        pickle_dict[f'FC_pval_{ir1}-{ir2}'] = p_vals1[:, :, -1]
-                        pickle_dict[f'FC_{ir2}-{ir1}'] = gcs_val2[:, :, -1]
-                        pickle_dict[f'FC_pval_{ir2}-{ir1}'] = p_vals2[:, :, -1]
-                    else:
-                        exp_data_temp = exp_data[sel]
-                        indices_temp = indices[sel]
-                        gcs_val, p_vals = statsmodel_granger(exp_data_temp, lag, False)
-                        p_vals = p_vals['ssr_chi2test']
-                        pickle_dict[f'indices_{iroi}'] = indices_temp
-                        pickle_dict[f'FC_{iroi}'] = gcs_val[:, :, -1]
-                        pickle_dict[f'FC_pval_{iroi}'] = p_vals[:, :, -1]
-
-                with open(fname, 'wb') as p_file:
-                    pickle.dump(pickle_dict, p_file)
-            else:
-                raise NotImplementedError("Unknown Method")
-            pbar.loop_end(f'{animal}, {day}')
 
 
 def granger_select_order(rois, maxlag=5, ic='bic'):
