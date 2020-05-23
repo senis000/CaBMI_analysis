@@ -287,7 +287,7 @@ def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=10, ses
                 break
             except:
                 print(f"Something went wrong with roi {roi}, try next")
-        all_entries.append(list((animal, day, roitype) + result))
+        all_entries.append(list((animal, day, roitype) + (result['aic'], result['bic'], result['hqic'])))
         # TODO: think of the best way to make the time reporting a function
         pbar.loop_end(f'{animal}, {day}')
     pdf = pd.DataFrame(all_entries, columns=['animal', 'day', 'roi', 'aic', 'bic', 'hqic'])
