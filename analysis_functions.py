@@ -108,7 +108,7 @@ def nitime_granger(rois, fr, maxlag=5, onlyMax=True, cutoff=True):
 
 
 def statsmodel_granger(rois, maxlag=5, useLast=True):
-    """
+    """ Using gcs_val seems to have better performance
     :param rois: N x T where N is the number of variables and T the total number of time frames
     :param maxlag:
     :return:

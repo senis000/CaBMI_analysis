@@ -64,6 +64,17 @@ def create_jsons(size):
         jsonobj['nodes'][i] = {'id': i}
 
 
+def load_connectivity_from_network(netjson):
+    with open(netjson, 'r') as jf:
+        jobj = json.load(jf)
+    s = jobj['size']
+    cmatrix = np.zeros((s, s))
+    nodes = jobj['nodes']
+    for i in range(s):
+        cmatrix[i, nodes[i]['connectedTo']] = 1
+    return cmatrix
+
+
 def spike_pairs_to_hdf5(folder, rm=False):
     removes = []
     for f in os.listdir(folder):
@@ -83,11 +94,20 @@ def spike_pairs_to_hdf5(folder, rm=False):
             os.remove(r)
 
 
-def get_sim_files(simulation, inet, keywords, ntype='exc'):
+def get_sim_files(simulation, inet, keywords=None, ntype='exc'):
     # returns network, spike, calcium files
+    calciums = os.path.join(simulation, 'calcium')
+    if keywords is None:
+        for f in os.listdir(calciums):
+            m = re.search(fr"(\w+)_net(\d+)_(\w+).(\w+)", f)
+            if m and 'net'+m.group(2) == inet:
+                keywords = m.group(3)
+                break
+        raise RuntimeError(f"Can't find {inet} in {calciums}")
+
     identifier = f"{inet}_{keywords}"
     spike = os.path.join(simulation, 'spikes', f'sim_spike_{identifier}.hdf5')
-    calcium = os.path.join(simulation, 'calcium', f'calcium_{identifier}.hdf5')
+    calcium = os.path.join(calciums, f'calcium_{identifier}.hdf5')
     network = os.path.join(simulation, 'networks', f'sim_{ntype}_{identifier}.json')
     assert os.path.exists(spike), f"Can't find file {spike}"
     assert os.path.exists(calcium), f"Can't find file {calcium}"
@@ -214,7 +234,7 @@ class SpikeCalciumizer:
             else:
                 calcium[:, 0] = fluor_gain[:, 0]
                 for t in range(1, T):
-                    calcium[:, t] = calcium[:, t-1] + fluor_gain[:, t]
+                    calcium[:, t] = gamma * calcium[:, t-1] + fluor_gain[:, t]
         else:
             raise NotImplementedError(f"Unidentified Model {self.fluorescence_model}")
         if self.fluorescence_saturation > 0:
@@ -237,6 +257,7 @@ class SpikeCalciumizer:
 
 
 def generate_calcium_data_from_spikes(folder, out):
+    # TODO: save img rate!
     if not os.path.exists(out):
         os.makedirs(out)
     networks = set()
@@ -265,7 +286,7 @@ def generate_calcium_data_from_spikes(folder, out):
                 xs = np.arange(calcium.shape[-1])
                 dff = np.empty_like(calcium)
                 for i in range(calcium.shape[0]):
-                    dff[i] = calcium_dff(xs, calcium[0])
+                    dff[i] = calcium_dff(xs, calcium[i])
 
                 with h5py.File(outname, 'w-') as hf:
                     hf.create_dataset('calcium', data=calcium)
@@ -340,6 +361,7 @@ def determine_burst_rate(xindex, xtimes, tauMS, total_timeMS, size):
 
 
 def compare_fc_metrics(folder, relative=True):
+    # TODO: try saving p vals from granger test
     # TODO: visualize calcium traces, dff
     # TODO: compare statsmodel, tcgc, stats_autolag, tcgc_autolag
     if relative:
@@ -406,11 +428,24 @@ def connection_probability(jfile):
     return int(jfile['con']) * 2 / (N * (N - 1))
 
 
+def fc_evaluation(gcs_val, p_vals, truth):
+    # TODO: add ROC
+    if isinstance(p_vals, dict):
+        p_vals = p_vals['ssr_chi2test']
+    pvs = np.zeros_like(p_vals)
+    pvs[p_vals <= 0.05] = 1
+    L = gcs_val.shape[-1]
+    corrs = [np.corrcoef(gcs_val[:, :, i].ravel(order='C'), truth.ravel(order='C'))[0, 1] for i in range(L)]
+    corrs2 = [np.corrcoef(pvs[:, :, i].ravel(order='C'), truth.ravel(order='C'))[0, 1] for i in range(L)]
+    TPs = [np.sum(pvs[:, :, i] * truth) / np.sum(truth) for i in range(5)]
+    return corrs, corrs2, TPs
+
+
 """-------------------------------------------------
-------------- nest network generation ----------
+------------- nest network generation --------------
 ----------------------------------------------------"""
 
-
+# TODO: try test the algorithms with this simple example
 def voltmeter_example():
     models = ['iaf_psc_alpha', 'iaf_psc_delta', 'iaf_psc_exp', 'aeif_cond_alpha', 'izhikevich']
     NMODEL = models[0]
@@ -825,21 +860,59 @@ def main_simulation():
 ----------------------------------------------------"""
 
 
-def spike_raster_plots(spike_file, ax=None):
+def spike_raster_plots(spike_file, ax=None, T=None, ns=None):
     with h5py.File(spike_file, 'r') as hf:
         neurons = np.array(hf['neuron'])
-        spikes = np.array(hf['spikes'])
-    for n in np.unique(neurons):
+        spikes = np.array(hf['spike'])
+    neur_iters = np.unique(neurons) if ns is None else ns
+    for n in neur_iters:
+        spike_times = spikes[neurons==n] / 1000
+        if T is not None:
+            spike_times = spike_times[spike_times <= T]
+
         if ax is None:
-            plt.eventplot(spikes[neurons==n], lineoffsets=n, linelengths=0.3)
+            plt.eventplot(spike_times, lineoffsets=n, linelengths=0.3)
+            plt.xlabel('time (s)')
+            plt.ylabel('Neuron #')
         else:
-            ax.eventplot(spikes[neurons==n], lineoffsets=n, linelengths=0.3)
+            ax.eventplot(spike_times, lineoffsets=n, linelengths=0.3)
+            ax.set_xlabel('time (s)')
+            ax.set_ylabel('Neuron #')
 
 
-def visualize_simulated_activity(simulation):
-    pass
+def visualize_simulated_activity(simulation, inet, ns, T=None):
+    if not hasattr(ns, '__iter__'):
+        ns = [ns]
+    assert len(ns) <= 5, 'Too many traces!'
+    network, spike, calcium = get_sim_files(simulation, inet)
+    FR = None
+    with h5py.File(calcium, 'r') as hf:
+        cal, dff = hf['calcium'], hf['dff']
+        if T is None:
+            T = hf['calcium'].shape[1]
+        if ns is None:
+            ns = np.arange(hf['calcium'].shape[0])
+        if 'fr' in hf.attrs:
+            FR = hf.attrs['fr']
+        else:
+            FR = 1000 / SpikeCalciumizer.tauImg
+        TS = int(T * FR)
+        cal = cal[ns, :TS]
+        dff = dff[ns, :TS]
+        if not isinstance(cal, np.ndarray):
+            cal = np.array(cal)
+            dff = np.array(dff)
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    spike_raster_plots(spike, axes[1], T=T, ns=ns)
 
-
+    xs = np.arange(cal.shape[1]) / FR
+    axes[0].plot(xs, cal.T)
+    axes[0].legend(ns)
+    axes[2].set_ylabel("calcium")
+    axes[2].plot(xs, dff.T)
+    axes[2].legend(ns)
+    axes[2].set_ylabel("dff")
+    plt.show()
 
 
 if __name__ == '__main__':
