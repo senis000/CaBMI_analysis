@@ -454,3 +454,12 @@ def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-extended',
             shutil.rmtree(exp_path)
         except OSError as e:
             print("Error: %s - %s." % (e.filename, e.strerror))
+
+
+def zclean(exp_data):
+    # fname = os.path.join(out_path, f"baseline_{iroi}_{input_type}_order{lag}_zscore.p")
+    exp_data = zscore(exp_data, axis=1)
+    exp_data = np.nan_to_num(exp_data)
+    exp_data = np.maximum(exp_data, -1 * ExpGTE.whole_exp_threshold)
+    exp_data = np.minimum(exp_data, ExpGTE.whole_exp_threshold)
+    return exp_data
