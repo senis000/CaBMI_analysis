@@ -306,7 +306,6 @@ def obtain_target(folder_main, animal, day):
     if not os.path.exists(folder_dest):
         os.makedirs(folder_dest)
 
-    
     # Load information
     print ('loading info')
     f = h5py.File(file_name, 'r')

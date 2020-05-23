@@ -57,18 +57,26 @@ class ExpGTE:
             PARAMETERS: Dictionary; parameters for GTE
             PICKLE_RESULTS: Boolean; whether or not to save the results matrix
         Outputs:
-            RESULTS: An array of numpy matrices (GTE connectivity matrices)
+            pickle_dict: {'order': markov order of model, 'indices': indices of neurons for identity [0,
+            dff.shape[0]], 'FC_[roi]': An array of numpy matrices (connectivity matrices)
         '''
         exp_name = self.animal + '_' + self.day + '_' + 'baseline'
-        exp_data = np.array(self.exp_file[input_type][:, :self.blen])  # (neurons x frames)
+        exp_data = self.exp_file[input_type][:, :self.blen]  # (neurons x frames)
+        if not isinstance(exp_data, np.ndarray):
+            exp_data = np.array(exp_data)
+        indices = np.arange(exp_data.shape[0])
         if roi == 'neuron':
-            exp_data = exp_data[np.array(self.exp_file['nerden'])]
+            selectors = np.array(self.exp_file['nerden'])
         elif roi == 'red':
-            exp_data = exp_data[np.array(self.exp_file['redlabel'])]
+            selectors = np.array(self.exp_file['redlabel'])
         elif roi == 'ens':
             ens = np.array(self.exp_file['ens_neur'])
             ens = ens[~np.isnan(ens)].astype(np.int)
-            exp_data = exp_data[ens]
+            selectors = ens
+        else:
+            raise NotImplementedError(f"Unknown roi {roi}")
+        exp_data = exp_data[selectors]
+        indices = indices[selectors]
         if zclean:
             exp_data = zscore(exp_data, axis=1)
             exp_data = np.nan_to_num(exp_data)
@@ -82,17 +90,18 @@ class ExpGTE:
             create_gte_input_files(exp_name, exp_data, parameters)
         results = run_gte(control_file_names, exclude_file_names,
                           output_file_names, method=self.method)
+        order = self.parameters['SourceMarkovOrder']
+        pickle_dict = {'order': order, 'indices': indices, 'FC_'+roi: results}
         if pickle_results:
-            order = self.parameters['SourceMarkovOrder']
             with open(self.out_path + f'baseline_{roi}_{input_type}_order_{order}.p', 'wb') as p_file:
-                pickle.dump(results, p_file)
+                pickle.dump(pickle_dict, p_file)
         if clean:
             exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
             try:
                 shutil.rmtree(exp_path)
             except OSError as e:
                 print("Error: %s - %s." % (e.filename, e.strerror))
-        return results
+        return pickle_dict
 
     # TODO: fix input type for all following methods
     def whole_experiment(self, roi='ens', input_type='dff', parameters=None, pickle_results=True):
