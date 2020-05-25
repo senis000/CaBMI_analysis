@@ -89,8 +89,7 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
 def get_roi_type(processed, animal, day):
     rois = None
     if isinstance(processed, str):
-        hfile = h5py.File(os.path.join(processed, animal, day, "full_{}_{}__data.hdf5".format(animal, day)),
-                   'r')
+        hfile = h5py.File(encode_to_filename(processed, animal, day), 'r')
     else:
         hfile = processed
     N = hfile['C'].shape[0]
@@ -108,6 +107,7 @@ def get_roi_type(processed, animal, day):
         rois[e2_neur] = 'E2'
     else:
         rois[ens_neur] = 'E'
+    hfile.close()
     return rois
 
 
