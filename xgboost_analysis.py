@@ -171,7 +171,7 @@ def basic_entry (folder, animal, day):
                              onstd_mean, onstd_max, onstd_min, post_whole_std_mean, post_whole_std_max, post_whole_std_min, \
                              post_base_std_mean, post_base_std_max, post_base_std_min, cursor_std])
     
-    return row_entry
+    return row_entry, ens_neur
 
 
 def plot_results(folder_plots, df_aux, first_ind=0, single_animal=True, mode='basic'):
@@ -242,6 +242,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
 
     # obtain basic features
     print('obtaining basic features!')
+    mat_ens_ind = np.zeros((len(animals), 25, 4)) + np.nan
     for aa,animal in enumerate(animals):
         folder_path = os.path.join(folder, animal)
         filenames = os.listdir(folder_path)
@@ -250,7 +251,8 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
             day = filename[-17:-11]
             print ('Analyzing animal: ' + animal + ' day: ' + day)
             try:
-                mat_animal[dd, :] = basic_entry (folder, animal, day)
+                mat_animal[dd, :], ens_neur  = basic_entry (folder, animal, day)
+                mat_ens_ind[aa,dd,:len(ens_neur)] = ens_neur
             except OSError:
                 print('day: ' + day + ' not obtained. ERRRRROOOOOOOOOOOOOOR')    
                 break               
@@ -276,6 +278,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
     print('obtaining snrs')
     snr_vector_mean = []#np.zeros(len(df))
     snr_vector_max = []#np.zeros(len(df))
+    snr_vector_min = []#np.zeros(len(df))
     number_snrs = np.zeros(len(animals))
     for aa,animal in enumerate(animals):
         folder_path = os.path.join(folder_snr, animal)
@@ -288,9 +291,11 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
             f.close()
             snr_vector_mean.append(np.nanmean(aux_snr))
             snr_vector_max.append(np.nanmax(aux_snr))
+            snr_vector_min.append(np.nanmin(aux_snr))
     try:
         df['onlineSNRmean'] = snr_vector_mean
         df['onlineSNRmax'] = snr_vector_max
+        df['onlineSNRmin'] = snr_vector_min
     except ValueError:
         print('BIG ERROR!!! sizes dont match for SNR and basics')
     if to_plot:
@@ -311,22 +316,84 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
                 df.loc[dfind,'cursor_eng']=auxr2
     if to_plot:
         plot_results(folder_plots, df, single_animal=False, mode='ce')
+        
 
+    # obtain connectivity values
+    df['GC_raw_ratio_ens_x'] = np.nan
+    df['GC_raw_ratio_x_ens'] = np.nan
+    df['GC_per_ratio_ens_x'] = np.nan
+    df['GC_per_ratio_x_ens'] = np.nan
+    df['GC_raw_ens_red'] = np.nan
+    df['GC_raw_red_ens'] = np.nan
+    df['GC_per_ens_red'] = np.nan
+    df['GC_per_red_ens'] = np.nan
+    df['GC_raw_ens_ind'] = np.nan
+    df['GC_raw_ind_ens'] = np.nan
+    df['GC_per_ens_ind'] = np.nan
+    df['GC_per_ind_ens'] = np.nan
+    
+    for aa,animal in enumerate(animals):
+        folder_path = os.path.join(folder, animal)
+        filenames = os.listdir(folder_path)
+        for dd,filename in enumerate(filenames): 
+            day = filename[-17:-11] 
+            dfind = df.index[(df['animal']==animal)&(df['day']==int(day))]
+            to_load_FC = os.path.join(folder_main, 'FC', 'statsmodel' , animal, day, 'baseline_red_ens-indirect_dff_order_auto.p')
+            try:
+                df_FC = pd.read_pickle(to_load_FC)  
+            except FileNotFoundError:
+                print ('Animal: ' + animal + ' or day: ' + day  + ' doesnt exist on the Granger causality analysis')
+                break
+            #extract the granger causality values
+            FC_red = df_FC['FC_red']
+            FC_pval_red = df_FC['FC_pval_red']
+            ind_red = df_FC['indices_red']
+            FC_ens_indirect = df_FC['FC_ens-indirect']
+            FC_indirect_ens = df_FC['FC_indirect-ens']
+            FC_pval_ens_indirect = df_FC['FC_pval_ens-indirect']
+            FC_pval_indirect_ens = df_FC['FC_pval_indirect-ens']
+            ind_ens_ind = df_FC['indices_ens-indirect']
+            ind_ind_ens = df_FC['indices_indirect-ens']
+            ens_neur = mat_ens_ind[aa,dd,~np.isnan(mat_ens_ind[aa,dd,:])].astype(int)
+            ind_mat_red = np.zeros(ens_neur.shape[0], dtype=np.int16)
+            for ee, eneur in enumerate(ens_neur):
+                ind_mat_red[ee] = np.where(ind_red==eneur)[0][0]
+            FC_ens_red = FC_red[ind_mat_red,:]
+            FC_pval_ens_red = FC_pval_red[ind_mat_red,:]
+            FC_red_ens = FC_red[:,ind_mat_red]
+            FC_pval_red_ens = FC_pval_red[:,ind_mat_red]
+            # obtain GC values, raw are values GC, per are number of connections with p<0.05
+            # obtain red connectivity
+            raw_ens_red = np.nanmean(FC_ens_red[FC_pval_ens_red<0.05 ])
+            raw_red_ens = np.nanmean(FC_red_ens[FC_pval_red_ens<0.05 ])
+            per_ens_red = np.nansum(FC_pval_ens_red<0.05)/np.prod(FC_pval_ens_red.shape)
+            per_red_ens = np.nansum(FC_pval_red_ens<0.05)/np.prod(FC_pval_red_ens.shape)
+            # obtain green connectivity
+            raw_ens_ind = np.nanmean(FC_ens_indirect[FC_pval_ens_indirect<0.05])
+            raw_ind_ens = np.nanmean(FC_indirect_ens[FC_pval_indirect_ens<0.05])
+            per_ens_ind = np.nansum(FC_pval_ens_indirect<0.05)/np.prod(FC_pval_ens_indirect.shape)
+            per_ind_ens = np.nansum(FC_pval_indirect_ens<0.05)/np.prod(FC_pval_indirect_ens.shape)
+
+            # df red-ind
+            df.loc[dfind,'GC_raw_ens_red'] = raw_ens_red
+            df.loc[dfind,'GC_raw_red_ens'] = raw_red_ens
+            df.loc[dfind,'GC_per_ens_red'] = per_ens_red
+            df.loc[dfind,'GC_per_red_ens'] = per_red_ens
+            df.loc[dfind,'GC_raw_ens_ind'] = raw_ens_ind
+            df.loc[dfind,'GC_raw_ind_ens'] = raw_ind_ens
+            df.loc[dfind,'GC_per_ens_ind'] = per_ens_ind
+            df.loc[dfind,'GC_per_ind_ens'] = per_ind_ens
+            # df ratio
+            df.loc[dfind,'GC_raw_ratio_ens_x'] = raw_ens_red/raw_ens_ind
+            df.loc[dfind,'GC_raw_ratio_x_ens'] = raw_red_ens/raw_ind_ens
+            df.loc[dfind,'GC_per_ratio_ens_x'] = per_ens_red/per_ens_ind
+            df.loc[dfind,'GC_per_ratio_x_ens'] = per_red_ens/per_ind_ens
+            
     # save!
     df.to_hdf(to_save_df, key='df', mode='w')
         
     
-    # XGBOOOOOST MADAFACA!
-#     labels_to_study = [columns[3]] +  columns[10:].tolist()
-#     X_df = df.loc[:, labels_to_study]
-#     Y_df = df.iloc[:, 6]
-#     X_df_train, X_df_test, Y_df_train, Y_df_test = train_test_split(X_df, Y_df, test_size=size_split_test)
-#     model = xgboost.train({"learning_rate": 0.1}, xgboost.DMatrix(X_df_train, label=Y_df_train), 100)
-#     explainer = shap.TreeExplainer(model)
-#     shap_values = explainer.shap_values(X_df_test)
-# #     shap.force_plot(explainer.expected_value, shap_values[0,:], X_df.iloc[0,:], matplotlib=True)
-#     shap.summary_plot(shap_values, X_df_test)
-#     shap.summary_plot(shap_values, X_df_test, plot_type="bar")
+
     
     
 def bootstrap_pandas(len_df, X_df, Y_df, bts_n=1000):
@@ -483,8 +550,26 @@ def calculate_learn_stat_optimal(df, rep=100, bts_n=1000):
             X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, learn_stat_colum=cn)
             _, X_df_train_bst, Y_df_train_bst = bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n)
             model = calculate_model(X_df_train_bst, Y_df_train_bst)
-            error_bst[rr,ind] = xga.calculate_bst632 (model, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
+            error_bst[rr,ind] = calculate_bst632 (model, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
     return error_bst  
+
+
+def calculate_learn_stat_mseoptimal(df, rep=100, bts_n=1000):
+    '''
+    function to calculate the error for each learning stat for the XGboost depending on the rule 0.632
+    '''
+    columns = df.columns.tolist()
+    columns_ler = columns[4:10]
+    error_bst = np.zeros((rep,len(columns_ler))) + np.nan
+    for rr in np.arange(rep):
+        print('repetition: ' + str(rr))
+        for ind, cn in enumerate(columns_ler):
+            X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, learn_stat_colum=cn)
+            _, X_df_train_bst, Y_df_train_bst = bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n)
+            model = calculate_model(X_df_train_bst, Y_df_train_bst)
+            aux_predict = model.predict(xgboost.DMatrix(X_df_test, label=Y_df_test))
+            error_bst[rr,ind] = mean_squared_error(Y_df_test, aux_predict)
+    return error_bst 
 
 
 def calculate_all_errors(df, folder_main, rep=100):
@@ -504,14 +589,14 @@ def calculate_all_errors(df, folder_main, rep=100):
     f.close()
     
 
-def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_max=[0.022,1,0.018,0.18,0.12,0.23], \
-                     size_split_test=0.2, max_iter=20, stability_var=0.7, toplot=True):
+def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_bstmax=[0.02,0.2], \
+                     error_msemax=[0.03,0.3], size_split_test=0.2, max_iter=40, stability_var=0.7, toplot=True):
     '''
     obtain shap values of mod_n different XGboost model if the conditions for error of the model and stability are set
     obtain stabitlity of feature: correlation of original shap values and bootstrap values to see if values are miningful or noise
     '''
     columns = df.columns.tolist()
-    columns_ler = columns[6:8] #columns[4:10] #[columns[6]]#
+    columns_ler = columns[6:8] # columns[4:10] #[columns[6]]# 
     labels_to_study = [columns[3]] +  columns[10:]
     
     test_size = np.ceil(len(df)*(size_split_test)).astype(int)
@@ -534,12 +619,18 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                 j = 1
                 iterj = 0   
                 # make splits for original model
-                X_df_train, X_df_test, Y_df_train, Y_df_test = xga.split_df(df, bts_n, col_ler, size_split_test=size_split_test)
+                X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, bts_n, col_ler, size_split_test=size_split_test)
                 # calculate original
-                model_original = xga.calculate_model(X_df_train, Y_df_train)
-                # first check for the model (using bst632 is not the best option, TODO, find a better error fucntion)
-                error_bst = xga.calculate_bst632 (model_original, X_df_train, X_df_test, Y_df_train, Y_df_test)
-                if error_bst  < error_max[cc]:
+                model_original = calculate_model(X_df_train, Y_df_train)
+                
+                # first check for the model (using bst632)
+                error_bst = calculate_bst632 (model_original, X_df_train, X_df_test, Y_df_train, Y_df_test)
+                # second check for the model (using mse)
+                aux_predict = model_original.predict(xgboost.DMatrix(X_df_test, label=Y_df_test))
+                aux_mse = mean_squared_error(Y_df_test, aux_predict)
+                
+                # if the model is good enough (mse/bst error low)               
+                if (error_bst  < error_bstmax[cc]) & (aux_mse < error_msemax[cc]):
                     explainer_train = shap.TreeExplainer(model_original, data=X_df_test, feature_perturbation='interventional')
                     # just in case the size differs we will take only the size of X_df
                     all_shap_train_aux[0, :len(X_df_train), :] = explainer_train.shap_values(X_df_train)
@@ -550,10 +641,10 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                             print('too many iterations, check that the maximum error is not too restrictive or split was just bad')
                             break
                         print('repetition: ' + str(i) + ':' + str(j) + ', with iterj: ' + str(iterj))
-                        _, X_df_train_bst, Y_df_train_bst = xga.bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n)
-                        model_bst = xga.calculate_model(X_df_train_bst, Y_df_train_bst)
-                        error_bst = xga.calculate_bst632 (model_bst, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
-                        if error_bst  < error_max[cc]:
+                        _, X_df_train_bst, Y_df_train_bst = bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n)
+                        model_bst = calculate_model(X_df_train_bst, Y_df_train_bst)
+                        error_bst = calculate_bst632 (model_bst, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
+                        if error_bst  < error_bstmax[cc]:
                             explainer_bst = shap.TreeExplainer(model_bst, data=X_df_test, feature_perturbation='interventional')
                             all_shap_train_aux[j, :len(X_df_train), :] = explainer_bst.shap_values(X_df_train)
                             
@@ -574,8 +665,8 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                         shap_correlations[cc, i, :, :] = shap_cor_aux
                         
                         # keep info of the xgboost performance
-                        all_y_pred[cc, i, :len(X_df_test)] = model_original.predict(xgboost.DMatrix(X_df_test, label=Y_df_test))
-                        all_mse[cc,i] = mean_squared_error(Y_df_test, all_y_pred[cc, i, :len(X_df_test)])
+                        all_y_pred[cc, i, :len(X_df_test)] = aux_predict
+                        all_mse[cc,i] = aux_mse
                         
                         # now calculate the shap_values with the X_df_test FINALLY!
                         explainer_test = shap.TreeExplainer(model_original, data=X_df_train, feature_perturbation='interventional')
@@ -590,16 +681,17 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
                         i+=1 
                         iteri = 0
                         print('new model processed: ' + str(i) + '/' + str(mod_n))
-                        
+
                     else:
-                        print('model not up to specs, repeting model')
+                        print('model not up to specs, repeting model. Iteri: ' + str(iteri) )
                         iteri += 1
                 else:
-                    print('too high error, repeting split. Iteri: ' + str(iteri))
+                    print('too high bst ' + str(~(error_bst  < error_bstmax[cc])) + ' or mse error ' + \
+                           str(~(aux_mse < error_msemax[cc]))  + ', repeting split. Iteri: ' + str(iteri))
                     iteri += 1
                     
             else:
-                print('Error too high to continue. Maxiter reached')
+                print('Error too high to continue. Maxiter reached for ' + col_ler)
                 print('   ')
                 print('I REPEAT!!!!! Error to high to continue. Maxiter reached')
                 break
@@ -903,20 +995,20 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=10, error_ma
             plt.close('all')
             
             
-        # check for groups of labels
-        groups_labels = ['ITPT', 'Pos', 'STD', 'SNR']
-        all_shap_reshape = np.reshape(all_shap, [len(columns_ler), np.prod(all_shap.shape[1:3]), all_shap.shape[3]])
-        all_df_reshape = np.reshape(all_df, [len(columns_ler), np.prod(all_df.shape[1:3])])  
-        
-        all_shap_group = np.stack((all_shap_reshape[:,:,0], np.nansum(all_shap_reshape[:,:,1:9],2), \
-                                         np.nansum(all_shap_reshape[:,:,9:16],2), np.nansum(all_shap_reshape[:,:,16:],2)),axis=2) 
-        bins_grshap = np.arange(-0.1,0.1,0.001)      
-        for cc, col_ler in enumerate(columns_ler):
-            shap_reshape = all_shap_group[cc,:,:]
-            for gr, group in enumerate(groups_labels):
-                [h,b] = np.histogram(all_shap_group[cc,:,gr], bins_grshap)
-                plt.bar(b[1:], h, width=0.01, label=group)
-            plt.legend()
+#         # check for groups of labels
+#         groups_labels = ['ITPT', 'Pos', 'STD', 'SNR']
+#         all_shap_reshape = np.reshape(all_shap, [len(columns_ler), np.prod(all_shap.shape[1:3]), all_shap.shape[3]])
+#         all_df_reshape = np.reshape(all_df, [len(columns_ler), np.prod(all_df.shape[1:3])])  
+#         
+#         all_shap_group = np.stack((all_shap_reshape[:,:,0], np.nansum(all_shap_reshape[:,:,1:9],2), \
+#                                          np.nansum(all_shap_reshape[:,:,9:16],2), np.nansum(all_shap_reshape[:,:,16:],2)),axis=2) 
+#         bins_grshap = np.arange(-0.1,0.1,0.001)      
+#         for cc, col_ler in enumerate(columns_ler):
+#             shap_reshape = all_shap_group[cc,:,:]
+#             for gr, group in enumerate(groups_labels):
+#                 [h,b] = np.histogram(all_shap_group[cc,:,gr], bins_grshap)
+#                 plt.bar(b[1:], h, width=0.01, label=group)
+#             plt.legend()
             
 
         
