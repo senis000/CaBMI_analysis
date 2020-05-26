@@ -400,31 +400,37 @@ def compare_fc_metrics(folder, relative=True):
                     autolag = granger_select_order(cdata, MAXLAG)[METRIC]
                     common_keywords = f'{record_type}_'
                     # Run GC with te causality and save with pickle
-                    results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
-                                                        pickle_path=inet_path)
-                    results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc_auto',
-                                                                lag=autolag, pickle_path=inet_path)
+                    results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords, lag=DEFAULT_LAG,
+                                                        method='granger', pickle_path=inet_path)
+                    results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'auto',
+                                                        lag=autolag, method='granger', pickle_path=inet_path)
 
-                    # RUN gc with statsmodel
-                    biggerLag = max(autolag, DEFAULT_LAG)
-                    fstats_dlag = os.path.join(inet_path,
-                                               f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
-                    fstats_autolag = os.path.join(inet_path,
-                                               f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
-                    fstats_autolag_pvals = os.path.join(inet_path,
-                                                  f'{inet}_{common_keywords}statsautoPVAL_order_{autolag}.p')
+                    # # Run GC with te causality and save with pickle
+                    # results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
+                    #                                     pickle_path=inet_path)
+                    # results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc_auto',
+                    #                                             lag=autolag, pickle_path=inet_path)
 
-                    gcs_vals, p_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
-
-                    results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
-                    results_stats_autolag = gcs_vals[:, :, autolag-1]
-                    results_stats_autolag_pvals = p_vals['ssr_chi2test'][:, :, autolag-1]
-                    with open(fstats_dlag, 'wb') as p_file:
-                        pickle.dump(results_stats_dlag, p_file)
-                    with open(fstats_autolag, 'wb') as p_file:
-                        pickle.dump(results_stats_autolag, p_file)
-                    with open(fstats_autolag_pvals, 'wb') as p_file:
-                        pickle.dump(results_stats_autolag_pvals, p_file)
+                    # # RUN gc with statsmodel
+                    # biggerLag = max(autolag, DEFAULT_LAG)
+                    # fstats_dlag = os.path.join(inet_path,
+                    #                            f'{inet}_{common_keywords}stats_order_{DEFAULT_LAG}.p')
+                    # fstats_autolag = os.path.join(inet_path,
+                    #                            f'{inet}_{common_keywords}statsauto_order_{autolag}.p')
+                    # fstats_autolag_pvals = os.path.join(inet_path,
+                    #                               f'{inet}_{common_keywords}statsautoPVAL_order_{autolag}.p')
+                    #
+                    # gcs_vals, p_vals = statsmodel_granger(cdata, maxlag=biggerLag, useLast=False)
+                    #
+                    # results_stats_dlag = gcs_vals[:, :, DEFAULT_LAG-1]
+                    # results_stats_autolag = gcs_vals[:, :, autolag-1]
+                    # results_stats_autolag_pvals = p_vals['ssr_chi2test'][:, :, autolag-1]
+                    # with open(fstats_dlag, 'wb') as p_file:
+                    #     pickle.dump(results_stats_dlag, p_file)
+                    # with open(fstats_autolag, 'wb') as p_file:
+                    #     pickle.dump(results_stats_autolag, p_file)
+                    # with open(fstats_autolag_pvals, 'wb') as p_file:
+                    #     pickle.dump(results_stats_autolag_pvals, p_file)
                 except scipy.linalg.LinAlgError:
                     print(f"skipping {inet}")
             pbar.loop_end(inet)
