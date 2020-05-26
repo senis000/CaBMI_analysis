@@ -35,6 +35,7 @@ import numpy as np
 import scipy
 from scipy.sparse import linalg as sp_linalg
 from scipy.sparse import diags as spdiags
+from sklearn.metrics import roc_curve, auc
 import random
 import pandas as pd
 # plotting
@@ -43,6 +44,7 @@ import matplotlib.pyplot as plt
 from analysis_functions import calcium_dff, statsmodel_granger, granger_select_order
 from utils_gte import run_gte, create_gte_input_files
 from utils_cabmi import ProgressBar
+from utils_loading import path_prefix_free
 from ExpGTE import fc_te_caulsaity
 # simulation
 try:
@@ -433,17 +435,78 @@ def connection_probability(jfile):
     return int(jfile['con']) * 2 / (N * (N - 1))
 
 
-def fc_evaluation(gcs_val, p_vals, truth):
+def fc_evaluation_ROC(fc_vals, truth, tag, ax=None, lag=None):
+    # cite: https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html
+    assert fc_vals.shape == truth.shape
+    if len(fc_vals.shape) == 2:
+        fc_vals, truth = fc_vals[:, :, np.newaxis], truth[:, :, np.newaxis]
+        assert lag is not None
+
+    roc_aucs = []
+    for i in range(fc_vals.shape[-1]):
+        fpr, tpr, _ = roc_curve(truth[:, :, i].ravel(order='C'), fc_vals[:, :, i].ravel(order='C'))
+        roc_auc = auc(fpr, tpr)
+        roc_aucs.append(roc_auc)
+        if ax is not None:
+            ax.plot(fpr, tpr,
+                     label=f'lag {lag if lag is not None else i + 1} ROC curve {tag} (area = {roc_auc:.2f})')
+            ax.plot([0, 1], [0, 1], color='navy', linestyle='--')
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            ax.set_xlabel('False Positive Rate')
+            ax.set_ylabel('True Positive Rate')
+            ax.set_title(f'ROC curve')
+            ax.legend(loc="lower right")
+        else:
+            plt.plot(fpr, tpr, label=f'lag {lag if lag else i+1} ROC curve {tag} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title(f'ROC curve')
+            plt.legend(loc="lower right")
+            plt.show()
+    return roc_aucs
+
+
+def fc_evaluation_granger_statsmodel(gcs_val, p_vals, truth, tag):
     # TODO: add ROC
     if isinstance(p_vals, dict):
         p_vals = p_vals['ssr_chi2test']
+    # pval test:
+    THRES = 0.05
     pvs = np.zeros_like(p_vals)
     pvs[p_vals <= 0.05] = 1
     L = gcs_val.shape[-1]
+    # Correlation test
     corrs = [np.corrcoef(gcs_val[:, :, i].ravel(order='C'), truth.ravel(order='C'))[0, 1] for i in range(L)]
     corrs2 = [np.corrcoef(pvs[:, :, i].ravel(order='C'), truth.ravel(order='C'))[0, 1] for i in range(L)]
     TPs = [np.sum(pvs[:, :, i] * truth) / np.sum(truth) for i in range(5)]
+    test_mat = {'gc_value': gcs_val, 'complement_p_values': 1-p_vals}
+    roc_aucs = {}
+    fig, axes = plt.subplots(nrows=2, ncols=1)
+    for i, k in enumerate(test_mat):
+        roc_aucs[k] = fc_evaluation_ROC(test_mat[k], truth, tag+'_'+k, ax=axes[i])
     return corrs, corrs2, TPs
+
+
+def fc_evaluation_granger(inet_folder, truth, tag):
+    # TODO: add ROC
+    allfiles = [f for f in os.listdir(inet_folder) if f[-2:] == '.p']
+    all_aucs = {}
+    for f in os.listdir(inet_folder):
+        signs = f.split('_')
+        tag = signs[2]
+        with open(os.path.join(inet_folder, f), 'rb') as pfile:
+            fc_vals = pickle.load(pfile)
+        if isinstance(fc_vals, list):
+            fc_vals = fc_vals[0]
+        if 'PVAL' in f:
+            fc_vals = 1-fc_vals
+        aucs = fc_evaluation_ROC(fc_vals, truth, tag, ax=None, lag=signs[4])
+        all_aucs[tag] = aucs
+    return all_aucs
 
 
 """-------------------------------------------------

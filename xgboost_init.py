@@ -31,21 +31,24 @@ file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_1.csv')
 file_csv_PC = os.path.join(out, 'learning_stats_cumuPC_bin_1.csv')
 
 to_load_pick = os.path.join(folder_main, 'cursor_engagement.p')
+to_load_e2 = os.path.join(folder_main, 'e2_neurs.p')
 to_load_df = os.path.join(folder_main, 'df_all.hdf5')
 df = pd.read_hdf(to_load_df)
 df_ce = pd.read_pickle(to_load_pick)
+df_e2 = pd.read_pickle(to_load_e2)
 
 #until new df
 # df = df.rename(columns={'label': 'ITPTlabel'})
 # df['ITPTlabel'] = pd.to_numeric(df['ITPTlabel'])
 bts_n=1000
-mod_n=10
-mod_x=10
-error_max=[0.022,0.5,0.018,0.18,0.12,0.23]
+mod_n=1000
+mod_x=100
+error_bstmax=[0.022,1,0.02,0.2,0.8,2.5]
+error_msemax=[0.035,0.8,0.03,0.3,1.4,4]
 size_split_test=0.2
-max_iter=20
+max_iter=40
 stability_var=0.7
-toplot=False
+toplot=True
 
 
 
