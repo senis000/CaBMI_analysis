@@ -282,7 +282,6 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
     return skips
 
 
-
 def granger_select_order(rois, maxlag=5, ic='bic'):
     # rois: N x T, Returns dictionary containing different criterion ('aic', 'bic', 'hqic')
     mod = smt.VAR(rois.T)

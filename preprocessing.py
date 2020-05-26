@@ -85,7 +85,6 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
                 calcium_to_peak_times(hf, low, high)
 
 
-
 def get_roi_type(processed, animal, day):
     rois = None
     if isinstance(processed, str):

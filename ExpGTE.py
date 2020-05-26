@@ -434,6 +434,7 @@ class ExpGTE:
 
 def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-extended',
                                pickle_path=None, clean=True):
+    """keywords must end in _"""
     parameters = {
             "AutoConditioningLevelQ": True,
             'AutoBinNumberQ': True, 'SourceMarkovOrder': lag, 'TargetMarkovOrder': lag,
@@ -445,8 +446,10 @@ def fc_te_caulsaity(exp_name, exp_data, keywords, lag=2, method='te-extended',
     results = run_gte(control_file_names, exclude_file_names,
                       output_file_names, method=method)
     if pickle_path is not None:
-        order = parameters['SourceMarkovOrder']
-        with open(os.path.join(pickle_path, f'{exp_name}_{keywords}_order_{order}.p'), 'wb') as p_file:
+        order = parameters['SourceMarkovOrder'] # TODO: make all methods the same
+        mword = 'tegc' if method == 'granger' else  method
+        with open(os.path.join(pickle_path, f'{exp_name}_{keywords}{mword}_order_{order}.p'),
+                  'wb') as p_file:
             pickle.dump(results, p_file)
     if clean:
         exp_path = "./te-causality/transferentropy-sim/experiments/" + exp_name
