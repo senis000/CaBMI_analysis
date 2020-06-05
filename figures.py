@@ -22,6 +22,8 @@ def fig2():
     file_csv = os.path.join(out, 'learning_stats_summary_bin_1.csv')
     file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_1.csv')
     file_csv_PC = os.path.join(out, 'learning_stats_cumuPC_bin_1.csv')
+#     file_csv_hpm = os.path.join(out, 'learning_stats_HPM_bin_5.csv')
+#     file_csv_PC = os.path.join(out, 'learning_stats_PC_bin_5.csv')
     
     to_load_df = os.path.join(folder_main, 'df_all.hdf5')
     df = pd.read_hdf(to_load_df)
@@ -75,7 +77,16 @@ def fig2():
         PC_gsmoo[aa,:] = (PC_smoo[aa,:] - np.nanmean(PC_smoo[aa,:]))/np.nanmean(PC_smoo[aa,:])*100 - \
          (PC_smoo[aa,0] - np.nanmean(PC_smoo[aa,:]))/np.nanmean(PC_smoo[aa,:])*100
         
-    #
+    #5 bin
+#     fig1 = plt.figure(figsize=(8,4))
+#     ax1 = fig1.add_subplot(1, 2, 1)
+#     ax2 = fig1.add_subplot(1, 2, 2)
+#     ax1.plot(np.nanmean(hpm_5bin[:9,:11],0))
+#     ax1.plot(np.nanmean(hpm_5bin[9:,:11],0))
+#     ax2.plot(np.nanmean(PC_5bin[:9,:11],0))
+#     ax2.plot(np.nanmean(PC_5bin[9:,:11],0))
+    
+    
     fig1 = plt.figure(figsize=(8,8))
     ax1 = fig1.add_subplot(2, 2, 1)
     ax2 = fig1.add_subplot(2, 2, 2)

@@ -58,10 +58,11 @@ def basic_entry (folder, animal, day):
         dff_ens = dff[ens_neur, :]
         dff_e2 = dff[e2_neur, :]
             
-        # depth
+        # xyz position
         depth_mean = np.nanmean(com_ens[:,2])
         depth_max = np.nanmax(com_ens[:,2])
         depth_min = np.nanmin(com_ens[:,2])
+
         
     #     if len(e2_neur) > 0:
     #         depth_mean_e2 = np.nanmean(com_e2[:,2])
@@ -138,6 +139,12 @@ def basic_entry (folder, animal, day):
         depth_mean = np.nan
         depth_max = np.nan
         depth_min = np.nan
+        x_mean = np.nan
+        x_max = np.nan
+        x_min = np.nan
+        y_mean = np.nan
+        y_max = np.nan
+        y_min = np.nan
         dist_mean = np.nan
         dist_max = np.nan
         dist_min = np.nan
@@ -166,7 +173,8 @@ def basic_entry (folder, animal, day):
     auxcursorstd = []
     cursor_std = np.nanstd(cursor)
     
-    row_entry = np.asarray([depth_mean, depth_max, depth_min, dist_mean, dist_max, dist_min, diffdepth_mean, diffdepth_max, \
+    row_entry = np.asarray([depth_mean, depth_max, depth_min,  \
+                             dist_mean, dist_max, dist_min, diffdepth_mean, diffdepth_max, \
                              diffdepth_min, diffxy_mean, diffxy_max, diffxy_min, \
                              onstd_mean, onstd_max, onstd_min, post_whole_std_mean, post_whole_std_max, post_whole_std_min, \
                              post_base_std_mean, post_base_std_max, post_base_std_min, cursor_std])
@@ -188,15 +196,20 @@ def plot_results(folder_plots, df_aux, first_ind=0, single_animal=True, mode='ba
         sbx = 5
         sby = 5
     elif mode == 'SNR':
-        columns_aux = columns[32:34]  ## SNR
+        columns_aux = columns[32:35]  ## SNR
         figsiz = (8, 4)
         sbx = 1
-        sby = 2
+        sby = 3
     elif mode == 'ce':
-        columns_aux = [columns[34]]  ## SNR
-        figsiz = (8, 4)
+        columns_aux = [columns[35]]  ## SNR
+        figsiz = (4, 4)
         sbx = 1
-        sby = 2
+        sby = 1
+    elif mode == 'GC':
+        columns_aux = columns[36:]  ## SNR
+        figsiz = (8, 8)
+        sbx = 4
+        sby = 3
         
     for cc, col in enumerate(columns_ler):
         fig1 = plt.figure(figsize=figsiz)
@@ -232,7 +245,8 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
     df_results = pd.read_csv(file_csv)
     df_ce = pd.read_pickle(to_load_pick)
     columns_res = df_results.columns.tolist()
-    columns_basic = ['depth_mean', 'depth_max', 'depth_min', 'dist_mean', 'dist_max', 'dist_min', 'diffdepth_mean', 'diffdepth_max', \
+    columns_basic = ['depth_mean', 'depth_max', 'depth_min', \
+                         'dist_mean', 'dist_max', 'dist_min', 'diffdepth_mean', 'diffdepth_max', \
                          'diffdepth_min', 'diffxy_mean', 'diffxy_max', 'diffxy_min', \
                          'onstd_mean', 'onstd_max', 'onstd_min', 'post_whole_std_mean', 'post_whole_std_max', 'post_whole_std_min',
                          'post_base_std_mean', 'post_base_std_max', 'post_base_std_min', 'cursor_std']
@@ -388,13 +402,12 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
             df.loc[dfind,'GC_raw_ratio_x_ens'] = raw_red_ens/raw_ind_ens
             df.loc[dfind,'GC_per_ratio_ens_x'] = per_ens_red/per_ens_ind
             df.loc[dfind,'GC_per_ratio_x_ens'] = per_red_ens/per_ind_ens
+    if to_plot:
+        plot_results(folder_plots, df, single_animal=False, mode='GC')
             
     # save!
     df.to_hdf(to_save_df, key='df', mode='w')
-        
-    
 
-    
     
 def bootstrap_pandas(len_df, X_df, Y_df, bts_n=1000):
     ''' Bootstrap  pd 
@@ -590,7 +603,7 @@ def calculate_all_errors(df, folder_main, rep=100):
     
 
 def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_bstmax=[0.02,0.2], \
-                     error_msemax=[0.03,0.3], size_split_test=0.2, max_iter=40, stability_var=0.7, toplot=True):
+                     error_msemax=[0.03,0.3], size_split_test=0.2, max_iter=40, stability_var=0.6, toplot=True):
     '''
     obtain shap values of mod_n different XGboost model if the conditions for error of the model and stability are set
     obtain stabitlity of feature: correlation of original shap values and bootstrap values to see if values are miningful or noise
@@ -608,6 +621,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
     shap_correlations = np.zeros((len(columns_ler), mod_n, mod_x, len(labels_to_study))) + np.nan
     explainer_val = np.zeros((len(columns_ler), mod_n)) + np.nan
     all_df = np.zeros((len(columns_ler), mod_n, test_size)) + np.nan
+    number_models = np.zeros(len(columns_ler),dtype=int)
     
     for cc, col_ler in enumerate(columns_ler):
         i = 0
@@ -622,6 +636,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, bts_n, col_ler, size_split_test=size_split_test)
                 # calculate original
                 model_original = calculate_model(X_df_train, Y_df_train)
+                number_models[cc] += 1
                 
                 # first check for the model (using bst632)
                 error_bst = calculate_bst632 (model_original, X_df_train, X_df_test, Y_df_train, Y_df_test)
@@ -684,6 +699,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
 
                     else:
                         print('model not up to specs, repeting model. Iteri: ' + str(iteri) )
+                        print(np.nanmean(shap_cor_aux))
                         iteri += 1
                 else:
                     print('too high bst ' + str(~(error_bst  < error_bstmax[cc])) + ' or mse error ' + \
@@ -746,7 +762,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         folder_plots_ITPT = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT')
         all_IT = np.zeros(len(columns_ler)) + np.nan
         all_PT = np.zeros(len(columns_ler)) + np.nan
-        bins_shap = np.arange(-0.05,0.05,0.001)
+        bins_shap = np.arange(-0.02,0.02,0.001)
         
         
         for cc, col_ler in enumerate(columns_ler):
@@ -772,7 +788,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             _, p_value = stats.ttest_ind(aux_IT, aux_PT, nan_policy='omit')
             p = uc.calc_pvalue(p_value)
             ax2.text(0.8, 0.008, p, color='grey', alpha=0.6)
-            ax2.set_ylim([-0.03, 0.03])
+            ax2.set_ylim([-0.01, 0.01])
             
             fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.png'), bbox_inches="tight")
             fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.eps'), bbox_inches="tight")
@@ -798,7 +814,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
         for cc, col_ler in enumerate(columns_ler):
             for ll, label_ts in enumerate(labels_to_study):
-                fig4 = plt.figure(figsize=(17,9))
+                fig4 = plt.figure(figsize=(24,12))
                 for llsec, label_tsec in enumerate(labels_to_study):
                     ax3 = fig4.add_subplot(sizesubpl, 6, llsec+1)
                     aux_df = np.where(~np.isnan(np.sum(shap_experiment_mean[cc,:,:],1)))[0]
@@ -814,7 +830,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
         for cc, col_ler in enumerate(columns_ler):
             for ll, label_ts in enumerate(labels_to_study):
-                fig5 = plt.figure(figsize=(17,9))
+                fig5 = plt.figure(figsize=(24,12))
                 for llsec, label_tsec in enumerate(labels_to_study):
                     ax4 = fig5.add_subplot(sizesubpl, 6, llsec+1)
                     sns.regplot(df[label_ts], df[label_tsec], ax=ax4)
@@ -830,7 +846,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
 
         for cc, col_ler in enumerate(columns_ler):
-            fig6 = plt.figure(figsize=(17,9))
+            fig6 = plt.figure(figsize=(24,12))
             for ll, label_ts in enumerate(labels_to_study):
                 ax6 = fig6.add_subplot(sizesubpl, 6, ll+1)
                 aux_df = np.where(~np.isnan(np.sum(shap_experiment_mean[cc,:,:],1)))[0]
@@ -843,9 +859,9 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             
             
         # check for confidence interval on features
-        folder_plots_ci = os.path.join(folder_main, 'plots', 'XGBoost', 'confidence_interval')
+        folder_plots_ci = os.path.join(folder_main, 'plots', 'XGBoost', 'confidence interval')
         for cc, col_ler in enumerate(columns_ler):
-            fig7 = plt.figure(figsize=(17,9))
+            fig7 = plt.figure(figsize=(24,12))
             for ll, label_ts in enumerate(labels_to_study):
                 ax7 = fig7.add_subplot(sizesubpl, 6, ll+1)
                 aux_spread = np.nansum(spread[cc,:,ll,:],0)

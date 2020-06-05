@@ -43,11 +43,11 @@ df_e2 = pd.read_pickle(to_load_e2)
 bts_n=1000
 mod_n=1000
 mod_x=100
-error_bstmax=[0.022,1,0.02,0.2,0.8,2.5]
-error_msemax=[0.035,0.8,0.03,0.3,1.4,4]
+error_bstmax=[0.02,0.2] #[0.022,1,0.02,0.2,0.8,2.5]
+error_msemax=[0.03,0.3] #[0.035,0.8,0.03,0.3,1.4,4]
 size_split_test=0.2
 max_iter=40
-stability_var=0.7
+stability_var=0.5
 toplot=True
 
 
