@@ -16,6 +16,63 @@ from matplotlib import interactive
 interactive(True)
 
 
+def fig1(folder, animal, day, df_e2):
+    #animal = 'IT2'
+    #day = '181002'
+    file_template = "full_{}_{}__data.hdf5"
+    file_name = os.path.join(folder, animal, file_template.format(animal, day))
+    folder_proc = os.path.join(folder, 'processed')
+    f = h5py.File(file_name, 'r')
+
+
+    ens_neur = np.asarray(f['ens_neur'])
+    e2_neur = np.asarray(df_e2[animal][day])
+    e1_neur = copy.deepcopy(ens_neur)
+    online_data = np.asarray(f['online_data'])[:,2:]
+    dff = np.asarray(f['dff'])
+    cursor = np.asarray(f['cursor'])
+    startBMI = np.asarray(f['trial_start'])[0]
+    f.close()
+    if np.isnan(np.sum(ens_neur)):
+        print('Only ' + str(4 - np.sum(np.isnan(ens_neur))) + ' ensemble neurons')
+    if np.isnan(np.sum(e2_neur)):
+        print('Only ' + str(2 - np.sum(np.isnan(e2_neur))) + ' e2 neurons')
+    
+    if np.nansum(e2_neur)>0:
+        for i in np.arange(len(e2_neur)):
+            e1_neur[np.where(ens_neur==e2_neur[i])[0]] = np.nan
+    
+    e1_neur = np.int16(e1_neur[~np.isnan(e1_neur)])
+    ens_neur = np.int16(ens_neur[~np.isnan(ens_neur)])
+    e2_neur = np.int16(e2_neur[~np.isnan(e2_neur)])
+    
+    
+    dff_e1 = np.zeros((2, dff.shape[1]))
+    dff_e2 = np.zeros((2, dff.shape[1]))
+    dff_e1[0,:] = uc.sliding_mean(dff[e1_neur[0],:],2)
+    dff_e1[1,:] = uc.sliding_mean(dff[e1_neur[1],:],2)
+    dff_e2[0,:] = uc.sliding_mean(dff[e2_neur[0],:],2)
+    dff_e2[1,:] = uc.sliding_mean(dff[e2_neur[1],:],2)
+    
+    fig1 = plt.figure(figsize=(16,6))
+    ax1 = fig1.add_subplot(3, 1, 1)
+    ax2 = fig1.add_subplot(3, 1, 2)
+    ax3 = fig1.add_subplot(3, 1, 3)
+    window = np.arange(8000,10000)
+    ax1.plot(dff_e1[:,window].T)
+    ax2.plot(dff_e2[:,window].T)
+    ax3.plot(np.nansum(dff_e2[:,window],0)-np.nansum(dff_e1[:,window],0))
+    
+    fig2 = plt.figure(figsize=(16,6))
+    ax3 = fig2.add_subplot(2, 1, 1)
+    ax4 = fig2.add_subplot(2, 1, 2)
+    window = np.arange(14000,14900)
+    ax3.plot((online_data[window, 2:]-np.nanmean(online_data[:, 2:],0))/np.nanmean(online_data[:, 2:],0))
+    ax4.plot((online_data[window, :2]-np.nanmean(online_data[:, :2],0))/np.nanmean(online_data[:, :2],0))
+    
+
+    
+
 def fig2():
     folder_main = 'I:/Nuria_data/CaBMI/Layer_project'
     out = 'I:/Nuria_data/CaBMI/Layer_project/learning_stats'
