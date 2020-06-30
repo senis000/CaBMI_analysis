@@ -41,14 +41,14 @@ df_e2 = pd.read_pickle(to_load_e2)
 # df = df.rename(columns={'label': 'ITPTlabel'})
 # df['ITPTlabel'] = pd.to_numeric(df['ITPTlabel'])
 bts_n=1000
-mod_n=1000
+mod_n=10000
 mod_x=100
 
 size_split_test=0.2
 max_iter=40
 stability_var=0.5
 toplot=True
-classif=True
+classif=False
 if classif:
     error_bstmax=[0.03] #[0.022,1,0.02,0.2,0.8,2.5]
     error_msemax=[0.05] #[0.035,0.8,0.03,0.3,1.4,4]
@@ -57,7 +57,7 @@ else:
     error_msemax=[0.035] #[0.035,0.8,0.03,0.3,1.4,4]
 
 ### xgboost
-to_load_xgboost = os.path.join(folder_main, 'XGShap_model.h5py')
+to_load_xgboost = os.path.join(folder_main, 'XGShap_model_1000.h5py')
 f = h5py.File(to_load_xgboost, 'r')
 labels_to_study = f.attrs['labels_to_study']
 all_shap = np.asarray(f['all_shap'])
@@ -71,7 +71,12 @@ all_df_reshape = np.asarray(f['all_df_reshape'])
 shap_experiment_mean = np.asarray(f['shap_experiment_mean'])
 shap_experiment_std = np.asarray(f['shap_experiment_std'])
 shap_experiment_sem = np.asarray(f['shap_experiment_sem'])
+spread = np.asarray(f['spread'])
+bins_zscore = np.arange(-2,2,0.1)
+
 f.close()
+columns = df.columns.tolist()
+columns_ler = [columns[6]]
 
 
 #####

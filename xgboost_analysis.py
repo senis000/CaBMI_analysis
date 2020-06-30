@@ -970,13 +970,22 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         for cc, col_ler in enumerate(columns_ler):
             for ll, label_ts in enumerate(labels_to_study):
                 fig5 = plt.figure(figsize=(24,12))
+                fig5b = plt.figure(figsize=(24,12))
                 for llsec, label_tsec in enumerate(labels_to_study):
                     ax4 = fig5.add_subplot(sizesubpl, 6, llsec+1)
+                    ax4b = fig5b.add_subplot(sizesubpl, 6, llsec+1)
                     sns.regplot(df[label_ts], df[label_tsec], ax=ax4)
+                    sns.regplot(df[label_ts][df['ITPTlabel']==0], df[label_tsec][df['ITPTlabel']==0], ax=ax4b, label='IT')
+                    sns.regplot(df[label_ts][df['ITPTlabel']==1], df[label_tsec][df['ITPTlabel']==1], ax=ax4b, label='PT')
+                    plt.legend()
                     ax4.set_ylabel(label_tsec)
+                    ax4b.set_ylabel(label_tsec)
                 fig5.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
                 fig5.savefig(os.path.join(folder_plots_reg_feat, col_ler + '_' + label_ts + '_regfet.png'), bbox_inches="tight")
                 fig5.savefig(os.path.join(folder_plots_reg_feat, col_ler + '_' + label_ts + '_regfet.eps'), bbox_inches="tight")
+                fig5b.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
+                fig5b.savefig(os.path.join(folder_plots_reg_feat, col_ler + '_' + label_ts + '_regfet_ITPT.png'), bbox_inches="tight")
+                fig5b.savefig(os.path.join(folder_plots_reg_feat, col_ler + '_' + label_ts + '_regfet_ITPT.eps'), bbox_inches="tight")
                 plt.close('all')                
                 
         
@@ -1061,20 +1070,32 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         folder_plots_gro = os.path.join(folder_main, 'plots', 'XGBoost', 'groups')
         if not os.path.exists(folder_plots_gro):
             os.makedirs(folder_plots_gro)
-        groups_labels = np.asarray(['ITPT', 'Position', 'STD', 'SNR', 'Engagement','Connectivity'])
-        groups_index = [0, np.arange(1,13), np.arange(13,23), np.arange(23,26), 26, np.arange(27,43)]       
-        shap_group = np.stack((shap_experiment_mean[:,:,groups_index[0]], np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[1]]),2), \
-                               np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[2]]),2), np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[3]]),2), \
-                               shap_experiment_mean[:,:,groups_index[4]], np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[5]]),2)),axis=2) 
+        if classif:
+            groups_labels = np.asarray(['Position', 'STD', 'SNR', 'Engagement','Connectivity'])
+            groups_index = [np.arange(0,12), np.arange(12,22), np.arange(22,25), 25, np.arange(26,42)]       
+            shap_group = np.stack((np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[0]]),2), \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[1]]),2), \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[2]]),2), \
+                                   shap_experiment_mean[:,:,groups_index[3]], \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[4]]),2)),axis=2) 
+        else:
+            groups_labels = np.asarray(['ITPT', 'Position', 'STD', 'SNR', 'Engagement','Connectivity'])
+            groups_index = [0, np.arange(1,13), np.arange(13,23), np.arange(23,26), 26, np.arange(27,43)]       
+            shap_group = np.stack((shap_experiment_mean[:,:,groups_index[0]], \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[1]]),2), \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[2]]),2), \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[3]]),2), \
+                                   shap_experiment_mean[:,:,groups_index[4]], \
+                                   np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[5]]),2)),axis=2) 
         
         for cc, col_ler in enumerate(columns_ler):
             fig8 = plt.figure()
             aux_df = np.where(~np.isnan(np.sum(shap_group[cc,:,:],1)))[0]
             aux_shap = np.nanmean(np.abs(shap_group[cc,aux_df,:]),0)
             order_shap = np.argsort(aux_shap)
-            plt.barh(np.arange(0,6), np.sort(aux_shap), xerr=pd.DataFrame(np.abs(shap_group[cc,aux_df,:])).sem(0))
+            plt.barh(np.arange(0,len(aux_shap)), np.sort(aux_shap), xerr=pd.DataFrame(np.abs(shap_group[cc,aux_df,:])).sem(0))
             plt.xlabel('mean(|SHAP value|) (average impact on model output magnitud')
-            plt.yticks(np.arange(0,6), groups_labels[order_shap])
+            plt.yticks(np.arange(0,len(aux_shap)), groups_labels[order_shap])
             
             fig8.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
             fig8.savefig(os.path.join(folder_plots_gro, col_ler + '_group_bar.png'), bbox_inches="tight")
@@ -1097,8 +1118,12 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             plt.close('all')
             
         groups_labels_sum = np.asarray(['Position', 'STD', 'SNR', 'Others'])
-        groups_index_sum = [np.arange(1,13), np.arange(13,23), np.arange(23,26), \
-                            np.asarray([0,26])] 
+        if classif:
+            groups_index_sum = [np.arange(0,12), np.arange(12,22), np.arange(22,25), \
+                                np.asarray([0,25])] 
+        else:
+            groups_index_sum = [np.arange(1,13), np.arange(13,23), np.arange(23,26), \
+                                np.asarray([0,26])] 
             
         for cc, col_ler in enumerate(columns_ler):
             for gr, group in enumerate(groups_labels_sum):
@@ -1114,14 +1139,20 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 fig10.savefig(os.path.join(folder_plots_gro, col_ler + '_' + groups_labels_sum[gr] + '_group_summ.eps'), bbox_inches="tight")
                 plt.close('all')
                 
-                
-        GC_index = np.arange(27,43)
+        
+        folder_plots_ITPT_f = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT', 'features')
+        if classif:
+            GC_index = np.arange(26,42)
+            index = np.arange(26,42)
+        else:
+            GC_index = np.arange(27,43)
+            index = np.arange(27,43)
         for cc, col_ler in enumerate(columns_ler):
             aux_ITshap = [] 
             aux_PTshap = [] 
             df_ITshap = df.loc[df['ITPTlabel']==0]
             df_PTshap = df.loc[df['ITPTlabel']==1]
-            for ind in np.arange(27,43): 
+            for ind in index: 
                 aux_IT = shap_experiment_mean[cc,df['ITPTlabel']==0,ind]
                 aux_PT = shap_experiment_mean[cc,df['ITPTlabel']==1,ind]
                 aux_ITshap.append(aux_IT)
@@ -1144,6 +1175,84 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             fig12.savefig(os.path.join(folder_plots_gro, col_ler + '_PT_con_summ.png'), bbox_inches="tight")
             fig12.savefig(os.path.join(folder_plots_gro, col_ler + '_PT_con_summ.eps'), bbox_inches="tight")
             plt.close('all')
+            
+            
+            indexei = labels_to_study.index('GC_per_ens_ind')
+            indexer = labels_to_study.index('GC_per_ens_red')
+            indexie = labels_to_study.index('GC_per_ind_ens')
+            indexre = labels_to_study.index('GC_per_red_ens')
+            aux_ITei = shap_experiment_mean[cc,df['ITPTlabel']==0,indexei]
+            aux_PTei = shap_experiment_mean[cc,df['ITPTlabel']==1,indexei]
+            aux_ITer = shap_experiment_mean[cc,df['ITPTlabel']==0,indexer]
+            aux_PTer = shap_experiment_mean[cc,df['ITPTlabel']==1,indexer]
+            aux_ITie = shap_experiment_mean[cc,df['ITPTlabel']==0,indexie]
+            aux_PTie = shap_experiment_mean[cc,df['ITPTlabel']==1,indexie]
+            aux_ITre = shap_experiment_mean[cc,df['ITPTlabel']==0,indexre]
+            aux_PTre = shap_experiment_mean[cc,df['ITPTlabel']==1,indexre]
+            index_IT = df['ITPTlabel']==0
+            index_PT = df['ITPTlabel']==1
+            aux_df_ITei = np.asarray(df['GC_per_ens_ind'][index_IT])
+            aux_df_PTei = np.asarray(df['GC_per_ens_ind'][index_PT])
+            aux_df_ITer = np.asarray(df['GC_per_ens_red'][index_IT])
+            aux_df_PTer = np.asarray(df['GC_per_ens_red'][index_PT])
+            aux_df_ITie = np.asarray(df['GC_per_ind_ens'][index_IT])
+            aux_df_PTie = np.asarray(df['GC_per_ind_ens'][index_PT])
+            aux_df_ITre = np.asarray(df['GC_per_red_ens'][index_IT])
+            aux_df_PTre = np.asarray(df['GC_per_red_ens'][index_PT])
+            
+            fig13 = plt.figure(figsize=(12,8))
+            ax1 = fig13.add_subplot(2,2,1)
+            ax2 = fig13.add_subplot(2,2,2)
+            ax1.bar([0,0.4], [np.nanmean(aux_ITei), np.nanmean(aux_ITer)], width=0.3, yerr=[pd.DataFrame(aux_ITei).sem(0)[0], pd.DataFrame(aux_ITer).sem(0)[0]])
+            ax1.bar([1,1.4], [np.nanmean(aux_PTei), np.nanmean(aux_PTer)], width=0.3, yerr=[pd.DataFrame(aux_PTei).sem(0)[0], pd.DataFrame(aux_PTer).sem(0)[0]])
+            ax2.bar([0,0.4], [np.nanmean(aux_ITie), np.nanmean(aux_ITre)], width=0.3, yerr=[pd.DataFrame(aux_ITie).sem(0)[0], pd.DataFrame(aux_ITre).sem(0)[0]])
+            ax2.bar([1,1.4], [np.nanmean(aux_PTie), np.nanmean(aux_PTre)], width=0.3, yerr=[pd.DataFrame(aux_PTie).sem(0)[0], pd.DataFrame(aux_PTre).sem(0)[0]])
+            ax1.set_ylabel('GC shap Ens -> X')
+            ax2.set_ylabel('GC shap X -> Ens')
+            ax1.set_xlabel(['ITei', 'ITer', 'PTei', 'PTer'])
+            ax2.set_xlabel(['ITie', 'ITre', 'PTie', 'PTre'])
+            _, p_value = stats.ttest_ind(aux_ITei, aux_ITer, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax1.text(0.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_PTei, aux_PTer, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax1.text(1.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_ITie, aux_ITre, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax2.text(0.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_PTie, aux_PTre, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax2.text(1.2, 0, p, color='grey')
+            
+            ax3 = fig13.add_subplot(2,2,3)
+            ax4 = fig13.add_subplot(2,2,4)
+            ax3.bar([0,0.4], [np.nanmean(aux_df_ITei), np.nanmean(aux_df_ITer)], width=0.3, yerr=[pd.DataFrame(aux_df_ITei).sem(0)[0], pd.DataFrame(aux_df_ITer).sem(0)[0]])
+            ax3.bar([1,1.4], [np.nanmean(aux_df_PTei), np.nanmean(aux_df_PTer)], width=0.3, yerr=[pd.DataFrame(aux_df_PTei).sem(0)[0], pd.DataFrame(aux_df_PTer).sem(0)[0]])
+            ax4.bar([0,0.4], [np.nanmean(aux_df_ITie), np.nanmean(aux_df_ITre)], width=0.3, yerr=[pd.DataFrame(aux_df_ITie).sem(0)[0], pd.DataFrame(aux_df_ITre).sem(0)[0]])
+            ax4.bar([1,1.4], [np.nanmean(aux_df_PTie), np.nanmean(aux_df_PTre)], width=0.3, yerr=[pd.DataFrame(aux_df_PTie).sem(0)[0], pd.DataFrame(aux_df_PTre).sem(0)[0]])
+            ax3.set_ylabel('GC per  Ens -> X')
+            ax4.set_ylabel('GC per  X -> Ens')
+            ax3.set_xlabel(['ITei', 'ITer', 'PTei', 'PTer'])
+            ax4.set_xlabel(['ITie', 'ITre', 'PTie', 'PTre'])
+            _, p_value = stats.ttest_ind(aux_df_ITei, aux_df_ITer, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax3.text(0.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_df_PTei, aux_df_PTer, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax3.text(1.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_df_ITie, aux_df_ITre, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax4.text(0.2, 0, p, color='grey')
+            _, p_value = stats.ttest_ind(aux_df_PTie, aux_df_PTre, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax4.text(1.2, 0, p, color='grey')
+            fig13.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
+            fig13.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
+            fig13.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_GC_ens_ind_red_ALPTIT.png'), bbox_inches="tight")
+            fig13.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_GC_ens_ind_red_ALPTIT.eps'), bbox_inches="tight")
+            plt.close('all')
+            
+            
 
         
 
@@ -1284,7 +1393,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             plt.close('all')
             
             
-def plot_ITPT(df, folder_main, labels_to_study):
+def plot_ITPT(df, folder_main, labels_to_study, shap_experiment_mean):
     ''' 
     To plot IT-PT differences
     '''
@@ -1357,7 +1466,19 @@ def plot_ITPT(df, folder_main, labels_to_study):
             fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.eps'), bbox_inches="tight")
             plt.close('all')
             
-        fig2 = plt.figure(figsize=(12,8))
+            
+
+def spread_normal(spread):
+    spread = np.squeeze(spread)
+    fig1 = plt.figure()
+    ktest = []
+    ktestpval = []
+    for i in np.arange(spread.shape[0]):
+        for j in np.arange(spread.shape[1]):
+            kt,pval = stats.kstest(spread[i,j,:], 'norm')
+            ktest.append(kt)
+            ktestpval.append(pval)
+    
         
         
 
