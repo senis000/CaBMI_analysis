@@ -755,7 +755,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 
                 # if the model is good enough (mse/bst error low)               
                 if (error_bst  < error_bstmax[cc]) & (aux_mse < error_msemax[cc]):
-                    explainer_train = shap.TreeExplainer(model_original, data=X_df_test, feature_perturbation='interventional')
+                    explainer_train = shap.TreeExplainer(model_original, feature_perturbation='tree_path_dependent') #True to data!, data=X_df_test, feature_perturbation='interventional')
                     # just in case the size differs we will take only the size of X_df
                     all_shap_train_aux[0, :len(X_df_train), :] = explainer_train.shap_values(X_df_train)
                     
@@ -769,7 +769,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                         model_bst = calculate_model(X_df_train_bst, Y_df_train_bst)
                         error_bst = calculate_bst632 (model_bst, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
                         if error_bst  < error_bstmax[cc]:
-                            explainer_bst = shap.TreeExplainer(model_bst, data=X_df_test, feature_perturbation='interventional')
+                            explainer_bst = shap.TreeExplainer(model_bst, feature_perturbation='tree_path_dependent') # True to data!, data=X_df_test, feature_perturbation='interventional')
                             all_shap_train_aux[j, :len(X_df_train), :] = explainer_bst.shap_values(X_df_train)
                             
                             # check correlation of features with features from original model
@@ -794,7 +794,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                         all_mse[cc,i] = aux_mse
                         
                         # now calculate the shap_values with the X_df_test FINALLY!
-                        explainer_test = shap.TreeExplainer(model_original, data=X_df_train, feature_perturbation='interventional')
+                        explainer_test = shap.TreeExplainer(model_original, feature_perturbation='tree_path_dependent') #True to data!, data=X_df_train, feature_perturbation='interventional')
                         all_shap[cc, i, :len(X_df_test), :] = explainer_test.shap_values(X_df_test)
                         explainer_val[cc, i] = explainer_test.expected_value
                         ind_aux = np.zeros(X_df_test.shape[0], dtype=np.int16) 
@@ -832,10 +832,12 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
     shap_experiment_sem = np.zeros((len(columns_ler), len(df), len(labels_to_study))) + np.nan 
     bins_zscore = np.arange(-2,2,0.1)
     spread = np.zeros((len(columns_ler), len(df), len(labels_to_study), len(bins_zscore)-1)) + np.nan 
+    all_ind = np.zeros((len(columns_ler), len(df))) + np.nan
     for cc, col_ler in enumerate(columns_ler):
         for ind in np.arange(len(df)):
             aux_ind = np.where(all_df_reshape[cc,:]==ind)[0]
-            if len(aux_ind) > 0:
+            all_ind[cc,ind] = len(aux_ind)
+            if all_ind[cc,ind] > 0:
                 aux_shap = all_shap_reshape[cc,aux_ind,:]
                 shap_experiment_mean[cc,ind,:] = np.nanmean(aux_shap,0)
                 shap_experiment_std[cc,ind,:] = np.nanstd(aux_shap,0)
@@ -871,6 +873,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         
         # check stability of features
         folder_plots_sta = os.path.join(folder_main, 'plots', 'XGBoost', 'feature_stability')
+        print('plotting feature stability')
         if not os.path.exists(folder_plots_sta):
             os.makedirs(folder_plots_sta)
         bins_cor = np.arange(stability_var-0.2,1,0.01)
@@ -891,11 +894,12 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
     
         # check IT/PT shap values
         folder_plots_ITPT = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT')
+        print('ITPT stuff')
         if not os.path.exists(folder_plots_ITPT):
             os.makedirs(folder_plots_ITPT)
         all_IT = np.zeros(len(columns_ler)) + np.nan
         all_PT = np.zeros(len(columns_ler)) + np.nan
-        bins_shap = np.arange(-0.005,0.005,0.0001)
+        bins_shap = np.arange(-0.002,0.002,0.00005)
         
         
         for cc, col_ler in enumerate(columns_ler):
@@ -908,8 +912,8 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             ax1 = fig2.add_subplot(1, 2, 1)
             [h_IT,b] = np.histogram(aux_IT, bins_shap)
             [h_PT,b] = np.histogram(aux_PT, bins_shap)
-            ax1.bar(b[1:], h_IT, width=0.0001, label='IT')
-            ax1.bar(b[1:], h_PT, width=0.0001, label='PT')
+            ax1.bar(b[1:], h_IT, width=0.00005, label='IT')
+            ax1.bar(b[1:], h_PT, width=0.00005, label='PT')
             ax1.legend()
             
             ax2 = fig2.add_subplot(1, 2, 2)
@@ -921,7 +925,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             _, p_value = stats.ttest_ind(aux_IT, aux_PT, nan_policy='omit')
             p = uc.calc_pvalue(p_value)
             ax2.text(0.8, 0.001, p, color='grey', alpha=0.6)
-            ax2.set_ylim([-0.0025, 0.0025])
+            ax2.set_ylim([-0.001, 0.001])
             
             fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.png'), bbox_inches="tight")
             fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.eps'), bbox_inches="tight")
@@ -930,6 +934,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         
         #check shap summary plot
         folder_plots_shap = os.path.join(folder_main, 'plots', 'XGBoost', 'shap')
+        print('plotting shap')
         if not os.path.exists(folder_plots_shap):
             os.makedirs(folder_plots_shap)
         bins_shap = np.arange(-0.05,0.05,0.001)      
@@ -946,6 +951,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             
         # check dependencies
         folder_plots_depend = os.path.join(folder_main, 'plots', 'XGBoost', 'dependencies')
+        print('plotting dependencies')
         if not os.path.exists(folder_plots_depend):
             os.makedirs(folder_plots_depend)
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
@@ -964,6 +970,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 
         # check regression inter feature       
         folder_plots_reg_feat = os.path.join(folder_main, 'plots', 'XGBoost', 'regression_feat')
+        print('plotting regressions')
         if not os.path.exists(folder_plots_reg_feat):
             os.makedirs(folder_plots_reg_feat)
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
@@ -991,6 +998,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         
         # labels to study regression to shap
         folder_plots_reg = os.path.join(folder_main, 'plots', 'XGBoost', 'regression_shap')
+        print('plotting more regressions')
         if not os.path.exists(folder_plots_reg):
             os.makedirs(folder_plots_reg)
         sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
@@ -1035,22 +1043,23 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             plt.close('all')
 
             
-            fig63 = plt.figure(figsize=(24,12))
             for ll, label_ts in enumerate(labels_to_study):
-                ax63 = fig63.add_subplot(sizesubpl, 6, ll+1)
+                fig63 = plt.figure(figsize=(3,2))
+                ax63 = fig63.add_subplot(1,1,1)
                 aux_df = np.where(~np.isnan(np.sum(aux_IT[:,:],1)))[0]
                 sns.regplot(df_IT.iloc[aux_df][label_ts], aux_IT[aux_df,ll], ax=ax63, label='IT')
                 aux_df = np.where(~np.isnan(np.sum(aux_PT[:,:],1)))[0]
                 sns.regplot(df_PT.iloc[aux_df][label_ts], aux_PT[aux_df,ll], ax=ax63, label='PT')
                 ax63.set_ylabel('shap_val')
                 plt.legend()
-            fig63.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
-            fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_tog_reg.png'), bbox_inches="tight")
-            fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_tog_reg.eps'), bbox_inches="tight")
-            plt.close('all')
+                fig63.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
+                fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_' + label_ts + '_tog_reg.png'), bbox_inches="tight")
+                fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_' + label_ts + '_tog_reg.eps'), bbox_inches="tight")
+                plt.close('all')
             
         # check for confidence interval on features
         folder_plots_ci = os.path.join(folder_main, 'plots', 'XGBoost', 'confidence interval')
+        print('plotting CI')
         if not os.path.exists(folder_plots_ci):
             os.makedirs(folder_plots_ci)
         for cc, col_ler in enumerate(columns_ler):
@@ -1058,7 +1067,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             for ll, label_ts in enumerate(labels_to_study):
                 ax7 = fig7.add_subplot(sizesubpl, 6, ll+1)
                 aux_spread = np.nansum(spread[cc,:,ll,:],0)
-                ax7.bar(bins_zscore[1:], aux_spread)
+                ax7.bar(bins_zscore[1:], aux_spread, width=0.1)
                 ax7.set_ylabel(label_ts)
             fig7.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
             fig7.savefig(os.path.join(folder_plots_ci, col_ler + '_ci.png'), bbox_inches="tight")
@@ -1068,6 +1077,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             
         # check for groups of labels
         folder_plots_gro = os.path.join(folder_main, 'plots', 'XGBoost', 'groups')
+        print('plotting groups shap')
         if not os.path.exists(folder_plots_gro):
             os.makedirs(folder_plots_gro)
         if classif:
@@ -1076,7 +1086,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             shap_group = np.stack((np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[0]]),2), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[1]]),2), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[2]]),2), \
-                                   shap_experiment_mean[:,:,groups_index[3]], \
+                                   np.abs(shap_experiment_mean[:,:,groups_index[3]]), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[4]]),2)),axis=2) 
         else:
             groups_labels = np.asarray(['ITPT', 'Position', 'STD', 'SNR', 'Engagement','Connectivity'])
@@ -1085,7 +1095,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[1]]),2), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[2]]),2), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[3]]),2), \
-                                   shap_experiment_mean[:,:,groups_index[4]], \
+                                   np.abs(shap_experiment_mean[:,:,groups_index[4]]), \
                                    np.nanmean(np.abs(shap_experiment_mean[:,:,groups_index[5]]),2)),axis=2) 
         
         for cc, col_ler in enumerate(columns_ler):
@@ -1094,12 +1104,12 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             aux_shap = np.nanmean(np.abs(shap_group[cc,aux_df,:]),0)
             order_shap = np.argsort(aux_shap)
             plt.barh(np.arange(0,len(aux_shap)), np.sort(aux_shap), xerr=pd.DataFrame(np.abs(shap_group[cc,aux_df,:])).sem(0))
-            plt.xlabel('mean(|SHAP value|) (average impact on model output magnitud')
+            plt.xlabel('mean(|SHAP value|) (total impact on model output magnitud')
             plt.yticks(np.arange(0,len(aux_shap)), groups_labels[order_shap])
             
             fig8.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
-            fig8.savefig(os.path.join(folder_plots_gro, col_ler + '_group_bar.png'), bbox_inches="tight")
-            fig8.savefig(os.path.join(folder_plots_gro, col_ler + '_group_bar.eps'), bbox_inches="tight")
+            fig8.savefig(os.path.join(folder_plots_gro, col_ler + '_group_bar_mean.png'), bbox_inches="tight")
+            fig8.savefig(os.path.join(folder_plots_gro, col_ler + '_group_bar_mean.eps'), bbox_inches="tight")
             plt.close('all')
 
   
@@ -1112,18 +1122,19 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 
             plt.legend()
             plt.xlim([-0.015,0.025])
+#             plt.ylim([0,200])
             fig9.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
-            fig9.savefig(os.path.join(folder_plots_gro, col_ler + '_group_kde.png'), bbox_inches="tight")
-            fig9.savefig(os.path.join(folder_plots_gro, col_ler + '_group_kde.eps'), bbox_inches="tight")
+            fig9.savefig(os.path.join(folder_plots_gro, col_ler + '_group_kde_mean.png'), bbox_inches="tight")
+            fig9.savefig(os.path.join(folder_plots_gro, col_ler + '_group_kde_mean.eps'), bbox_inches="tight")
             plt.close('all')
             
-        groups_labels_sum = np.asarray(['Position', 'STD', 'SNR', 'Others'])
+        groups_labels_sum = np.asarray(['Position', 'STD', 'SNR', 'Others', 'Connectivity'])
         if classif:
             groups_index_sum = [np.arange(0,12), np.arange(12,22), np.arange(22,25), \
-                                np.asarray([0,25])] 
+                                np.asarray([0,25]), np.arange(26,42)] 
         else:
             groups_index_sum = [np.arange(1,13), np.arange(13,23), np.arange(23,26), \
-                                np.asarray([0,26])] 
+                                np.asarray([0,26]), np.arange(27,43)] 
             
         for cc, col_ler in enumerate(columns_ler):
             for gr, group in enumerate(groups_labels_sum):
@@ -1141,6 +1152,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
                 
         
         folder_plots_ITPT_f = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT', 'features')
+        print('plotting ITPT GC features')
         if classif:
             GC_index = np.arange(26,42)
             index = np.arange(26,42)
@@ -1176,7 +1188,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
             fig12.savefig(os.path.join(folder_plots_gro, col_ler + '_PT_con_summ.eps'), bbox_inches="tight")
             plt.close('all')
             
-            
+            labels_to_study = labels_to_study.tolist()
             indexei = labels_to_study.index('GC_per_ens_ind')
             indexer = labels_to_study.index('GC_per_ens_red')
             indexie = labels_to_study.index('GC_per_ind_ens')
@@ -1265,6 +1277,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         #************************************************************************************************************************
         # check for all models together! ***************************************************************************************
         #**************************************************************************************************************************
+        print('plotting MODEL Stuff')
         folder_plots_ITPTm = os.path.join(folder_main, 'plots', 'XGBoost', 'model', 'ITPT')
         if not os.path.exists(folder_plots_ITPTm):
             os.makedirs(folder_plots_ITPTm)
@@ -1401,7 +1414,7 @@ def plot_ITPT(df, folder_main, labels_to_study, shap_experiment_mean):
     columns_ler = [columns[6]]
     folder_plots_ITPT_f = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT', 'features')
     if not os.path.exists(folder_plots_ITPT_f):
-            os.makedirs(folder_plots_ITPF_f)
+            os.makedirs(folder_plots_ITPT_f)
     all_IT = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
     all_PT = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
     all_df_IT = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan

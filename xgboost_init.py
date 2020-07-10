@@ -57,7 +57,7 @@ else:
     error_msemax=[0.035] #[0.035,0.8,0.03,0.3,1.4,4]
 
 ### xgboost
-to_load_xgboost = os.path.join(folder_main, 'XGShap_model_1000.h5py')
+to_load_xgboost = os.path.join(folder_main, 'XGShap_model.h5py')
 f = h5py.File(to_load_xgboost, 'r')
 labels_to_study = f.attrs['labels_to_study']
 all_shap = np.asarray(f['all_shap'])
