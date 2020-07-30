@@ -1492,6 +1492,104 @@ def spread_normal(spread):
             ktest.append(kt)
             ktestpval.append(pval)
     
+    
+def ITCC_CSTR(folder_main):
+    folder_plots_ITPT_cc = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT', 'CC_CSTR')
+    if not os.path.exists(folder_plots_ITPT_cc):
+            os.makedirs(folder_plots_ITPT_cc)
+    columns = df.columns.tolist()
+    columns_ler = [columns[6]]
+
+    all_ITcc = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    all_ITcs = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    all_PT = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    all_df_ITcc = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    all_df_ITcs = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    all_df_PT = np.zeros((len(columns_ler), len(labels_to_study))) + np.nan
+    index_ITcs = (df['depth_min'] > 400) & (df['ITPTlabel'] == 0)
+    index_ITcc = (df['depth_max'] < 400) & (df['ITPTlabel'] == 0)
+    index_PT = df['ITPTlabel']==1
+    index_IT = df['ITPTlabel']==0
+    bins_shap = np.arange(-0.04,0.06,0.001)
+    
+    for cc, col_ler in enumerate(columns_ler):
+        for ll, label in enumerate(labels_to_study):
+            aux_ITcc = shap_experiment_mean[cc,index_ITcc,ll]
+            aux_ITcs = shap_experiment_mean[cc,index_ITcs,ll]
+            aux_PT = shap_experiment_mean[cc,index_PT,ll]
+            aux_df_ITcc = np.asarray(df[label][index_ITcc])
+            aux_df_ITcs = np.asarray(df[label][index_ITcs])
+            aux_df_PT = np.asarray(df[label][index_PT])
+            all_ITcc[cc,ll] = np.nanmean(aux_ITcc)
+            all_ITcs[cc,ll] = np.nanmean(aux_ITcs)
+            all_PT[cc,ll] = np.nanmean(aux_PT)
+            all_df_ITcc[cc,ll] = np.nanmean(aux_df_ITcc)
+            all_df_ITcs[cc,ll] = np.nanmean(aux_df_ITcs)
+            all_df_PT[cc,ll] = np.nanmean(aux_df_PT)
+            
+            fig1 = plt.figure(figsize=(12,8))
+            ax1 = fig1.add_subplot(2, 2, 1)
+            [h_ITcc,b] = np.histogram(aux_ITcc, bins_shap)
+            [h_PT,b] = np.histogram(aux_PT, bins_shap)
+            [h_ITcs,b] = np.histogram(aux_ITcs, bins_shap)
+            ax1.bar(b[1:], h_ITcc, width=0.001, label='ITcc')
+            ax1.bar(b[1:], h_PT, width=0.001, label='PT')
+            ax1.bar(b[1:], h_ITcs, width=0.001, label='ITcs')
+            ax1.set_xlabel('SHAP values')
+            ax1.legend()
+            
+            ax2 = fig1.add_subplot(2, 2, 2)
+            ax2.bar([0.4,1.4, 2.4], [all_ITcc[cc,ll], all_ITcs[cc,ll], all_PT[cc,ll]], width=0.8, \
+                    yerr=[pd.DataFrame(aux_ITcc).sem(0).values[0], pd.DataFrame(aux_ITcs).sem(0).values[0], \
+                          pd.DataFrame(aux_PT).sem(0).values[0]], error_kw=dict(ecolor='k'))
+            ax2.set_xticks([0.4,1.4, 2.4])
+            ax2.set_xticklabels(['ITcc', 'ITcs', 'PT'])
+            ax2.set_ylabel('SHAP values')
+            _, p_value = stats.ttest_ind(aux_ITcc, aux_PT, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax2.text(0.8, 0.001, p, color='grey', alpha=0.6)
+            _, p_value = stats.ttest_ind(aux_ITcs, aux_PT, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax2.text(1.8, 0.001, p, color='grey', alpha=0.6)
+            _, p_value = stats.ttest_ind(aux_ITcc, aux_ITcs, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax2.text(0.4, -0.00001, p, color='grey', alpha=0.6)
+            
+            ax3 = fig1.add_subplot(2, 2, 3)
+            bins_feat = np.linspace(np.nanmin([np.nanmin(aux_df_ITcc), np.nanmin(aux_df_ITcs) , np.nanmin(aux_df_PT)]), \
+                                    np.nanmax([np.nanmax(aux_df_ITcc), np.nanmax(aux_df_ITcs), np.nanmax(aux_df_PT)]), 100)
+            [h_ITcc,b] = np.histogram(aux_df_ITcc, bins_feat)
+            [h_PT,b] = np.histogram(aux_df_PT, bins_feat)
+            [h_ITcs,b] = np.histogram(aux_df_ITcs, bins_feat)
+            ax3.bar(b[1:], h_ITcc, width=np.diff(bins_feat)[0], label='ITcc')
+            ax3.bar(b[1:], h_PT, width=np.diff(bins_feat)[0], label='PT')
+            ax3.bar(b[1:], h_ITcs, width=np.diff(bins_feat)[0], label='ITcs')
+            ax3.set_xlabel(label)
+            ax3.legend()
+            
+            ax4 = fig1.add_subplot(2, 2, 4)
+            ax4.bar([0.4,1.4, 2.4], [all_df_ITcc[cc,ll], all_df_ITcs[cc,ll], all_df_PT[cc,ll]], width=0.8, \
+                    yerr=[pd.DataFrame(aux_df_ITcc).sem(0).values[0], pd.DataFrame(aux_df_ITcs).sem(0).values[0],\
+                          pd.DataFrame(aux_df_PT).sem(0).values[0]], error_kw=dict(ecolor='k'))
+            ax4.set_xticks([0.4,1.4, 2.4])
+            ax4.set_xticklabels(['ITcc', 'ITcs', 'PT'])
+            _, p_value = stats.ttest_ind(aux_df_ITcc, aux_df_PT, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax4.text(0.8, all_df_ITcc[cc,ll], p, color='grey', alpha=0.6)
+            _, p_value = stats.ttest_ind(aux_df_ITcs, aux_df_PT, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax4.text(1.8, all_df_ITcs[cc,ll], p, color='grey', alpha=0.6)
+            _, p_value = stats.ttest_ind(aux_df_ITcc, aux_df_ITcs, nan_policy='omit')
+            p = uc.calc_pvalue(p_value)
+            ax4.text(0.4, all_df_ITcc[cc,ll], p, color='grey', alpha=0.6)
+            ax4.set_ylabel(label)
+            
+            
+            fig1.savefig(os.path.join(folder_plots_ITPT_cc, col_ler + '_' + label + '_ITPT.png'), bbox_inches="tight")
+            fig1.savefig(os.path.join(folder_plots_ITPT_cc, col_ler + '_' + label + '_ITPT.eps'), bbox_inches="tight")
+            plt.close('all')
+
+    
         
         
 
