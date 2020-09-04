@@ -1,4 +1,5 @@
 te-causality
+*.DS_Store
 *.ipynb
 .gitignore
 __pycache__
