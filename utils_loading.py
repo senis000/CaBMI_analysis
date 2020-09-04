@@ -64,14 +64,16 @@ def get_redlabel(folder, animal, day):
     return labels
 
 
-def path_prefix_free(path, symbol='/'):
+def path_prefix_free(path):
+    symbol = os.path.sep
     if path[-len(symbol):] == symbol:
         return path[path.rfind(symbol,0, -len(symbol))+len(symbol):-len(symbol)]
     else:
         return path[path.rfind(symbol)+len(symbol):]
 
 
-def file_folder_path(f, symbol='/'):
+def file_folder_path(f):
+    symbol = os.path.sep
     len_sym = len(symbol)
     if f[-len_sym:] == symbol:
         return f[:f.rfind(symbol, 0, -len_sym)]
@@ -122,7 +124,15 @@ def encode_to_filename(path, animal, day, hyperparams=None):
     elif category == 'IBI':
         template = "IBI_{}_{}_" + hyperparams + ".hdf5"
     elif category == 'utils':
-        template = hyperparams+'_{}_{}.hdf5'
+        if 'granger' in hyperparams:
+            hyperparams = hyperparams[7:]
+            if hyperparams == "":
+                hyperparams = "_baseline_red_ens-indirect_dff_order_auto"
+            hyperparams = hyperparams[1:]
+            path = os.path.join(path, "FC", "statsmodel")
+            template = f"{hyperparams}.p"
+        else:
+            template = hyperparams+'_{}_{}.hdf5'
     else:
         template = category + '_{}_{}.hdf5'
         #raise ValueError("Category Undefined")

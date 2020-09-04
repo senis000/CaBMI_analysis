@@ -200,3 +200,6 @@ def signal_partition(data_array, perc=50, debug=False):
         return peak_regions, IPIs, points
     else:
         return peak_regions, IPIs
+
+
+

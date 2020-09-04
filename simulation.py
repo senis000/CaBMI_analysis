@@ -160,24 +160,35 @@ def regularize_simulation_name_codes(simulation):
 
 class SpikeCalciumizer:
 
-    MODELS = ['Leogang']
-    tauImg = 100 #ms;
-    fluorescence_model = "Leogang"
-    std_noise = 0.03 # percentage of the saturation level
-    fluorescence_saturation = 300.
-    cutoff = 1000.
-    DeltaCalciumOnAP = 50. #uM
+    MODELS = ['Leogang', 'AR']
+    fmodel = "Leogang"
+    std_noise = 0.03 # percentage of the saturation level or absolute noise power
+    fluorescence_saturation = 0. # 300.
+    alpha = 1. #50 uM
+    bl = 0
+    tauImg = 100  # ms;
     tauCa = 400. #ms
+    AR_order = None
+    g = None
     ALIGN_TO_FIRST_SPIKE = True
+    cutoff = 1000.
 
-    def __init__(self, params=None):
-        if params is not None:
-            for p in params:
-                if hasattr(self, p):
-                    setattr(self, p, params[p])
-                else:
-                    raise RuntimeError(f'Unknown Parameter: {p}')
-        assert self.fluorescence_model in self.MODELS
+    def __init__(self, **params):
+        for p in params:
+            if hasattr(self, p):
+                setattr(self, p, params[p])
+            else:
+                raise RuntimeError(f'Unknown Parameter: {p}')
+        if self.fmodel.startswith('AR'):
+            # IndexOutOfBound: not of AR_[order]
+            # ValueError: [order] is not int type
+            self.AR_order = int(self.fmodel.split('_')[1])
+            assert self.g is not None and len(self.g) == self.AR_order
+        elif self.fmodel == 'Leogang':
+            self.AR_order = 1
+            self.g = [1-self.tauImg/self.tauCa]
+        else:
+            assert self.fmodel in self.MODELS
 
     # TODO: potentially offset the time signature such that file is aligned with the first spike
     def apply_transform(self, spikes, size=None, sample=None):
@@ -218,31 +229,37 @@ class SpikeCalciumizer:
             raise RuntimeError("Bad Arguments")
         return self.apply_transform(spikes, sample=sample)
 
-    def binned_spikes_to_calcium(self, neuron_acts, fast_inverse=False):
+    def binned_spikes_to_calcium(self, neuron_acts, c0=0, fast_inverse=False):
         """
         :param neuron_acts: np.ndarray N x T (neuron x samples)
         :param fast_inverse: whether to use fast reverse. two methods return the same values
         :return:
         """
         # TODO; determine how many spikes were in the first bin
-        calcium = np.zeros_like(neuron_acts)
+        if len(neuron_acts.shape) == 1:
+            print("input must be 2d array with shape (neuron * timestamps)")
+        calcium = np.zeros(neuron_acts.shape, dtype=np.float)
         T = neuron_acts.shape[-1]
-        gamma = 1-self.tauImg/self.tauCa
-        fluor_gain = self.DeltaCalciumOnAP * neuron_acts
-        if self.fluorescence_model == 'Leogang':
+        fluor_gain = self.alpha * neuron_acts
+        if self.AR_order is not None and self.g is not None:
             if fast_inverse:
-                G = spdiags([np.ones(T), np.full(T, -gamma)], [0, -1], format='csc')
+                G = spdiags([np.ones(T)] + [np.full(T, -ig) for ig in self.g],
+                            np.arange(0, -self.AR_order-1, step=-1),format='csc')
                 calcium = fluor_gain @ sp_linalg.inv(G.T)
             else:
                 calcium[:, 0] = fluor_gain[:, 0]
                 for t in range(1, T):
-                    calcium[:, t] = gamma * calcium[:, t-1] + fluor_gain[:, t]
+                    ar_sum = np.sum([calcium[:, t-i] * self.g[i-1] for i in range(1, min(t,self.AR_order)+1)],
+                                    axis=0)
+                    calcium[:, t] = ar_sum + fluor_gain[:, t]
         else:
-            raise NotImplementedError(f"Unidentified Model {self.fluorescence_model}")
+            raise NotImplementedError(f"Unidentified Model {self.fmodel}")
         if self.fluorescence_saturation > 0:
             calcium = self.fluorescence_saturation * calcium / (calcium + self.fluorescence_saturation)
+        calcium += self.bl # TODO: determine whether it is better to add baseline before or after saturation
         if self.std_noise:
-            calcium += np.random.normal(0, self.std_noise * self.fluorescence_saturation, calcium.shape)
+            multiplier = self.fluorescence_saturation if self.fluorescence_saturation > 0 else 1
+            calcium += np.random.normal(0, self.std_noise * multiplier, calcium.shape)
         return calcium
 
     def loop_test(self, length, iterations=1000, fast_inv=False):
@@ -256,6 +273,10 @@ class SpikeCalciumizer:
             self.binned_spikes_to_calcium(rs, fast_inv)
             times[j] = time.time() - t0
         return times
+
+
+def test_ar(calcium, t, AR_order, g):
+    return
 
 
 def generate_calcium_data_from_spikes(folder, out):
@@ -497,7 +518,7 @@ def fc_evaluation_granger_statsmodel(gcs_val, p_vals, truth, tag):
     return corrs, corrs2, TPs
 
 
-def fc_evaluation_granger(inet_folder, truth, tag):
+def fc_evaluation_granger(inet_folder, truth, tag, with_random=True):
     # TODO: add ROC
     allfiles = [f for f in os.listdir(inet_folder) if f[-2:] == '.p']
     all_aucs = {}
@@ -508,10 +529,17 @@ def fc_evaluation_granger(inet_folder, truth, tag):
             fc_vals = pickle.load(pfile)
         if isinstance(fc_vals, list):
             fc_vals = fc_vals[0]
+        if len(fc_vals.shape) == 3 and fc_vals.shape[-1] == 1:
+            fc_vals = fc_vals[:, :, 0]
         if 'PVAL' in f:
             fc_vals = 1-fc_vals
         aucs = fc_evaluation_ROC(fc_vals, truth, tag, ax=None, lag=signs[4])
         all_aucs[tag] = aucs
+    if with_random:
+        fc_vals_random = np.random.random(truth.shape)
+        tag_random = 'random'
+        aucs = fc_evaluation_ROC(fc_vals_random, truth, tag_random, ax=None, lag=0)
+        all_aucs[tag_random] = aucs
     return all_aucs
 
 

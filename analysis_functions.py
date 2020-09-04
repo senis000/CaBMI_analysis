@@ -44,6 +44,7 @@ try:
     from caiman.motion_correction import MotionCorrect
     from caiman.components_evaluation import estimate_components_quality_auto
     from caiman.source_extraction.cnmf.deconvolution import constrained_foopsi
+    from caiman.source_extraction.cnmf.deconvolution import GetSn
 except ModuleNotFoundError:
     print("CaImAn not installed or environment not activated, certain functions might not be usable")
 
@@ -112,6 +113,7 @@ def statsmodel_granger(rois, maxlag=5, useLast=True):
     :param rois: N x T where N is the number of variables and T the total number of time frames
     :param maxlag:
     :return:
+    # likelihood ratio, ssr
     """
     gcs_val = np.zeros((rois.shape[0], rois.shape[0], maxlag))
     tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
@@ -165,7 +167,29 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                  ic='bic', sessions=None):
     # folder: root folder containing processed/ and raw/
     # out: root folder for all analysis util data
+    """
+    :param folder:
+    :param roi:
+    :param input_type:
+    :param out:
+    :param lag:
+    :param method:
+    :param ic:
+    :param sessions:
+    Output:
+        pickle_dict: dict used to generate pickle file:
+            note: fields coming in pairs has {A}_{B}, {B}_{A} for both directions; fields coming in singles
+            are square matrices for bidirectional connectivity
+            indices_{A}-{B}: indices for hdf5['dff'] of neurons in group A
+            FC_{A}-{B}: FC value from neurons in A to neurons in B
+            FC_pval_{A}-{B}: p value for the FC from neurons in A to neurons in B
+            indices{ROI}: indices of the neurons in ROI
+            FC_{ROI}: square matrices of pairwise FC activity with (r, c) and (c, r) as bi-directional FC
+            FC_pval_{ROI}: square matrices of p values for the FCs in FC_{ROI}
+    """
+    # TODO: fix granger causality results
     processed = os.path.join(folder, 'processed')
+    lagO = lag
     ogOUT = out
     ogLAG = lag
     skips = []
@@ -181,17 +205,20 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
     for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
         for day in get_animal_days(animal_path):
-            if lag == 'auto':
+            if lagO == 'auto':
                 while granger_df is None:
                     gdf_file = os.path.join(out, "granger_order_selections.csv")
                     if os.path.exists(gdf_file):
                         granger_df = pd.read_csv(gdf_file)
                         granger_df['day'] = granger_df['day'].astype(str)
-                        lag = granger_df.loc[(granger_df.animal == animal) & (granger_df.day == day), ic]
-                        if isinstance(lag, pd.Series):
-                            lag = max(lag.values.item(), 1)
+                        # lag = granger_df.loc[(granger_df.animal == animal) & (granger_df.day == day), ic]
+                        # if isinstance(lag, pd.Series):
+                        #     lag = max(lag.values.item(), 1)
                     else:
                         calculate_granger_orders(folder, input_type, out=ogOUT)
+                lag = granger_df.loc[(granger_df.animal == animal) & (granger_df.day == day), ic]
+                if isinstance(lag, pd.Series):
+                    lag = max(lag.values.item(), 1)
             pbar.loop_start()
             out_path = os.path.join(out, method, animal, day)
             if not os.path.exists(out_path):
@@ -226,11 +253,13 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
                         elif roi == 'ens':
                             ens = np.array(hf['ens_neur'])
                             ens = ens[~np.isnan(ens)].astype(np.int)
+                            #ens = np.unique(ens)
                             selectors = ens
                         else:
                             # 'red_ens-indirect'
                             ens = np.array(hf['ens_neur'])
                             ens = ens[~np.isnan(ens)].astype(np.int)
+                            #ens = np.unique(ens)
                             neurs = np.array(hf['nerden'])
                             reds = np.array(hf['redlabel'])
                             selectors = [reds, (ens, (~reds) & neurs)]
@@ -282,14 +311,17 @@ def calculate_fc(folder, roi='red_ens-indirect', input_type='dff', out=None, lag
     return skips
 
 
-def granger_select_order(rois, maxlag=5, ic='bic'):
+def granger_select_order(rois, maxlag=5, ic=None):
     # rois: N x T, Returns dictionary containing different criterion ('aic', 'bic', 'hqic')
     mod = smt.VAR(rois.T)
     #res = mod.fit(maxlags=maxlag, ic=ic) # TOOD: fix bug in statsmodel OVERFLOW
     orders = mod.select_order(maxlags=maxlag)
     # OverflowError: (34, 'Result too large')
     #TODO: FIND OUT THE BEST IC
-    return orders.selected_orders
+    result = orders.selected_orders
+    if ic is not None:
+        return result[ic]
+    return result
 
 
 def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=5, sessions=None, save=True):
@@ -323,6 +355,7 @@ def calculate_granger_orders(folder, input_type='dff', out=None, maxlags=5, sess
                     redlabel = np.array(hf['redlabel'])
                     ens = np.array(hf['ens_neur'])
                     ens = ens[~np.isnan(ens)].astype(np.int)
+                    #ens = np.unique(ens)
                 success = True
             except (OSError,FileNotFoundError) as e:
                 if first_encounter:
@@ -1279,7 +1312,11 @@ def caiman_SNR(xs, ys, source='raw', verbose=False):
         dbl: specify baseline in foopsi
         df: feed filtered signal to caiman
     """
-    if source == 'raw':
+    if source == 'fast':
+        sn = GetSn(ys)
+        sigpower = np.mean(np.square(ys)) - sn ** 2
+        return sigpower / (sn ** 2)
+    elif source == 'raw':
         c, bl, c1, g, sn, sp, lam = constrained_foopsi(ys, p=2)
     elif source == 'dff':
         dff = calcium_dff(xs, ys)
@@ -1297,6 +1334,19 @@ def caiman_SNR(xs, ys, source='raw', verbose=False):
         print(source, f'snr: {snr:.5f}', f'noise: {sn:.5f}', f'sigpower: {sigpower:.5f}',
               f'putative power: {(np.mean(np.square(ys-bl))-sn**2):.5f}')
     return snr
+
+
+def SNR_source_noise(ys, sn):
+    """
+    :param ys: signal (N * T), N: number of channels, T: duration of signal
+    :param sn: noise powers (std) (N)
+    :return: SNRs
+    """
+    m2 = np.mean(ys, axis=1) ** 2
+    # m2= 0
+    sn2 = sn ** 2
+    s2 = np.var(ys, ddof=1, axis=1) + m2
+    return (s2 - sn2) / sn2
 
 
 def online_dff_single_session(folder, animal, day):

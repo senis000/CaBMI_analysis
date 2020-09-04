@@ -86,6 +86,7 @@ def calcium_to_peak_times_all(folder, groups, low=1, high=20):
 
 
 def get_roi_type(processed, animal, day):
+    # TODO: fix problems when ens becomes None
     rois = None
     if isinstance(processed, str):
         hfile = h5py.File(encode_to_filename(processed, animal, day), 'r')
@@ -96,7 +97,13 @@ def get_roi_type(processed, animal, day):
     nerden = np.array(hfile['nerden'])
     redlabel = np.array(hfile['redlabel'])
     ens_neur = np.array(hfile['ens_neur'])
-    e2_neur = ens_neur[hfile['e2_neur']] if 'e2_neur' in hfile else None
+    ens_neur = ens_neur[~np.isnan(ens_neur)].astype(np.int)
+    e2_neur = None
+    if 'e2_neur' in hfile:
+        temp = np.array(hfile['e2_neur'])
+        if ~np.any(np.isnan(temp)):
+            e2_neur = temp.astype(np.int)
+
     if isinstance(processed, str):
         hfile.close()
     rois[nerden & ~redlabel] = 'IG'
@@ -106,7 +113,6 @@ def get_roi_type(processed, animal, day):
         rois[e2_neur] = 'E2'
     else:
         rois[ens_neur] = 'E'
-    hfile.close()
     return rois
 
 

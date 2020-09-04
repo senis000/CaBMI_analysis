@@ -13,7 +13,7 @@ import seaborn as sns
 from matplotlib import interactive
 interactive(True)
 
-import utils_cabmmi as ut
+import utils_cabmi as ut
 import analysis_cabmi as acb     
 
 
