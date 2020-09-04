@@ -516,8 +516,8 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
         ind_sel = np.isin(roi_type, ['IR', 'IG'])
         nerden = np.array(hfile['nerden'])
         dff = np.array(hfile['dff'])
-        dff_e = dff[e_sel & nerden, :]
-        dff_ind = dff[ind_sel & nerden, :]
+        dff_e = dff[e_sel, :]
+        dff_ind = dff[ind_sel, :]
 
     dff_all = np.vstack([dff_e, dff_ind])
     if randN is not None:
@@ -778,14 +778,16 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
         dff_e_rshuffle = np.vstack([deconvolve_reconvolve(dff_e[i], shuffle=True)
                                     for i in range(dff_e.shape[0])])
         dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
-                                      for i in range(dff_e.shape[0])])
+                                      for i in range(dff_inds.shape[0])])
         dff_all_rshuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
 
         # calculate granger causality for the reconvolved data
         lag = granger_select_order(dff_all_rshuffle, maxlag=5, ic='bic')
         gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
                                                           dff_ind_rshuffle, lag, False)
+        p_vals1 = p_vals1['ssr_chi2test']
         gcs_val1[p_vals1 > thres] = 0
+        gcs_val1 = gcs_val1[:, :, -1]
         assert gcs_val1.shape == ens_to_I.shape
         assert np.allclose(GC_hf_inds, GC_inds)
 
@@ -798,6 +800,8 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
             lag = granger_select_order(dff_all_reconv, maxlag=5, ic='bic')
             gcs_val0, p_vals0 = statsmodel_granger_asymmetric(dff_e_reconv,
                                                               dff_ind_reconv, lag, False)
+            p_vals0 = p_vals0['ssr_chi2test']
+            gcs_val0 = gcs_val0[:, :, -1]
             gcs_val0[p_vals0 > thres] = 0
             assert gcs_val0.shape == ens_to_I.shape
             assert np.allclose(GC_hf_inds, GC_inds)
