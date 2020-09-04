@@ -371,6 +371,7 @@ def noise_free_corr(d1, d2, sn1, sn2=-1, tag="", cov_correct=0, noise_thres=0, s
         if show:
             fig, axes = plt.subplots(1, 1)
             corrs_nonan, corrs0_nonan = corrs[~np.isnan(corrs)], corrs0[~np.isnan(corrs0)]
+            print(corrs0_nonan.shape, corrs_nonan.shape)
             sns.distplot(corrs_nonan, ax=axes, label='noise-corrected')
             sns.distplot(corrs0_nonan, ax=axes, label='raw')
             axes.set_title(f'thres: {noise_thres} Max Corr: {np.nanmax(corrs):.4f} Mean Corr: '
@@ -513,9 +514,10 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
         roi_type = get_roi_type(hfile, animal, day)
         e_sel = np.isin(roi_type, ['E1', 'E2', 'E'])
         ind_sel = np.isin(roi_type, ['IR', 'IG'])
+        nerden = np.array(hfile['nerden'])
         dff = np.array(hfile['dff'])
-        dff_e = dff[e_sel, :]
-        dff_ind = dff[ind_sel, :]
+        dff_e = dff[e_sel & nerden, :]
+        dff_ind = dff[ind_sel & nerden, :]
 
     dff_all = np.vstack([dff_e, dff_ind])
     if randN is not None:
@@ -535,6 +537,8 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
 
     TAG = f'{animal}_{day}_dff_reconvolve'
     for nthres in [0, 0.5, 1]:
+        corrs_clean = noise_free_corr(dff_all, recleans, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
+                                show=showPlot)
         corrs = noise_free_corr(dff_all, reconvs, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
                                 show=showPlot)
     ksps = test_distribution(dff_all, reconvs, tag1='dff', tag2='reconvolve', alltag=TAG, save=savePlot,
@@ -542,8 +546,10 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
     return corrs, ksps
 
 
-def reconvolve_shuffle(calcium, c2spike=None, spike2c=None, conv_p=2, f_saturation=0, **kwargs):
-    """ Takes in 1D calcium data after filtering baseline, deconvolve, shuffle spikes, and then reconvolve
+def deconvolve_reconvolve(calcium, c2spike=None, spike2c=None, shuffle=False, conv_p=2, f_saturation=0,
+                          **kwargs):
+    """ Takes in 1D calcium data after filtering baseline, deconvolve, shuffle spikes (if shuffle equals
+    True), and then reconvolve
     signal
     :param calcium:
     :param p:
@@ -555,9 +561,9 @@ def reconvolve_shuffle(calcium, c2spike=None, spike2c=None, conv_p=2, f_saturati
         deconv_params = {"p": 2, "bas_nonneg":False, "optimize_g": True,
                          "s_min": 0, "lags": 5, "fudge_factor": 1.}
         deconv_params.update(kwargs)
-        p = deconv_params['p']
-        c, bl, c1, g, sn, sp, lam = deconvolution.constrained_foopsi(calcium, p=p, **deconv_params)
-        np.random.shuffle(sp)
+        c, bl, c1, g, sn, sp, lam = deconvolution.constrained_foopsi(calcium, **deconv_params)
+        if shuffle:
+            np.random.shuffle(sp)
         fluorescence_model = f"AR_{conv_p}"
         spc = SpikeCalciumizer(fmodel=fluorescence_model, fluorescence_saturation=f_saturation,
                                std_noise=sn, alpha=1, g=g, bl=bl)
@@ -566,7 +572,8 @@ def reconvolve_shuffle(calcium, c2spike=None, spike2c=None, conv_p=2, f_saturati
     else:
         assert spike2c is not None, "specific c2spike must have corresponding spike to calcium function"
         sp = c2spike(calcium)
-        np.random.shuffle(sp)
+        if shuffle:
+            np.random.shuffle(sp)
         reconv = spike2c(sp)
     return reconv
 
@@ -703,8 +710,10 @@ def ens_to_ind_GC_reconv_shuffle_test_single_session(folder, animal, day, thres=
         GC_inds, ens_to_I = get_ens_to_indirect_GC(pfname, roi_type, thres=0.05)
 
         # reconvolve shuffle dff_e and dff_ind
-        dff_e_rshuffle = np.vstack([reconvolve_shuffle(dff_e[i]) for i in range(dff_e.shape[0])])
-        dff_ind_rshuffle = np.vstack([reconvolve_shuffle(dff_inds[i]) for i in range(dff_e.shape[0])])
+        dff_e_rshuffle = np.vstack([deconvolve_reconvolve(dff_e[i], shuffle=True)
+                                    for i in range(dff_e.shape[0])])
+        dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
+                                      for i in range(dff_e.shape[0])])
         dff_all_shuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
 
         # calculate granger causality for the reconvolved data
@@ -737,7 +746,8 @@ def ens_to_ind_GC_reconv_shuffle_test_single_session(folder, animal, day, thres=
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 
 
-def ens_to_ind_GC_double_recon_shuffle_test_single_session(folder, animal, day, thres=0.05):
+def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day, test_reconv=True,
+                                                            thres=0.05):
     """ Calculates granger causality from ensemble to indirect neurons
     :param ens_dff: E * T, E: number ensemble neurons
     :param ind_dff: I * T, I: number of indirect neurons
@@ -765,19 +775,45 @@ def ens_to_ind_GC_double_recon_shuffle_test_single_session(folder, animal, day, 
         GC_inds, ens_to_I = get_ens_to_indirect_GC(pfname, roi_type, thres=0.05)
 
         # reconvolve shuffle dff_e and dff_ind
-        dff_e_rshuffle = np.vstack([reconvolve_shuffle(dff_e[i]) for i in range(dff_e.shape[0])])
-        dff_ind_rshuffle = np.vstack([reconvolve_shuffle(dff_inds[i]) for i in range(dff_e.shape[0])])
-        dff_all_shuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
+        dff_e_rshuffle = np.vstack([deconvolve_reconvolve(dff_e[i], shuffle=True)
+                                    for i in range(dff_e.shape[0])])
+        dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
+                                      for i in range(dff_e.shape[0])])
+        dff_all_rshuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
 
         # calculate granger causality for the reconvolved data
-        lag = granger_select_order(dff_all_shuffle, maxlag=5, ic='bic')
+        lag = granger_select_order(dff_all_rshuffle, maxlag=5, ic='bic')
         gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
                                                           dff_ind_rshuffle, lag, False)
         gcs_val1[p_vals1 > thres] = 0
         assert gcs_val1.shape == ens_to_I.shape
         assert np.allclose(GC_hf_inds, GC_inds)
 
-        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
+        # reconv comparison
+        if test_reconv:
+            # reconvolve dff_e and dff_ind
+            dff_e_reconv = np.vstack([deconvolve_reconvolve(dff_e[i]) for i in range(dff_e.shape[0])])
+            dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_e.shape[0])])
+            dff_all_reconv = np.vstack([dff_e_reconv, dff_ind_reconv])
+            lag = granger_select_order(dff_all_reconv, maxlag=5, ic='bic')
+            gcs_val0, p_vals0 = statsmodel_granger_asymmetric(dff_e_reconv,
+                                                              dff_ind_reconv, lag, False)
+            gcs_val0[p_vals0 > thres] = 0
+            assert gcs_val0.shape == ens_to_I.shape
+            assert np.allclose(GC_hf_inds, GC_inds)
+            fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 10))
+            visualize_gc_pairs(ens_to_I, gcs_val0, "GC", "reconvGC", axes[0], diff_label='d(raw,reconv)',
+                               verbose=True)
+            visualize_gc_pairs(gcs_val0, gcs_val1, "reconvGC", "rshufGC", axes[1], diff_label='normalized',
+                               verbose=True)
+            visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes[2], diff_label='normalized',
+                               verbose=True)
+        else:
+            fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
+            visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes, diff_label='normalized',
+                               verbose=True)
+
+
         # compare the unconnected pairs
         unconn_sel = ens_to_I == 0
         sns.distplot(gcs_val1[unconn_sel], ax=axes[0], label="shuffled")
@@ -797,6 +833,27 @@ def ens_to_ind_GC_double_recon_shuffle_test_single_session(folder, animal, day, 
         axes[2].set_title(f"normalized GC to shuffled (connected pair)\nW: {w:.3f} p: {pw:.3f}")
     else:
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
+
+
+def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', verbose=True):
+    # compare the unconnected pairs
+    unconn_sel = gcs0 == 0
+    sns.distplot(gcs1[unconn_sel], ax=axes[0], label="shuffled")
+    axes[0].axvline(0, 'b--')
+    axes[0].set_title(f"{tag1} (paired with {tag0}=0)")
+    # compare connected pairs
+    conn_sel = gcs0 > 0
+    conn1 = gcs1[conn_sel]
+    conn0 = gcs0[conn_sel]
+    ksps = test_distribution(conn1.ravel(), conn0.ravel(), tag1=tag1, tag2=tag0,
+                             alltag='', show=True, ax=axes[1])
+    if verbose:
+        print(tag0, tag1, ksps)
+    axes[1].set_title(f"{tag0} vs {tag1} (connected pair),\nP_ks = {ksps:.4f}")
+    sns.distplot(conn0 - conn1, ax=axes[2], label=diff_label)
+    w, pw = wilcoxon(conn0 - conn1)
+    axes[2].axvline(0, 'b--')
+    axes[2].set_title(f"{diff_label} GC distribution (connected pair)\nW: {w:.3f} p: {pw:.3f}")
 
 
 
