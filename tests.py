@@ -12,7 +12,10 @@ import pandas as pd
 # Plotting
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.express as px
+try:
+    import plotly.express as px
+except ModuleNotFoundError:
+    print("plotly not installed, certain functions might not be usable")
 # Caiman
 try:
     import caiman as cm
@@ -367,9 +370,11 @@ def noise_free_corr(d1, d2, sn1, sn2=-1, tag="", cov_correct=0, noise_thres=0, s
             corrs0 = np.array(corrs0)
         if show:
             fig, axes = plt.subplots(1, 1)
-            sns.distplot(corrs, ax=axes, label='noise-corrected')
-            sns.distplot(corrs0, ax=axes, label='raw')
-            axes.set_title(f'Max Corr: {np.nanmax(corrs):.4f} Mean Corr: {np.nanmean(corrs):.4f}')
+            corrs_nonan, corrs0_nonan = corrs[~np.isnan(corrs)], corrs0[~np.isnan(corrs0)]
+            sns.distplot(corrs_nonan, ax=axes, label='noise-corrected')
+            sns.distplot(corrs0_nonan, ax=axes, label='raw')
+            axes.set_title(f'thres: {noise_thres} Max Corr: {np.nanmax(corrs):.4f} Mean Corr: '
+                           f'{np.nanmean(corrs):.4f}')
             axes.set_xlabel('Correlation')
             axes.legend()
             if save is not None:
@@ -529,7 +534,9 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
         recleans[i] = reconv_clean
 
     TAG = f'{animal}_{day}_dff_reconvolve'
-    corrs = noise_free_corr(dff_all, reconvs, all_sn, tag=TAG, save=savePlot, show=showPlot)
+    for nthres in [0, 0.5, 1]:
+        corrs = noise_free_corr(dff_all, reconvs, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
+                                show=showPlot)
     ksps = test_distribution(dff_all, reconvs, tag1='dff', tag2='reconvolve', alltag=TAG, save=savePlot,
                              show=showPlot)
     return corrs, ksps
@@ -602,13 +609,15 @@ def GC_distribution_check_single_session(folder, animal, day, gc_dist, fast_samp
     roi_type = get_roi_type(processed, animal, day)
     pfname = encode_to_filename(utils, animal, day, hyperparams='granger')
     GC_inds, ens_to_I = get_ens_to_indirect_GC(pfname, roi_type)
+    if ens_to_I.shape[0] == 0:
+        return np.nan
     ksps = test_distribution(ens_to_I.ravel(), gc_dist, "{}_{}_GC".format(animal, day), "GC_all_sessions",
                       "GC_ens-indirect"+f"fastsamp_{fast_samp}" if fast_samp else "", fast_samp=fast_samp,
                              show=show)
     return ksps
 
 
-def get_representative_GC_sessions(folder, show=False):
+def get_representative_GC_sessions(folder):
     processed = os.path.join(folder, 'processed')
     fc = os.path.join(folder, "utils/FC")
     alldist = get_general_GC_distribution(folder, resamp=None)
@@ -616,8 +625,15 @@ def get_representative_GC_sessions(folder, show=False):
     for animal in get_all_animals(processed):
         animal_path = os.path.join(processed, animal)
         for day in get_animal_days(animal_path):
-            fast_samp_KSs = GC_distribution_check_single_session(folder, animal, day, show=False)
-            #TODO: finish the method and think about valid neuron selections
+            fast_samp_KSs = [GC_distribution_check_single_session(folder, animal, day, alldist, show=False)
+                             for _ in range(10)]
+            all_KS = GC_distribution_check_single_session(folder, animal, day, alldist,
+                                                          fast_samp=None, show=False)
+            results.append([animal, day, all_KS, np.nanmean(fast_samp_KSs), np.nanmax(fast_samp_KSs)])
+    return pd.DataFrame(results, columns=['animal', 'day', 'alldist_KS_p', 'fastsamp_KS_p_mean',
+                                   'fastsamp_KS_p_max'])
+
+    #TODO: finish the method and think about valid neuron selections
 
 
 def get_general_GC_distribution(folder, resamp=0.1, concat=True, save=True):
@@ -659,7 +675,7 @@ def get_general_GC_distribution(folder, resamp=0.1, concat=True, save=True):
         return np.vstack(alles)
 
 
-def ens_to_ind_GC_reconvolve_shuffle_test_single_session(folder, animal, day, thres=0.05):
+def ens_to_ind_GC_reconv_shuffle_test_single_session(folder, animal, day, thres=0.05):
     """ Calculates granger causality from ensemble to indirect neurons
     :param ens_dff: E * T, E: number ensemble neurons
     :param ind_dff: I * T, I: number of indirect neurons
@@ -721,13 +737,66 @@ def ens_to_ind_GC_reconvolve_shuffle_test_single_session(folder, animal, day, th
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 
 
+def ens_to_ind_GC_double_recon_shuffle_test_single_session(folder, animal, day, thres=0.05):
+    """ Calculates granger causality from ensemble to indirect neurons
+    :param ens_dff: E * T, E: number ensemble neurons
+    :param ind_dff: I * T, I: number of indirect neurons
+    :return:
+    """
+    # get ens_dff, get_ind_dff
+    utils = os.path.join(folder, 'utils')
+    processed = os.path.join(folder, 'processed')
+    with h5py.File(encode_to_filename(processed, animal, day), 'r') as hfile:
+        roi_type = get_roi_type(hfile, animal, day)
+        e_sel = np.isin(roi_type, ['E1', 'E2', 'E'])
+        inds = np.arange(len(roi_type))
+        ir_sel = roi_type == 'IR'
+        ig_sel = roi_type == 'IG'
+        dff = np.array(hfile['dff'])
+        dff_e = dff[e_sel, :]
+        dff_ir = dff[ir_sel, :]
+        dff_ig = dff[ig_sel, :]
+        dff_inds = np.vstack([dff_ir, dff_ig])
+        GC_hf_inds = np.concatenate([inds[e_sel], inds[ir_sel], inds[ig_sel]])
 
+    if dff_e.shape[0] > 0:
+        # get GC ens_dff to ind_dff
+        pfname = encode_to_filename(utils, animal, day, hyperparams='granger')
+        GC_inds, ens_to_I = get_ens_to_indirect_GC(pfname, roi_type, thres=0.05)
 
+        # reconvolve shuffle dff_e and dff_ind
+        dff_e_rshuffle = np.vstack([reconvolve_shuffle(dff_e[i]) for i in range(dff_e.shape[0])])
+        dff_ind_rshuffle = np.vstack([reconvolve_shuffle(dff_inds[i]) for i in range(dff_e.shape[0])])
+        dff_all_shuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
 
+        # calculate granger causality for the reconvolved data
+        lag = granger_select_order(dff_all_shuffle, maxlag=5, ic='bic')
+        gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
+                                                          dff_ind_rshuffle, lag, False)
+        gcs_val1[p_vals1 > thres] = 0
+        assert gcs_val1.shape == ens_to_I.shape
+        assert np.allclose(GC_hf_inds, GC_inds)
 
-
-
-
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
+        # compare the unconnected pairs
+        unconn_sel = ens_to_I == 0
+        sns.distplot(gcs_val1[unconn_sel], ax=axes[0], label="shuffled")
+        axes[0].axvline(0, 'b--')
+        axes[0].set_title("shuffled GC (pair with GC=0)")
+        # compare connected pairs
+        conn_sel = ens_to_I > 0
+        conn_shuf = gcs_val1[conn_sel]
+        conn_og = ens_to_I[conn_sel]
+        ksps = test_distribution(conn_shuf.ravel(), conn_og.ravel(), tag1='shuffled', tag2='original',
+                                 alltag='',show=True, ax=axes[1])
+        print(ksps)
+        axes[1].set_title(f"GC vs shuffled (connected pair), P_ks = {ksps:.4f}")
+        sns.distplot(conn_og - conn_shuf, ax=axes[2], label="normalized")
+        w, pw = wilcoxon(conn_og - conn_shuf)
+        axes[2].axvline(0, 'b--')
+        axes[2].set_title(f"normalized GC to shuffled (connected pair)\nW: {w:.3f} p: {pw:.3f}")
+    else:
+        raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 
 
 
