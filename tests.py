@@ -30,7 +30,7 @@ except ModuleNotFoundError:
 from simulation import SpikeCalciumizer
 from utils_loading import encode_to_filename, get_all_animals, get_animal_days
 from preprocessing import get_roi_type
-from analysis_functions import granger_select_order, statsmodel_granger_asymmetric
+from analysis_functions import granger_select_order, statsmodel_granger_asymmetric, caiman_SNR
 
 
 """ ---------------------------------------------------------
@@ -539,7 +539,7 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
     for nthres in [0, 0.5, 1]:
         corrs_clean = noise_free_corr(dff_all, recleans, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
                                 show=showPlot)
-        corrs = noise_free_corr(dff_all, reconvs, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
+        corrs = noise_free_corr(dff_all, reconvs, all_sn, None, noise_thres=nthres, tag=TAG, save=savePlot,
                                 show=showPlot)
     ksps = test_distribution(dff_all, reconvs, tag1='dff', tag2='reconvolve', alltag=TAG, save=savePlot,
                              show=showPlot)
@@ -747,7 +747,7 @@ def ens_to_ind_GC_reconv_shuffle_test_single_session(folder, animal, day, thres=
 
 
 def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day, test_reconv=True,
-                                                            thres=0.05):
+                                                            thres=0.05, snr_thres=0):
     """ Calculates granger causality from ensemble to indirect neurons
     :param ens_dff: E * T, E: number ensemble neurons
     :param ind_dff: I * T, I: number of indirect neurons
@@ -795,46 +795,35 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
         if test_reconv:
             # reconvolve dff_e and dff_ind
             dff_e_reconv = np.vstack([deconvolve_reconvolve(dff_e[i]) for i in range(dff_e.shape[0])])
-            dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_e.shape[0])])
+            dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_inds.shape[0])])
             dff_all_reconv = np.vstack([dff_e_reconv, dff_ind_reconv])
             lag = granger_select_order(dff_all_reconv, maxlag=5, ic='bic')
             gcs_val0, p_vals0 = statsmodel_granger_asymmetric(dff_e_reconv,
                                                               dff_ind_reconv, lag, False)
             p_vals0 = p_vals0['ssr_chi2test']
-            gcs_val0 = gcs_val0[:, :, -1]
             gcs_val0[p_vals0 > thres] = 0
+            gcs_val0 = gcs_val0[:, :, -1]
             assert gcs_val0.shape == ens_to_I.shape
             assert np.allclose(GC_hf_inds, GC_inds)
+            snr_e = np.array([caiman_SNR(None, dff_e[i], 'fast') for i in range(len(dff_e))])
+            snr_inds = np.array([caiman_SNR(None, dff_inds[i], 'fast') for i in range(len(dff_inds))])
+            valid_sel_e = snr_e > snr_thres
+            valid_sel_inds = snr_inds > snr_thres
+            ens_to_I_valid = ens_to_I[valid_sel_e, :][:, valid_sel_inds]
+            gcs_val0_valid = gcs_val0[valid_sel_e, :][:, valid_sel_inds]
+            gcs_val1_valid = gcs_val1[valid_sel_e, :][:, valid_sel_inds]
             fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 10))
-            visualize_gc_pairs(ens_to_I, gcs_val0, "GC", "reconvGC", axes[0], diff_label='d(raw,reconv)',
-                               verbose=True)
-            visualize_gc_pairs(gcs_val0, gcs_val1, "reconvGC", "rshufGC", axes[1], diff_label='normalized',
-                               verbose=True)
-            visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes[2], diff_label='normalized',
-                               verbose=True)
+            plt.subplots_adjust(hspace=0.4)
+            visualize_gc_pairs(ens_to_I_valid, gcs_val0_valid, "GC", "reconvGC", axes[0],
+                               diff_label='d(raw,reconv)', verbose=True)
+            visualize_gc_pairs(gcs_val0_valid, gcs_val1_valid, "reconvGC", "rshufGC", axes[1],
+                               diff_label='normalized', verbose=True)
+            visualize_gc_pairs(ens_to_I_valid, gcs_val1_valid, "GC", "rshufGC", axes[2],
+                               diff_label='normalized', verbose=True)
         else:
             fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
             visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes, diff_label='normalized',
                                verbose=True)
-
-
-        # compare the unconnected pairs
-        unconn_sel = ens_to_I == 0
-        sns.distplot(gcs_val1[unconn_sel], ax=axes[0], label="shuffled")
-        axes[0].axvline(0, 'b--')
-        axes[0].set_title("shuffled GC (pair with GC=0)")
-        # compare connected pairs
-        conn_sel = ens_to_I > 0
-        conn_shuf = gcs_val1[conn_sel]
-        conn_og = ens_to_I[conn_sel]
-        ksps = test_distribution(conn_shuf.ravel(), conn_og.ravel(), tag1='shuffled', tag2='original',
-                                 alltag='',show=True, ax=axes[1])
-        print(ksps)
-        axes[1].set_title(f"GC vs shuffled (connected pair), P_ks = {ksps:.4f}")
-        sns.distplot(conn_og - conn_shuf, ax=axes[2], label="normalized")
-        w, pw = wilcoxon(conn_og - conn_shuf)
-        axes[2].axvline(0, 'b--')
-        axes[2].set_title(f"normalized GC to shuffled (connected pair)\nW: {w:.3f} p: {pw:.3f}")
     else:
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 
@@ -843,7 +832,7 @@ def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', ve
     # compare the unconnected pairs
     unconn_sel = gcs0 == 0
     sns.distplot(gcs1[unconn_sel], ax=axes[0], label="shuffled")
-    axes[0].axvline(0, 'b--')
+    axes[0].axvline(0, c='k', ls='--')
     axes[0].set_title(f"{tag1} (paired with {tag0}=0)")
     # compare connected pairs
     conn_sel = gcs0 > 0
@@ -856,7 +845,7 @@ def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', ve
     axes[1].set_title(f"{tag0} vs {tag1} (connected pair),\nP_ks = {ksps:.4f}")
     sns.distplot(conn0 - conn1, ax=axes[2], label=diff_label)
     w, pw = wilcoxon(conn0 - conn1)
-    axes[2].axvline(0, 'b--')
+    axes[2].axvline(0, c='k', ls='--')
     axes[2].set_title(f"{diff_label} GC distribution (connected pair)\nW: {w:.3f} p: {pw:.3f}")
 
 
