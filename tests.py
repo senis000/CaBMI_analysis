@@ -371,7 +371,7 @@ def noise_free_corr(d1, d2, sn1, sn2=-1, tag="", cov_correct=0, noise_thres=0, s
         if show:
             fig, axes = plt.subplots(1, 1)
             corrs_nonan, corrs0_nonan = corrs[~np.isnan(corrs)], corrs0[~np.isnan(corrs0)]
-            print(corrs0_nonan.shape, corrs_nonan.shape)
+            #print(corrs0_nonan.shape, corrs_nonan.shape)
             sns.distplot(corrs_nonan, ax=axes, label='noise-corrected')
             sns.distplot(corrs0_nonan, ax=axes, label='raw')
             axes.set_title(f'thres: {noise_thres} Max Corr: {np.nanmax(corrs):.4f} Mean Corr: '
@@ -539,11 +539,11 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
     for nthres in [0, 0.5, 1]:
         corrs_clean = noise_free_corr(dff_all, recleans, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
                                 show=showPlot)
-        corrs = noise_free_corr(dff_all, reconvs, all_sn, noise_thres=nthres, tag=TAG, save=savePlot,
+        corrs = noise_free_corr(dff_all, reconvs, all_sn, None, noise_thres=nthres, tag=TAG, save=savePlot,
                                 show=showPlot)
     ksps = test_distribution(dff_all, reconvs, tag1='dff', tag2='reconvolve', alltag=TAG, save=savePlot,
                              show=showPlot)
-    return corrs, ksps
+    return corrs_clean, ksps
 
 
 def deconvolve_reconvolve(calcium, c2spike=None, spike2c=None, shuffle=False, conv_p=2, f_saturation=0,
