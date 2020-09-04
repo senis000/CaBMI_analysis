@@ -394,7 +394,7 @@ def create_dataframe(folder_main, file_csv, to_plot=True):
         
     
 
-    
+
     
 def bootstrap_pandas(len_df, X_df, Y_df, bts_n=1000):
     ''' Bootstrap  pd 
@@ -494,7 +494,7 @@ def calculate_size_train_optimal(df, rep=100, size_num=None):
         print('repetition: ' + str(rr))
         for ind, sn in enumerate(size_num):
             X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, size_split_test=sn)
-            _, X_df_train_bst, Y_df_train_bst = bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n, )
+            _, X_df_train_bst, Y_df_train_bst = bootstrap_pandas(len(X_df_train), X_df_train, Y_df_train, bts_n)
             model = calculate_model(X_df_train_bst, Y_df_train_bst)
             error_bst[rr,ind] = calculate_bst632 (model, X_df_train_bst, X_df_test, Y_df_train_bst, Y_df_test)
     return error_bst    

@@ -15,6 +15,7 @@ import scipy.io as io
 from math import sqrt
 from collections import deque
 
+
 def calc_pvalue(p_value):
     if p_value < 0.0005:
         p = '***'
