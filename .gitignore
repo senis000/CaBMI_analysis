@@ -1,4 +1,5 @@
 te-causality
+.idea
 *.DS_Store
 *.ipynb
 .gitignore
