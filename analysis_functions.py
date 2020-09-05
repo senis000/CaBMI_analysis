@@ -119,16 +119,18 @@ def statsmodel_granger(rois, maxlag=5, useLast=True):
     tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
     p_vals = {t:np.zeros((rois.shape[0], rois.shape[0], maxlag)) for t in tests}
     for i in range(rois.shape[0]):
-        for j in range(rois.shape[0]):
-            res = grangercausalitytests(rois[[j, i]].T, maxlag, verbose=False)
-            for k in res:
-                test, reg = res[k]
-                ssrEig = reg[0].ssr
-                ssrBeid = reg[1].ssr
-                gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
-                for t in tests:
-                    p_vals[t][i, j, k-1] = test[t][1]
-            #TODO: USE LOG stats of two ssrs
+        if ~np.any(np.isnan(rois[i])):
+            for j in range(rois.shape[0]):
+                if ~np.any(np.isnan(rois[j])):
+                    res = grangercausalitytests(rois[[j, i]].T, maxlag, verbose=False)
+                    for k in res:
+                        test, reg = res[k]
+                        ssrEig = reg[0].ssr
+                        ssrBeid = reg[1].ssr
+                        gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
+                        for t in tests:
+                            p_vals[t][i, j, k-1] = test[t][1]
+                #TODO: USE LOG stats of two ssrs
     if useLast:
         return gcs_val[:, :, -1]
     else:
@@ -143,19 +145,21 @@ def statsmodel_granger_asymmetric(rois_from, rois_to, maxlag=5, useLast=True):
     :param maxlag:
     :return:
     """
-    gcs_val = np.zeros((rois_from.shape[0], rois_to.shape[0], maxlag))
+    gcs_val = np.full((rois_from.shape[0], rois_to.shape[0], maxlag), np.nan)
     tests = ['ssr_ftest', 'ssr_chi2test', 'lrtest','params_ftest']
     p_vals = {t:np.zeros((rois_from.shape[0], rois_to.shape[0], maxlag)) for t in tests}
     for i in range(rois_from.shape[0]):
-        for j in range(rois_to.shape[0]):
-            res = grangercausalitytests(np.vstack([rois_to[j], rois_from[i]]).T, maxlag, verbose=False)
-            for k in res:
-                test, reg = res[k]
-                ssrEig = reg[0].ssr
-                ssrBeid = reg[1].ssr
-                gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
-                for t in tests:
-                    p_vals[t][i, j, k-1] = test[t][1]
+        if ~np.any(np.isnan(rois_from[i])):
+            for j in range(rois_to.shape[0]):
+                if ~np.any(np.isnan(rois_to[j])):
+                    res = grangercausalitytests(np.vstack([rois_to[j], rois_from[i]]).T, maxlag, verbose=False)
+                    for k in res:
+                        test, reg = res[k]
+                        ssrEig = reg[0].ssr
+                        ssrBeid = reg[1].ssr
+                        gcs_val[i, j, k-1] = np.log(ssrEig / ssrBeid)
+                        for t in tests:
+                            p_vals[t][i, j, k-1] = test[t][1]
             #TODO: USE LOG stats of two ssrs
     if useLast:
         return gcs_val[:, :, -1]
@@ -1312,6 +1316,9 @@ def caiman_SNR(xs, ys, source='raw', verbose=False):
         dbl: specify baseline in foopsi
         df: feed filtered signal to caiman
     """
+    if np.any(np.isnan(ys)):
+        print("Signal Contains NaNs, interpolate first")
+        return np.nan
     if source == 'fast':
         sn = GetSn(ys)
         sigpower = np.mean(np.square(ys)) - sn ** 2
