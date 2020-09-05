@@ -371,7 +371,7 @@ def noise_free_corr(d1, d2, sn1, sn2=-1, tag="", cov_correct=0, noise_thres=0, s
         if show:
             fig, axes = plt.subplots(1, 1)
             corrs_nonan, corrs0_nonan = corrs[~np.isnan(corrs)], corrs0[~np.isnan(corrs0)]
-            print(corrs0_nonan.shape, corrs_nonan.shape)
+            #print(corrs0_nonan.shape, corrs_nonan.shape)
             sns.distplot(corrs_nonan, ax=axes, label='noise-corrected')
             sns.distplot(corrs0_nonan, ax=axes, label='raw')
             axes.set_title(f'thres: {noise_thres} Max Corr: {np.nanmax(corrs):.4f} Mean Corr: '
@@ -554,7 +554,7 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
     reconvs = np.full_like(dff_all, np.nan)
     all_sn = np.full(dff_all.shape[0], np.nan)
     recleans = np.full_like(dff_all, np.nan)
-    valid_selector = np.full_like(dff_all.shape[0], 1, dtype=bool)
+    valid_selector = np.full(dff_all.shape[0], 1, dtype=bool)
     for i in range(dff_all.shape[0]):
         print(i)
         try:
@@ -754,9 +754,10 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
         dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
                                       for i in range(dff_inds.shape[0])])
         dff_all_rshuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
+        nansel_rshuffle = np.any(np.isnan(dff_all_rshuffle), axis=1)
 
         # calculate granger causality for the reconvolved data
-        lag = granger_select_order(dff_all_rshuffle, maxlag=5, ic='bic')
+        lag = granger_select_order(dff_all_rshuffle[~nansel_rshuffle], maxlag=5, ic='bic')
         gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
                                                           dff_ind_rshuffle, lag, False)
         p_vals1 = p_vals1['ssr_chi2test']
@@ -771,7 +772,8 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
             dff_e_reconv = np.vstack([deconvolve_reconvolve(dff_e[i]) for i in range(dff_e.shape[0])])
             dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_inds.shape[0])])
             dff_all_reconv = np.vstack([dff_e_reconv, dff_ind_reconv])
-            lag = granger_select_order(dff_all_reconv, maxlag=5, ic='bic')
+            nansel_reconv = np.any(np.isnan(dff_all_reconv), axis=1)
+            lag = granger_select_order(dff_all_reconv[~nansel_reconv], maxlag=5, ic='bic')
             gcs_val0, p_vals0 = statsmodel_granger_asymmetric(dff_e_reconv,
                                                               dff_ind_reconv, lag, False)
             p_vals0 = p_vals0['ssr_chi2test']

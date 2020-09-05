@@ -422,9 +422,9 @@ def compare_fc_metrics(folder, relative=True):
                     common_keywords = f'{record_type}_'
                     # Run GC with te causality and save with pickle
                     results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords, lag=DEFAULT_LAG,
-                                                        method='granger', pickle_path=inet_path)
+                                                        method='mi', pickle_path=inet_path)
                     results_tegc_autolag = fc_te_caulsaity(inet, cdata, common_keywords+'auto',
-                                                        lag=autolag, method='granger', pickle_path=inet_path)
+                                                        lag=autolag, method='mi', pickle_path=inet_path)
 
                     # # Run GC with te causality and save with pickle
                     # results_tegc_dlag = fc_te_caulsaity(inet, cdata, common_keywords+'tegc', lag=DEFAULT_LAG,
