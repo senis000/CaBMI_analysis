@@ -426,14 +426,24 @@ def noise_free_corr_test(func=np.sqrt, samp=100, SN=10, **kwargs):
     return allX, allY, corrs, np.corrcoef(xs, ys)[0, 1]
 
 
-def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, save=None, show=True, ax=None):
+def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, save=None, show=True,
+                      ax=None, firstbin=True):
     if len(d1.shape) == 2:
         ksps = [test_distribution(d1[i], d2[i], show=False) for i in range(d1.shape[0])]
         if show:
             gd1, gd2 = np.ravel(d1), np.ravel(d2)
+            nansel1, nansel2 = np.isnan(gd1), np.isnan(gd2)
+            if np.any(nansel1):
+                print(f"NaN in 1")
+                gd1 = gd1[~nansel1]
+            if np.any(nansel2):
+                print(f"NaN in 2")
+                gd2 = gd2[~nansel2]
+            bestbins = np.histogram_bin_edges(np.concatenate([gd1, gd2]))
             fig, axes = plt.subplots(1, 2)
-            sns.distplot(gd1, ax=axes[0], label=tag1)
-            sns.distplot(gd2, ax=axes[0], label=tag2)
+            #TODO: control for kde and automatically skip if it is hard to compute
+            sns.distplot(gd1, bins=bestbins, ax=axes[0], label=tag1)
+            sns.distplot(gd2, bins=bestbins, ax=axes[0], label=tag2)
             axes[0].legend()
             sns.distplot(ksps, ax=axes[1])
             axes[1].set_xlabel('KStest-pvalue')
@@ -462,8 +472,21 @@ def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, s
             axes = ax
         else:
             fig, axes = plt.subplots(1, 1)
-        sns.distplot(d1, ax=axes, label=tag1)
-        sns.distplot(d2, ax=axes, label=tag2)
+
+        nansel1, nansel2 = np.isnan(d1), np.isnan(d2)
+        if np.any(nansel1):
+            print(f"NaN in {tag1}")
+            d1 = d1[~nansel1]
+        if np.any(nansel2):
+            print(f"NaN in {tag2}")
+            d2 = d2[~nansel2]
+        if firstbin:
+            bestbins = np.histogram_bin_edges(d1)
+        else:
+            bestbins = np.histogram_bin_edges(np.concatenate([d1, d2]))
+
+        sns.distplot(d1, bins=bestbins, ax=axes, label=tag1)
+        sns.distplot(d2, bins=bestbins, ax=axes, label=tag2)
         axes.legend()
         axes.set_title(f"KS p={p:.4f}")
     return p
