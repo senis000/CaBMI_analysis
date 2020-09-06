@@ -630,11 +630,16 @@ def get_ens_to_indirect_GC(pfname, roi_type, thres=0.05):
         ens_to_IR = R[R_ens_sel, : ][:, R_irs_sel]
         ens_to_IG_p = pf['FC_pval_ens-indirect']
         ens_to_IG = pf['FC_ens-indirect']
+        GC_ens_inds = pf['indices_ens-indirect']
+        sort_ens = np.argsort(GC_ens_inds)
+        ens_to_IG_p = ens_to_IG_p[sort_ens]
+        ens_to_IG = ens_to_IG[sort_ens]
         if ens_to_IR.shape[0] < ens_to_IG.shape[0]:
             print(f"duplicates in ens in {[pfname]}")
             ens_to_IG_p = np.unique(ens_to_IG_p, axis=0)
             ens_to_IG = np.unique(ens_to_IG, axis=0)
         GC_inds = np.concatenate([R_ens_inds, R_irs_inds, pf['indices_indirect-ens']])
+
         ens_to_I = np.hstack([ens_to_IR, ens_to_IG])
         ens_to_I_p = np.hstack([ens_to_IR_p, ens_to_IG_p])
         if thres is not None:
