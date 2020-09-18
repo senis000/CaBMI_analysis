@@ -7,6 +7,7 @@ import pickle
 from scipy.sparse import csc_matrix
 from scipy.io import loadmat, savemat
 from scipy.stats import zscore, ks_2samp, wilcoxon
+from scipy.io import savemat
 from sklearn.utils.random import sample_without_replacement
 import numpy as np
 import pandas as pd
@@ -616,6 +617,7 @@ def deconvolve_reconvolve(calcium, c2spike=None, spike2c=None, shuffle=False, co
 
 def get_ens_to_indirect_GC(pfname, roi_type, thres=0.05):
     """Takes in pickle filename file and returns GC from ensemble neuron to indirect neuron"""
+    # TODO: properly handle unsorted ens_neur
     with open(pfname, 'rb') as pfile:
         pf = pickle.load(pfile)
         R_p = pf['FC_pval_red']
@@ -776,7 +778,10 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
 
         # calculate granger causality for the reconvolved data
         if isinstance(lagmode, str):
-            lag = granger_select_order(dff_all_rshuffle[~nansel_rshuffle], maxlag=5, ic='bic')
+            try:
+                lag = granger_select_order(dff_all_rshuffle[~nansel_rshuffle], maxlag=5, ic='bic')
+            except:
+                lag = 2
         else:
             lag = lagmode
         gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
@@ -806,8 +811,12 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
                 save_shufmat['dff_ind_reconv'] = dff_ind_reconv
             dff_all_reconv = np.vstack([dff_e_reconv, dff_ind_reconv])
             nansel_reconv = np.any(np.isnan(dff_all_reconv), axis=1)
+
             if isinstance(lagmode, str):
-                lag = granger_select_order(dff_all_reconv[~nansel_reconv], maxlag=5, ic='bic')
+                try:
+                    lag = granger_select_order(dff_all_reconv[~nansel_reconv], maxlag=5, ic='bic')
+                except:
+                    lag = 2
             else:
                 lag = lagmode
 
@@ -832,6 +841,13 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
             ens_to_I_valid = ens_to_I[valid_sel_e, :][:, valid_sel_inds]
             gcs_val0_valid = gcs_val0[valid_sel_e, :][:, valid_sel_inds]
             gcs_val1_valid = gcs_val1[valid_sel_e, :][:, valid_sel_inds]
+            
+            results = {'dff_e_reconv': dff_e_reconv, 'dff_ind_reconv': dff_ind_reconv,
+                       'dff_e_rshuffle': dff_e_rshuffle, 'dff_ind_rshuffle': dff_ind_reconv,
+                       'ens_to_I': ens_to_I, 'GC_inds': GC_inds,
+                       'gcs_rshuffle': gcs_val1, 'gcs_reconv': gcs_val0}
+            savemat(os.path.join(utils, 'FC/statsmodel/', animal, day, f'{animal}_{day}_reconv_shuffle_gc.mat'), results)
+
             fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 10))
             plt.subplots_adjust(hspace=0.4)
             visualize_gc_pairs(ens_to_I_valid, gcs_val0_valid, "GC", "reconvGC", axes[0],
