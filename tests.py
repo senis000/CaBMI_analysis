@@ -428,7 +428,7 @@ def noise_free_corr_test(func=np.sqrt, samp=100, SN=10, **kwargs):
 
 
 def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, save=None, show=True,
-                      ax=None, firstbin=True):
+                      ax=None, firstbin=True, kde=True):
     if len(d1.shape) == 2:
         ksps = [test_distribution(d1[i], d2[i], show=False) for i in range(d1.shape[0])]
         if show:
@@ -443,8 +443,8 @@ def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, s
             bestbins = np.histogram_bin_edges(np.concatenate([gd1, gd2]))
             fig, axes = plt.subplots(1, 2)
             #TODO: control for kde and automatically skip if it is hard to compute
-            sns.distplot(gd1, bins=bestbins, ax=axes[0], label=tag1)
-            sns.distplot(gd2, bins=bestbins, ax=axes[0], label=tag2)
+            sns.distplot(gd1, bins=bestbins, ax=axes[0], label=tag1, kde=kde)
+            sns.distplot(gd2, bins=bestbins, ax=axes[0], label=tag2, kde=kde)
             axes[0].legend()
             sns.distplot(ksps, ax=axes[1])
             axes[1].set_xlabel('KStest-pvalue')
@@ -486,8 +486,8 @@ def test_distribution(d1, d2, tag1='d1', tag2='d2', alltag='', fast_samp=None, s
         else:
             bestbins = np.histogram_bin_edges(np.concatenate([d1, d2]))
 
-        sns.distplot(d1, bins=bestbins, ax=axes, label=tag1)
-        sns.distplot(d2, bins=bestbins, ax=axes, label=tag2)
+        sns.distplot(d1, bins=bestbins, ax=axes, label=tag1, kde=kde)
+        sns.distplot(d2, bins=bestbins, ax=axes, label=tag2, kde=kde)
         axes.legend()
         axes.set_title(f"KS p={p:.4f}")
     return p
@@ -835,15 +835,15 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
             fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 10))
             plt.subplots_adjust(hspace=0.4)
             visualize_gc_pairs(ens_to_I_valid, gcs_val0_valid, "GC", "reconvGC", axes[0],
-                               diff_label='d(raw,reconv)', verbose=True)
+                               diff_label='d(raw,reconv)', verbose=True, firstbin=False, kde=False)
             visualize_gc_pairs(gcs_val0_valid, gcs_val1_valid, "reconvGC", "rshufGC", axes[1],
-                               diff_label='normalized', verbose=True)
+                               diff_label='normalized', verbose=True, firstbin=False, kde=False)
             visualize_gc_pairs(ens_to_I_valid, gcs_val1_valid, "GC", "rshufGC", axes[2],
-                               diff_label='normalized', verbose=True)
+                               diff_label='normalized', verbose=True, firstbin=False, kde=False)
         else:
             fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
             visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes, diff_label='normalized',
-                               verbose=True)
+                               verbose=True, firstbin=False, kde=False)
         if not shuf_file_found:
             savemat(encode_to_filename(utils, animal, day, hyperparams='reconv_shuffle', err=False),
                     save_shufmat)
@@ -851,7 +851,8 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 
 
-def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', verbose=True):
+def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized',
+                       verbose=True, firstbin=True, kde=False):
     # compare the unconnected pairs
     nonan_sel = (~np.isnan(gcs0)) & (~np.isnan(gcs1))
     if not np.all(nonan_sel):
@@ -859,7 +860,7 @@ def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', ve
         gcs0, gcs1 = gcs0[nonan_sel], gcs1[nonan_sel]
 
     unconn_sel = gcs0 == 0
-    sns.distplot(gcs1[unconn_sel], ax=axes[0], label="shuffled")
+    sns.distplot(gcs1[unconn_sel], ax=axes[0], label="shuffled", kde=kde)
     axes[0].axvline(0, c='k', ls='--')
     axes[0].set_title(f"{tag1} (paired with {tag0}=0)")
     # compare connected pairs
@@ -867,14 +868,15 @@ def visualize_gc_pairs(gcs0, gcs1, tag0, tag1, axes, diff_label='normalized', ve
     conn1 = gcs1[conn_sel]
     conn0 = gcs0[conn_sel]
     ksps = test_distribution(conn1.ravel(), conn0.ravel(), tag1=tag1, tag2=tag0,
-                             alltag='', show=True, ax=axes[1])
+                             alltag='', show=True, ax=axes[1], firstbin=firstbin, kde=kde)
     if verbose:
         print(tag0, tag1, ksps)
     axes[1].set_title(f"{tag0} vs {tag1} (connected pair),\nP_ks = {ksps:.4f}")
-    sns.distplot(conn0 - conn1, ax=axes[2], label=diff_label)
+    sns.distplot(conn0 - conn1, ax=axes[2], label=diff_label, kde=kde)
     w, pw = wilcoxon(conn0 - conn1)
     axes[2].axvline(0, c='k', ls='--')
     axes[2].set_title(f"{diff_label} GC distribution (connected pair)\nW: {w:.3f} p: {pw:.3f}")
+    plt.tight_layout()
 
 
 
