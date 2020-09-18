@@ -5,6 +5,7 @@ import tifffile
 import pickle
 # Data
 from scipy.sparse import csc_matrix
+from scipy.io import loadmat, savemat
 from scipy.stats import zscore, ks_2samp, wilcoxon
 from sklearn.utils.random import sample_without_replacement
 import numpy as np
@@ -544,7 +545,6 @@ def deconvolve_reconvolve_single_session_test(processed, animal, day, randN=None
         dff = np.array(hfile['dff'])
         dff_e = dff[e_sel, :]
         dff_ind = dff[ind_sel, :]
-
     dff_all = np.vstack([dff_e, dff_ind])
     if randN is not None:
         rinds = np.arange(dff_all.shape[0])
@@ -724,7 +724,7 @@ def get_general_GC_distribution(folder, resamp=0.1, concat=True, save=True):
 
 
 def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day, test_reconv=True,
-                                                            thres=0.05, snr_thres=0):
+                                                            thres=0.05, snr_thres=0, lagmode=2):
     """ Calculates granger causality from ensemble to indirect neurons
     :param ens_dff: E * T, E: number ensemble neurons
     :param ind_dff: I * T, I: number of indirect neurons
@@ -752,38 +752,77 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
         pfname = encode_to_filename(utils, animal, day, hyperparams='granger')
         GC_inds, ens_to_I = get_ens_to_indirect_GC(pfname, roi_type, thres=0.05)
 
-        # TODO: take care of rows of nans
-        # reconvolve shuffle dff_e and dff_ind
-        dff_e_rshuffle = np.vstack([deconvolve_reconvolve(dff_e[i], shuffle=True)
-                                    for i in range(dff_e.shape[0])])
-        dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
-                                      for i in range(dff_inds.shape[0])])
+        shuf_file_found = False
+        save_shufmat = {}
+        try:
+            shuf_file = encode_to_filename(utils, animal, day, hyperparams='reconv_shuffle')
+            shuf_file_found = True
+            shufmat = loadmat(shuf_file)
+            dff_e_rshuffle = shufmat['dff_e_rshuffle']
+            dff_ind_rshuffle = shufmat['dff_ind_rshuffle']
+        except FileNotFoundError:
+            # TODO: take care of rows of nans
+            # reconvolve shuffle dff_e and dff_ind
+            dff_e_rshuffle = np.vstack([deconvolve_reconvolve(dff_e[i], shuffle=True)
+                                        for i in range(dff_e.shape[0])])
+            dff_ind_rshuffle = np.vstack([deconvolve_reconvolve(dff_inds[i], shuffle=True)
+                                          for i in range(dff_inds.shape[0])])
+            save_shufmat['dff_e_rshuffle'] = dff_e_rshuffle
+            save_shufmat['dff_ind_rshuffle'] = dff_ind_rshuffle
+            save_shufmat['ens_to_I'] = ens_to_I
+            save_shufmat['GC_inds'] = GC_inds
         dff_all_rshuffle = np.vstack([dff_e_rshuffle, dff_ind_rshuffle])
         nansel_rshuffle = np.any(np.isnan(dff_all_rshuffle), axis=1)
 
         # calculate granger causality for the reconvolved data
-        lag = granger_select_order(dff_all_rshuffle[~nansel_rshuffle], maxlag=5, ic='bic')
+        if isinstance(lagmode, str):
+            lag = granger_select_order(dff_all_rshuffle[~nansel_rshuffle], maxlag=5, ic='bic')
+        else:
+            lag = lagmode
         gcs_val1, p_vals1 = statsmodel_granger_asymmetric(dff_e_rshuffle,
                                                           dff_ind_rshuffle, lag, False)
         p_vals1 = p_vals1['ssr_chi2test']
         gcs_val1[p_vals1 > thres] = 0
-        gcs_val1 = gcs_val1[:, :, -1]
+        if not shuf_file_found:
+            save_shufmat['gcs_rshuffle'] = gcs_val1
+        if lagmode == 'max':
+            gcs_val1 = np.max(gcs_val1, axis=2)
+        else:
+            # auto or number
+            gcs_val1 = gcs_val1[:, :, -1]
         assert gcs_val1.shape == ens_to_I.shape
         assert np.allclose(GC_hf_inds, GC_inds)
 
         # reconv comparison
         if test_reconv:
             # reconvolve dff_e and dff_ind
-            dff_e_reconv = np.vstack([deconvolve_reconvolve(dff_e[i]) for i in range(dff_e.shape[0])])
-            dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_inds.shape[0])])
+            if shuf_file_found:
+                dff_e_reconv = shufmat['dff_e_reconv']
+                dff_ind_reconv = shufmat['dff_ind_reconv']
+            else:
+                dff_e_reconv = np.vstack([deconvolve_reconvolve(dff_e[i]) for i in range(dff_e.shape[0])])
+                dff_ind_reconv = np.vstack([deconvolve_reconvolve(dff_inds[i]) for i in range(dff_inds.shape[0])])
+                save_shufmat['dff_e_reconv'] = dff_e_reconv
+                save_shufmat['dff_ind_reconv'] = dff_ind_reconv
             dff_all_reconv = np.vstack([dff_e_reconv, dff_ind_reconv])
             nansel_reconv = np.any(np.isnan(dff_all_reconv), axis=1)
-            lag = granger_select_order(dff_all_reconv[~nansel_reconv], maxlag=5, ic='bic')
+            if isinstance(lagmode, str):
+                lag = granger_select_order(dff_all_reconv[~nansel_reconv], maxlag=5, ic='bic')
+            else:
+                lag = lagmode
+
             gcs_val0, p_vals0 = statsmodel_granger_asymmetric(dff_e_reconv,
                                                               dff_ind_reconv, lag, False)
             p_vals0 = p_vals0['ssr_chi2test']
             gcs_val0[p_vals0 > thres] = 0
-            gcs_val0 = gcs_val0[:, :, -1]
+            if not shuf_file_found:
+                save_shufmat['gcs_reconv'] = gcs_val0
+
+            if lagmode == 'max':
+                gcs_val0 = np.max(gcs_val0, axis=2)
+            else:
+                # auto or number
+                gcs_val0 = gcs_val0[:, :, -1]
             assert gcs_val0.shape == ens_to_I.shape
             assert np.allclose(GC_hf_inds, GC_inds)
             snr_e = np.array([caiman_SNR(None, dff_e[i], 'fast') for i in range(len(dff_e))])
@@ -805,6 +844,9 @@ def ens_to_ind_GC_double_reconv_shuffle_test_single_session(folder, animal, day,
             fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 10))
             visualize_gc_pairs(ens_to_I, gcs_val1, "GC", "rshufGC", axes, diff_label='normalized',
                                verbose=True)
+        if not shuf_file_found:
+            savemat(encode_to_filename(utils, animal, day, hyperparams='reconv_shuffle', err=False),
+                    save_shufmat)
     else:
         raise RuntimeError(f"No ensemble neuron in {animal} {day}")
 

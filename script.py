@@ -1210,3 +1210,319 @@ plt.ylabel('IC');
 plt.xlabel('lag');
 plt.legend(['aic', 'bic']);
 plt.xticks(np.arange(0, 16), np.arange(0, 16))
+
+
+
+from tests import *
+processed = "/Users/albertqu/Documents/7.Research/BMI/analysis_data/processed/"
+animal, day = "IT4", "181004"
+hf = h5py.File(encode_to_filename(processed, animal, day), 'r')
+nerden = np.array(hf['nerden'])
+dff = np.array(hf['dff'])[nerden]
+blen = hf.attrs['blen']
+roi_type = get_roi_type(processed, animal, day)
+ner_roi = roi_type[nerden]
+ner_ens_sel = (ner_roi == 'E1') | (ner_roi == 'E2') | (ner_roi == 'E')
+dff_e = dff[ner_ens_sel]
+plt.xcorr(dff_e[3], dff[43])
+
+from statsmodels.tsa.stattools import grangercausalitytests
+res1 = grangercausalitytests(np.vstack([dff_e[3], dff[43]]).T, 4, verbose=False)
+
+dff_e_shuffle = deconvolve_reconvolve(dff_e[3], shuffle=True)
+dff_ind_shuffle = deconvolve_reconvolve(dff[43], shuffle=False)
+
+res2 = grangercausalitytests(np.vstack([dff_e_shuffle, dff_ind_shuffle]).T, 4, verbose=False)
+
+
+all_corr = np.full(dff.shape[0])
+
+all_corr = np.zeros((dff.shape[0], dff.shape[0]));all_lags = np.zeros((dff.shape[0], dff.shape[0]))
+all_corr = np.zeros((dff.shape[0], dff.shape[0]));all_lags = np.zeros((dff.shape[0], dff.shape[0]));for
+all_corr = np.zeros((dff.shape[0], dff.shape[0]));all_lags = np.zeros((dff.shape[0], dff.shape[0]));
+plt.plot(np.arange(-dff.shape[1], dff.shape[1]+1), np.correlate(dff[0], dff[0], mode='full'))
+dff = dff[:, :blen]
+plt.plot(np.arange(-dff.shape[1], dff.shape[1]+1), np.correlate(dff[0], dff[0], mode='full'))
+blen
+blen*2
+plt.plot(np.arange(-dff.shape[1]+1, dff.shape[1]), np.correlate(dff[0], dff[0], mode='full'))
+np.sqrt(np.dot(dff[0], dff[0]))
+np.linalg.norm(dff[0])
+plt.plot(np.arange(-dff.shape[1]+1, dff.shape[1]), np.correlate(dff[0], dff[0], mode='full')/ (np.linalg.norm(dff[0])**2))
+for i in range(dff.shape[0]):
+    for j in range(dff.shape[0]):
+        start = -dff.shape[1] + 1
+for i in range(dff.shape[0]):
+    for j in range(dff.shape[0]):
+        start = -dff.shape[1] + 1
+        corr = np.correlate(dff[i], dff[j], mode='full')
+        normed = corr / (np.linalg.norm(dff[i]) * np.linalg.norm(dff[j]))
+        maxlag = np.argmax(normed)
+        all_corr[i, j] = normed[maxlag]
+        all_lags[i, j] = normed[maxlag+start]
+all_corr[0]
+plt.plot(all_corr)
+plt.plot(all_corr[0])
+all_lags[0][all_corr[0] > 0.2]
+all_lags[0]
+    utils = os.path.join(folder, 'utils')
+    processed = os.path.join(folder, 'processed')
+    roi_type = get_roi_type(processed, animal, day)
+folder = "/Volumes/DATA_01/NL/layerproject"
+    utils = os.path.join(folder, 'utils')
+    processed = os.path.join(folder, 'processed')
+    roi_type = get_roi_type(processed, animal, day)
+hfile
+hf
+animal, day = 'IT4', '181004'
+    utils = os.path.join(folder, 'utils')
+    processed = os.path.join(folder, 'processed')
+    roi_type = get_roi_type(processed, animal, day)
+roi_type.shape
+nerden.shape
+
+nerden = np.array(hf['nerden'])
+nerden.shape
+
+all_corr = np.zeros((dff_e.shape[0], dff.shape[0]));all_lags = np.zeros((dff_e.shape[0], dff.shape[0]));
+for i in range(dff_e.shape[0]):
+    for j in range(dff.shape[0]):
+        start = -dff.shape[1] + 1
+        corr = np.correlate(dff_e[i], dff[j], mode='full')
+        normed = corr / (np.linalg.norm(dff_e[i]) * np.linalg.norm(dff[j]))
+        maxlag = np.argmax(normed)
+        all_corr[i, j] = normed[maxlag]
+        all_lags[i, j] = maxlag+start
+from scipy.signal import correlate
+for i in range(dff_e.shape[0]):
+    for j in range(dff.shape[0]):
+        start = -dff.shape[1] + 1
+        corr = correlate(dff_e[i], dff[j], mode='full')
+        normed = corr / (np.linalg.norm(dff_e[i]) * np.linalg.norm(dff[j]))
+        maxlag = np.argmax(normed)
+        all_corr[i, j] = normed[maxlag]
+        all_lags[i, j] = maxlag+start
+plt.imshow(all_corr)
+sns.heatmap(all_corr)
+all_lags[0][all_corr[0] > 0.3]
+all_lags
+all_lags = all_lags.astype(np.int)
+all_lags[0][all_corr[0] > 0.3]
+plt.plot(all_lags[0][all_corr[0]> 0.3], all_corr[0][all_corr[0] > 0.3])
+plt.scatter(all_lags[0][all_corr[0]> 0.3], all_corr[0][all_corr[0] > 0.3])
+plt.scatter(all_lags[3][all_corr[3]> 0.3], all_corr[3][all_corr[3] > 0.3])
+plt.xcorr(dff_e[0], dff[0], maxlags=100)
+plt.xcorr(dff_e[0], dff[0], maxlags=100)
+np.arange(dff.shape[0])[all_corr[3]>0.3]
+plt.xcorr(dff_e[3], dff[43])
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+all_lags[3, 43]
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+
+res = grangercausalitytests(np.vstack([dff[43], dff_e[3]]).T, 2, verbose=False)
+res[0]
+res[1]
+                    for k in res:
+                        test, reg = res[k]
+                        ssrEig = reg[0].ssr
+                        ssrBeid = reg[1].ssr
+                        print(np.log(ssrEig / ssrBeid))
+test, reg = res[1]
+reg.llf
+reg[0].llf
+reg[1].llf
+reg[1].nobs
+reg[0].ssr
+reg[1].ssr
+reg[0].param
+reg[0].params
+reg[1].params
+x = np.vstack([dff_e[3], dff[43]]).T
+x.shape
+dta = lagmat2ds(x, 1, trim='both', dropex=1)
+from statsmodels.tsa.tsatools import lagmat, lagmat2ds, add_trend
+dta = lagmat2ds(x, 1, trim='both', dropex=1)
+dta.shape
+dta[:3, :]
+x[:3]
+pred1 = reg[0].predict(reg[0].params, dta[:, 1])
+reg[0].prams
+reg[0].params
+reg[0].exog.shape
+reg[0].exog
+            dtaown = add_constant(dta[:, 1:(mxlg + 1)], prepend=False)
+            dtajoint = add_constant(dta[:, 1:], prepend=False)
+from statsmodels.tools.tools import add_constant, Bunch
+dtaown[:3]
+            dtaown = add_constant(dta[:, 1:(mxlg + 1)], prepend=False)
+            dtajoint = add_constant(dta[:, 1:], prepend=False)
+            dtaown = add_constant(dta[:, 1], prepend=False)
+            dtajoint = add_constant(dta[:, 1:], prepend=False)
+dtaown[:3]
+dtajoint[:3]
+res1 = grangercausalitytests(np.vstack([dff_e[3], dff[43]]).T, 2, verbose=False)
+res1[1].params
+test1, reg1 = res1[1]
+reg1[1].params
+                        test1, reg1 = res1[k]
+                        ssrEig1 = reg1[0].ssr
+                        ssrBeid1 = reg1[1].ssr
+ssrEig1
+ssrBeid1
+reg1[0].params
+k
+                        test1, reg1 = res1[1]
+                        ssrEig1 = reg1[0].ssr
+                        ssrBeid1 = reg1[1].ssr
+ssrEig1
+ssrBeid1
+reg1[0]
+reg1[0].params
+reg1[1].params
+x = np.vstack([dff_e[3], dff[43]]).T
+dta = lagmat2ds(x, 1, trim='both', dropex=1)
+            dtaown = add_constant(dta[:, 1:(1 + 1)], prepend=False)
+            dtajoint = add_constant(dta[:, 1:], prepend=False)
+dtaother = add_constant(dta[:, 2], prepend=False)
+dtaother.shape
+        res2down = OLS(dta[:, 0], dtaown).fit()
+        res2djoint = OLS(dta[:, 0], dtajoint).fit()
+from statsmodels.regression.linear_model import OLS, yule_walker
+        res2down = OLS(dta[:, 0], dtaown).fit()
+        res2djoint = OLS(dta[:, 0], dtajoint).fit()
+res2dother = OLS(dta[:, 0], dtaother).fit()
+res2dother.ssr
+res2dother.params
+res2down.ssr
+plt.plot(dta[:, 0]);plt.plot(res2dother.predict(res2dother.params, dtaother))
+res2dother.params
+dta[:3]
+plt.plot(dta[:, 0]);plt.plot(res2dother.params[0] * dta[:, 2])
+plt.plot(dta[:, 0]);plt.plot(5 * dta[:, 2])
+np.sum(np.square(dta[:, 0] - 5 * dta[:, 2]))
+np.sum(np.square(dta[:, 0] - 5 * dta[:, 2] - res2dother.params[1]))
+np.sum(np.square(dta[:, 0] - 1.568331 * dta[:, 2] - res2dother.params[1]))
+plt.plot(dta[:, 0]);plt.plot(5 * dta[:, 2])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 2]**2)
+plt.plot(dta[:, 0]);plt.plot(dta[:, 2]**2 * 10)
+plt.plot(dta[:, 0]);plt.plot(dta[:, 2]**2 * 13)
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13 - res2dother.params[1]))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13- dta[:, 2]))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13- 1.56* dta[:, 2]))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13- 0.3* dta[:, 2]))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 13- 0.1* dta[:, 2]))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 10))
+np.sum(np.square(dta[:, 0] - dta[:, 2] ** 2 * 15))
+np.xcorr(dta[:, 0], dta[:, 2])
+plt.xcorr(dta[:, 0], dta[:, 2], maxlags=10)
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+reg1[0].params
+np.sum(np.square(dta[:, 0] - dta[:, 1] * 0.87768))
+np.sum(np.square(dta[:, 0] - dta[:, 1] * 0.87768 - 0.013167))
+reg1[0].ssr
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0])
+dta.shape
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0]+reg1[0].params[1])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.plot(dta[:, 2]);plt.legend(['residual', 'la'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.plot(dta[:, 2]);plt.legend(['residual', 'la'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.plot(dta[:, 2] * 2);plt.legend(['residual', 'la'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.plot(dta[:, 2] * 2);plt.legend(['residual', 'la'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0]+reg1[0].params[1])
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.legend(['original', 't-1'])
+dta[:3, 0]
+dta[:3]
+plt.plot(dta[:, 0]);plt.plot(dta[:, 1] * reg1[0].params[0]+reg1[0].params[1]);plt.legend(['original', 't-1'])
+plt.plot((dta[:, 0]- dta[:, 1] * reg1[0].params[0]+reg1[0].params[1])/np.max(dta[:, 0]))
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(dta[:, 0]); plt.legend(['diff', 'original'])
+plt.plot(dta[:, 0]); plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]); plt.legend(['original', 'diff'])
+dta_res = dta[:, 0] - dta[:, 1] * reg1[0].params[0] - reg1[0].params[1]
+dtares = add_constant(dta_res, prepend=False)
+dtares = add_constant(dta[:, 2], prepend=False)
+res2dother = OLS(dta_res, dtares).fit()
+res2dother.ssr
+res2dres = OLS(dta_res, dtares).fit()
+res2dres.ssr
+res2down.ssr
+res2djoint.ssr
+res2dres.params
+res2djoint.params
+hf
+neuron_acts = hf['neuron_acts']
+neuron_acts = hf['neuron_act']
+neuron_acts = np.array(hf['neuron_act'])
+neuron_acts.shape
+e_sel
+dff_e.shape
+deconv_e = neuron_acts[ner_ens_sel]
+ner_ens_sel.shape
+deconv_ner = neuron_acts[nerden]
+deconv_e = neuron_acts[ner_ens_sel]
+deconv_e = deconv_ner[ner_ens_sel]
+deconv_e.shape
+plt.xcorr(dff_e[3], dff[43])
+dff.shape
+plt.xcorr(deconv_e[3], deconv_ner[43])
+plt.xcorr(deconv_e[3], deconv_ner[0])
+plt.xcorr(deconv_e[3], deconv_ner[43])
+resd = grangercausalitytests(np.vstack([deconv_e[3], deconv_ner[43]]).T, 2, verbose=False)
+testd, regd = resd[1]
+regd.shape
+regd[0].ssr
+regd[1].ssr
+plt.plot(deconv_e[3]);plt.plot(deconv_ner[43]);plt.legend(['ens3', 'neur43'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(deconv_ner[43]); plt.legend(['diff', 'original'])
+deconv_ner = deconv_ner[:, :blen]
+deconv_e = deconv_ner[ner_ens_sel]
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(deconv_ner[43]); plt.legend(['diff', 'original'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(deconv_ner[43] * 100); plt.legend(['diff', 'original'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(deconv_ner[43] * 50); plt.legend(['diff', 'original'])
+dta[:3]
+dta_res.shape
+dta_res[:3]
+dtares[:3]
+dff[43][:3]
+dtadeconv = add_constant(deconv_ner[43][:-1], prepend=False)
+res2ddeconv = OLS(dta_res, dtadeconv).fit()
+res2ddeconv.ssr
+regd[0].ssr
+res2down.ssr
+res2djoint.ssr
+testd, regd = resd[2]
+regd[0].ssr
+regd[1].ssr
+np.log(regd[0].ssr / regd[1].ssr)
+np.log(res2down[0].ssr / res2djoint[1].ssr)
+np.log(res2down.ssr / res2djoint.ssr)
+res2down.ssr
+res2djoint.ssr
+res[1][1].srr
+res[1][1][0].ssr
+res[1][1][1].ssr
+res1[1][1][1].ssr
+res1[1][1][0].ssr
+plt.xcorr(dff_e[3], dff[43])
+plt.plot(deconv_e[3]);plt.plot(deconv_ner[43]);plt.legend(['ens3', 'neur43'])
+plt.plot(dff_e[3]);plt.plot(dff[43]);plt.legend(['ens3', 'neur43'])
+plt.xcorr(dff_e[3], dff[43])
+np.correlate(dff_e[3][1:], dff[43][:-1])
+np.correlate(dff_e[3][1:], dff[43][:-1]) / (np.linalg.norm(dff_e[3]) np.linalg.norm(dff[43][:-1]))
+np.correlate(dff_e[3][1:], dff[43][:-1]) / (np.linalg.norm(dff_e[3]) *np.linalg.norm(dff[43][:-1]))
+np.correlate(dff_e[3][1:], dff[43][:-1]) / (np.linalg.norm(dff_e[3]) *np.linalg.norm(dff[43]))
+np.log(res1[0].ssr / res1[1].ssr)
+np.log(reg1[0].ssr / reg1[1].ssr)
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(dta[:, 2]); plt.legend(['diff', 'original'])
+plt.plot(dta[:, 0]- dta[:, 1] * reg1[0].params[0]-reg1[0].params[1]);plt.plot(dta[:, 2]); plt.legend(['diff', 'original'])
+plt.xcorr(dff_e[3], dff[43])
+from statsmodels.tsa.tsatools import lagmat
+lagmat(np.arange(10), maxlag=2, trim='forward')
+lagmat(np.arange(10), maxlag=2, trim='forward', original='in')
+%hist
