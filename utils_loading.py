@@ -107,7 +107,7 @@ def get_animal_days(animal_path):
     return sorted(filter(lambda s: s.isnumeric(), subs))
 
 
-def encode_to_filename(path, animal, day, hyperparams=None):
+def encode_to_filename(path, animal, day, hyperparams=None, err=True):
     """
     :param path: str: root in which the target data file exists
     :param animal: str
@@ -131,6 +131,9 @@ def encode_to_filename(path, animal, day, hyperparams=None):
             hyperparams = hyperparams[1:]
             path = os.path.join(path, "FC", "statsmodel")
             template = f"{hyperparams}.p"
+        elif 'reconv_shuffle' in hyperparams:
+            path = os.path.join(path, "FC", "statsmodel")
+            template = "{}_{}_reconv_shuffle_gc.mat"
         else:
             template = hyperparams+'_{}_{}.hdf5'
     else:
@@ -142,7 +145,10 @@ def encode_to_filename(path, animal, day, hyperparams=None):
     else:
         f = os.path.join(path, animal, template.format(animal, day))
         if not os.path.exists(f):
-            raise FileNotFoundError("File {} or {} not found".format(temp, f))
+            if err:
+                raise FileNotFoundError("File {} or {} not found".format(temp, f))
+            else:
+                return temp
         return f
 
 
