@@ -705,8 +705,9 @@ def calculate_all_errors(df, folder_main, rep=1000):
     f.close()
     
 
-def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_bstmax=[0.02,0.2], \
-                     error_msemax=[0.03,0.3], size_split_test=0.2, max_iter=40, stability_var=0.6, classif=False, toplot=True):
+def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_bstmax=[0.02, 0.2], \
+                     error_msemax=[0.03, 0.3], size_split_test=0.2, max_iter=40, stability_var=0.6, classif=False,
+                     synthetic=False, toplot=True):
     '''
     obtain shap values of mod_n different XGboost model if the conditions for error of the model and stability are set
     obtain stabitlity of feature: correlation of original shap values and bootstrap values to see if values are miningful or noise
@@ -716,9 +717,12 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
         # this is to classify IT vs PT
         columns_ler = [columns[3]]
         labels_to_study = columns[10:] #columns[10:]
+    elif synthetic:
+        columns_ler = [columns[0]]
+        labels_to_study = columns[1:]
     else:
         # this is to study the learning stats on columns_ler
-        columns_ler = [columns[6]] # columns[4:10] #[columns[6]]# [columns[3]]
+        columns_ler = [columns[8]] # columns[4:10] #[columns[6]]# [columns[3]]
         labels_to_study = [columns[3]] +  columns[10:] #columns[10:]
     
     test_size = np.ceil(len(df)*(size_split_test)).astype(int)
@@ -730,7 +734,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
     shap_correlations = np.zeros((len(columns_ler), mod_n, mod_x, len(labels_to_study))) + np.nan
     explainer_val = np.zeros((len(columns_ler), mod_n)) + np.nan
     all_df = np.zeros((len(columns_ler), mod_n, test_size)) + np.nan
-    number_models = np.zeros(len(columns_ler),dtype=int)
+    number_models = np.zeros(len(columns_ler), dtype=int)
     
     for cc, col_ler in enumerate(columns_ler):
         i = 0
@@ -848,9 +852,9 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=1000, mod_x=100, error_b
     # the spread was gaussian
     
     if classif:
-        f = h5py.File('I:/Nuria_data/CaBMI/Layer_project/XGShap_classif_model.h5py', 'w-')
+        f = h5py.File(os.path.join(folder_main, 'XGShap_classif_model.h5py'), 'w-')
     else:
-        f = h5py.File('I:/Nuria_data/CaBMI/Layer_project/XGShap_model.h5py', 'w-')
+        f = h5py.File(os.path.join(folder_main, 'XGShap_model.h5py'), 'w-')
     
     for key in ['labels_to_study', 'test_size', 'train_size', 'all_shap', 'all_y_pred', 'all_mse', 'shap_correlations', \
                    'explainer_val', 'all_df', 'number_models', 'all_shap_reshape', 'all_df_reshape', 'shap_experiment_mean', \

@@ -12,7 +12,7 @@ import seaborn as sns
 import xgboost
 import shap
 import xgboost_analysis as xga
-import analysis_functions as af
+# import analysis_functions as af
 import utils_cabmi as uc
 from matplotlib import interactive
 from scipy import stats
@@ -52,9 +52,12 @@ classif=False
 if classif:
     error_bstmax=[0.03] #[0.022,1,0.02,0.2,0.8,2.5]
     error_msemax=[0.05] #[0.035,0.8,0.03,0.3,1.4,4]
+elif synthetic:
+    error_bstmax = [0.021]  # [0.022,1,0.02,0.2,0.8,2.5]
+    error_msemax = [0.021]
 else:
     error_bstmax=[0.02]
-    error_msemax=[0.035] #[0.035,0.8,0.03,0.3,1.4,4]
+    error_msemax=[0.03] #[0.035,0.8,0.03,0.3,1.4,4]
 
 ### xgboost
 to_load_xgboost = os.path.join(folder_main, 'XGShap_model.h5py')
