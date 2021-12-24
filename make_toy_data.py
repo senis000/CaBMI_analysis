@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-def create_synthetic_data(folder_main, N=60, noise_std=0.1):
+def create_synthetic_data(folder_main, N=60, noise_std=0.1, independent=True):
     '''
     User-defined parameters
     N: Number of sessions (we have 286 sessions and 43 features)
@@ -12,23 +12,36 @@ def create_synthetic_data(folder_main, N=60, noise_std=0.1):
     '''
 
     #
-    low, med, high = (0.25, 0.5, 0.75)  # The different scales of coefficients
+    low, high = (0.25, 0.75)  # The different scales of coefficients
 
     to_save_df = os.path.join(folder_main, 'df_all.hdf5')
 
     # Construct X matrix by sampling each feature uniformly from [0,1]
     # Features {0,1,2} increase y; {3,4,5} decrease y; {6,7,8} are irrelevant
-    X = np.random.uniform(0, 1, size=(N, 9))
+    N = 32
+    if independent:
+        X = np.zeros((N, 5))
+        X[:16, 0] = 1
+        X[:8, 1] = 1
+        X[16:24, 1] = 1
+        X[:4, 2] = 1
+        X[8:12, 2] = 1
+        X[16:20, 2] = 1
+        X[24:28, 2] = 1
+        X[::2, 3] = 1
+        X[:, 0:4] -= 0.5
 
-    # Generate Y matrix with some noise
-    y = low * X[:, 0] + med * X[:, 1] + high * X[:, 2] - low * X[:, 3] - med * X[:, 4] - high * X[:, 5]
-    y += np.random.normal(0, noise_std, size=(y.shape))
-    y = .6*(y - np.min(y)) / np.ptp(y)
+        y = high * X[:, 0] - high * X[:, 1] + low * X[:, 2] - low * X[:, 3]
+    else:
+        noise_std = 0.003
+        X = np.random.random((N, 5))
+        y = high * X[:, 0] - high * X[:, 1] + low * X[:, 2] - low * X[:, 3]
+        y += np.random.normal(0, noise_std, size=(y.shape))
+
+    y = 0.3*(y - np.min(y)) / np.ptp(y)
 
     # Save X/Y matrix to hdf5 file
-    columns_basic = ['PC_fake', 'feature_up_low', 'feature_up_med', 'feature_up_high',
-                     'feature_down_low', 'feature_down_med', 'feature_down_high',
-                                                             'feature_not_1', 'feature_not_2', 'feature_not_3']
+    columns_basic = ['PC_fake', 'UP_high', 'Down_high', 'up_low', 'down_low', 'Not']
     df = pd.DataFrame(columns=columns_basic)
     df[columns_basic[0]] = y
     for cc, column_to_create in enumerate(columns_basic[1:]):

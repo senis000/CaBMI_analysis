@@ -523,7 +523,7 @@ def bootstrap_pandas(len_df, X_df, Y_df, bts_n=1000):
     return bootst_ind, X_df_bst, Y_df_bst
 
 
-def split_df(df, bts_n=1000, learn_stat_colum='totalPC', size_split_test=0.2, classif=False):
+def split_df(df, bts_n=1000, learn_stat_colum='totalPC', size_split_test=0.2, classif=False, synthetic=False):
     '''
     Function to calculate the xgboost model
     '''
@@ -532,6 +532,9 @@ def split_df(df, bts_n=1000, learn_stat_colum='totalPC', size_split_test=0.2, cl
     if classif:
         labels_to_study = columns[10:].tolist()
         Y_df = df['ITPTlabel']
+    elif synthetic:
+        Y_df = df.loc[:, 'PC_fake']
+        labels_to_study = columns[1:]
     else:
         labels_to_study = [columns[3]] +  columns[10:].tolist()
         Y_df = df.loc[:, learn_stat_colum]
@@ -746,7 +749,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                 j = 1
                 iterj = 0   
                 # make splits for original model
-                X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, bts_n, col_ler, size_split_test=size_split_test, classif=classif)
+                X_df_train, X_df_test, Y_df_train, Y_df_test = split_df(df, bts_n, col_ler, size_split_test=size_split_test, classif=classif, synthetic=synthetic)
                 # calculate original
                 model_original = calculate_model(X_df_train, Y_df_train)
                 number_models[cc] += 1
@@ -869,71 +872,71 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
     f.close()
     
     
-    
+
     # lets get plotting!!!
-    
+
     if toplot:
-        sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
-        
-        # check stability of features
-        folder_plots_sta = os.path.join(folder_main, 'plots', 'XGBoost', 'feature_stability')
-        print('plotting feature stability')
-        if not os.path.exists(folder_plots_sta):
-            os.makedirs(folder_plots_sta)
-        bins_cor = np.arange(stability_var-0.2,1,0.01)
-        for cc, col_ler in enumerate(columns_ler):
-            fig1 = plt.figure(figsize=(17,9))
-            for ll, label_ts in enumerate(labels_to_study):
-                ax0 = fig1.add_subplot(sizesubpl, 6, ll+1)
-                if np.nansum(shap_correlations[cc,:,:,ll]) > 0:
-                    [h,b] = np.histogram(shap_correlations[cc,:,:,ll], bins_cor)
-                    ax0.bar(b[1:], h, width=0.01)
-                    ax0.set_xlabel(label_ts)
-                
-            fig1.tight_layout()
-            fig1.savefig(os.path.join(folder_plots_sta, col_ler + '_stability_features.png'), bbox_inches="tight")
-            fig1.savefig(os.path.join(folder_plots_sta, col_ler + '_stability_features.eps'), bbox_inches="tight")
-            plt.close('all')
-    
-    
-        # check IT/PT shap values
-        folder_plots_ITPT = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT')
-        print('ITPT stuff')
-        if not os.path.exists(folder_plots_ITPT):
-            os.makedirs(folder_plots_ITPT)
-        all_IT = np.zeros(len(columns_ler)) + np.nan
-        all_PT = np.zeros(len(columns_ler)) + np.nan
-        bins_shap = np.arange(-0.002,0.002,0.00005)
-        
-        
-        for cc, col_ler in enumerate(columns_ler):
-            aux_IT = shap_experiment_mean[cc,df['ITPTlabel']==0,0]
-            aux_PT = shap_experiment_mean[cc,df['ITPTlabel']==1,0]
-            all_IT[cc] = np.nanmean(aux_IT)
-            all_PT[cc] = np.nanmean(aux_PT)
-            
-            fig2 = plt.figure(figsize=(12,4))
-            ax1 = fig2.add_subplot(1, 2, 1)
-            [h_IT,b] = np.histogram(aux_IT, bins_shap)
-            [h_PT,b] = np.histogram(aux_PT, bins_shap)
-            ax1.bar(b[1:], h_IT, width=0.00005, label='IT')
-            ax1.bar(b[1:], h_PT, width=0.00005, label='PT')
-            ax1.legend()
-            
-            ax2 = fig2.add_subplot(1, 2, 2)
-            ax2.bar([0.4,1.4], [all_IT[cc], all_PT[cc]], width=0.8, \
-                    yerr=[pd.DataFrame(aux_IT).sem(0).values[0], pd.DataFrame(aux_PT).sem(0).values[0]], \
-                    error_kw=dict(ecolor='k'))
-            ax2.set_xticks([0.4,1.4])
-            ax2.set_xticklabels(['IT', 'PT'])
-            _, p_value = stats.ttest_ind(aux_IT, aux_PT, nan_policy='omit')
-            p = uc.calc_pvalue(p_value)
-            ax2.text(0.8, 0.001, p, color='grey', alpha=0.6)
-            ax2.set_ylim([-0.001, 0.001])
-            
-            fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.png'), bbox_inches="tight")
-            fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.eps'), bbox_inches="tight")
-            plt.close('all')
+    #     sizesubpl = np.ceil(len(labels_to_study)/6).astype('int')
+    #
+    #     # check stability of features
+    #     folder_plots_sta = os.path.join(folder_main, 'plots', 'XGBoost', 'feature_stability')
+    #     print('plotting feature stability')
+    #     if not os.path.exists(folder_plots_sta):
+    #         os.makedirs(folder_plots_sta)
+    #     bins_cor = np.arange(stability_var-0.2,1,0.01)
+    #     for cc, col_ler in enumerate(columns_ler):
+    #         fig1 = plt.figure(figsize=(17,9))
+    #         for ll, label_ts in enumerate(labels_to_study):
+    #             ax0 = fig1.add_subplot(sizesubpl, 6, ll+1)
+    #             if np.nansum(shap_correlations[cc,:,:,ll]) > 0:
+    #                 [h,b] = np.histogram(shap_correlations[cc,:,:,ll], bins_cor)
+    #                 ax0.bar(b[1:], h, width=0.01)
+    #                 ax0.set_xlabel(label_ts)
+    #
+    #         fig1.tight_layout()
+    #         fig1.savefig(os.path.join(folder_plots_sta, col_ler + '_stability_features.png'), bbox_inches="tight")
+    #         fig1.savefig(os.path.join(folder_plots_sta, col_ler + '_stability_features.eps'), bbox_inches="tight")
+    #         plt.close('all')
+    #
+    #
+    #     # check IT/PT shap values
+    #     folder_plots_ITPT = os.path.join(folder_main, 'plots', 'XGBoost', 'ITPT')
+    #     print('ITPT stuff')
+    #     if not os.path.exists(folder_plots_ITPT):
+    #         os.makedirs(folder_plots_ITPT)
+    #     all_IT = np.zeros(len(columns_ler)) + np.nan
+    #     all_PT = np.zeros(len(columns_ler)) + np.nan
+    #     bins_shap = np.arange(-0.002,0.002,0.00005)
+    #
+    #
+    #     for cc, col_ler in enumerate(columns_ler):
+    #         aux_IT = shap_experiment_mean[cc,df['ITPTlabel']==0,0]
+    #         aux_PT = shap_experiment_mean[cc,df['ITPTlabel']==1,0]
+    #         all_IT[cc] = np.nanmean(aux_IT)
+    #         all_PT[cc] = np.nanmean(aux_PT)
+    #
+    #         fig2 = plt.figure(figsize=(12,4))
+    #         ax1 = fig2.add_subplot(1, 2, 1)
+    #         [h_IT,b] = np.histogram(aux_IT, bins_shap)
+    #         [h_PT,b] = np.histogram(aux_PT, bins_shap)
+    #         ax1.bar(b[1:], h_IT, width=0.00005, label='IT')
+    #         ax1.bar(b[1:], h_PT, width=0.00005, label='PT')
+    #         ax1.legend()
+    #
+    #         ax2 = fig2.add_subplot(1, 2, 2)
+    #         ax2.bar([0.4,1.4], [all_IT[cc], all_PT[cc]], width=0.8, \
+    #                 yerr=[pd.DataFrame(aux_IT).sem(0).values[0], pd.DataFrame(aux_PT).sem(0).values[0]], \
+    #                 error_kw=dict(ecolor='k'))
+    #         ax2.set_xticks([0.4,1.4])
+    #         ax2.set_xticklabels(['IT', 'PT'])
+    #         _, p_value = stats.ttest_ind(aux_IT, aux_PT, nan_policy='omit')
+    #         p = uc.calc_pvalue(p_value)
+    #         ax2.text(0.8, 0.001, p, color='grey', alpha=0.6)
+    #         ax2.set_ylim([-0.001, 0.001])
+    #
+    #         fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.png'), bbox_inches="tight")
+    #         fig2.savefig(os.path.join(folder_plots_ITPT, col_ler + '_ITPT_shap_val.eps'), bbox_inches="tight")
+    #         plt.close('all')
             
         
         #check shap summary plot
@@ -1482,8 +1485,7 @@ def plot_ITPT(df, folder_main, labels_to_study, shap_experiment_mean):
             fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.png'), bbox_inches="tight")
             fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.eps'), bbox_inches="tight")
             plt.close('all')
-            
-            
+
 
 def spread_normal(spread):
     spread = np.squeeze(spread)
