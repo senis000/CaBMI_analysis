@@ -49,7 +49,7 @@ max_iter=40
 stability_var=0.5
 toplot=True
 classif=False
-synthetic=True
+synthetic=False
 if classif:
     error_bstmax=[0.03] #[0.022,1,0.02,0.2,0.8,2.5]
     error_msemax=[0.05] #[0.035,0.8,0.03,0.3,1.4,4]
