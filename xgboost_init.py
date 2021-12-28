@@ -63,7 +63,7 @@ else:
 ### xgboost
 to_load_xgboost = os.path.join(folder_main, 'XGShap_model.h5py')
 f = h5py.File(to_load_xgboost, 'r')
-labels_to_study = f.attrs['labels_to_study']
+# labels_to_study = f.attrs['labels_to_study']
 all_shap = np.asarray(f['all_shap'])
 all_y_pred = np.asarray(f['all_y_pred'])
 all_mse = np.asarray(f['all_mse'])
@@ -80,7 +80,7 @@ bins_zscore = np.arange(-2,2,0.1)
 
 f.close()
 columns = df.columns.tolist()
-columns_ler = [columns[6]]
+columns_ler = [columns[1]]
 
 
 #####

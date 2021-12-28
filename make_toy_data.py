@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-def create_synthetic_data(folder_main, N=60, noise_std=0.1, independent=True):
+def create_synthetic_data(folder_main, independent=True):
     '''
     User-defined parameters
     N: Number of sessions (we have 286 sessions and 43 features)

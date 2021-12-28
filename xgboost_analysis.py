@@ -791,7 +791,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
         labels_to_study = columns[1:]
     else:
         # this is to study the learning stats on columns_ler
-        columns_ler = [columns[8]]  # columns[4:10] #[columns[6]]# [columns[3]]
+        columns_ler = [columns[6]]  # columns[4:10] #[columns[6]]# [columns[3]]
         labels_to_study = [columns[3]] + columns[10:]  # columns[10:]
 
     test_size = np.ceil(len(df) * (size_split_test)).astype(int)
@@ -1021,7 +1021,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
             shap.summary_plot(shap_experiment_mean[cc, aux_df, :], df.iloc[aux_df][labels_to_study])
 
             fig3.savefig(os.path.join(folder_plots_shap, col_ler + '_summary.png'), bbox_inches="tight")
-            fig3.savefig(os.path.join(folder_plots_shap, col_ler + '_summary.eps'), bbox_inches="tight")
+            fig3.savefig(os.path.join(folder_plots_shap, col_ler + '_summary.svg'), format='svg', bbox_inches="tight")
             plt.close('all')
 
         # check dependencies
@@ -1078,7 +1078,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                               bbox_inches="tight")
                 plt.close('all')
 
-                # labels to study regression to shap
+        # labels to study regression to shap
         folder_plots_reg = os.path.join(folder_main, 'plots', 'XGBoost', 'regression_shap')
         print('plotting more regressions')
         if not os.path.exists(folder_plots_reg):
@@ -1094,7 +1094,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                 ax6.set_ylabel('shap_val')
             fig6.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
             fig6.savefig(os.path.join(folder_plots_reg, col_ler + '_reg.png'), bbox_inches="tight")
-            fig6.savefig(os.path.join(folder_plots_reg, col_ler + '_reg.eps'), bbox_inches="tight")
+            fig6.savefig(os.path.join(folder_plots_reg, col_ler + '_reg.svg'), format='svg', bbox_inches="tight")
             plt.close('all')
 
             aux_IT = shap_experiment_mean[cc, df['ITPTlabel'] == 0, :]
@@ -1110,7 +1110,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                 ax61.set_ylabel('shap_val')
             fig61.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
             fig61.savefig(os.path.join(folder_plots_reg, col_ler + '_IT_reg.png'), bbox_inches="tight")
-            fig61.savefig(os.path.join(folder_plots_reg, col_ler + '_IT_reg.eps'), bbox_inches="tight")
+            fig61.savefig(os.path.join(folder_plots_reg, col_ler + '_IT_reg.svg'), format='svg', bbox_inches="tight")
             plt.close('all')
 
             fig62 = plt.figure(figsize=(24, 12))
@@ -1121,7 +1121,7 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                 ax62.set_ylabel('shap_val')
             fig62.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
             fig62.savefig(os.path.join(folder_plots_reg, col_ler + '_PT_reg.png'), bbox_inches="tight")
-            fig62.savefig(os.path.join(folder_plots_reg, col_ler + '_PT_reg.eps'), bbox_inches="tight")
+            fig62.savefig(os.path.join(folder_plots_reg, col_ler + '_PT_reg.svg'), format='svg', bbox_inches="tight")
             plt.close('all')
 
             for ll, label_ts in enumerate(labels_to_study):
@@ -1136,8 +1136,8 @@ def obtain_shap_iter(df, folder_main, bts_n=1000, mod_n=10000, mod_x=100, error_
                 fig63.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
                 fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_' + label_ts + '_tog_reg.png'),
                               bbox_inches="tight")
-                fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_' + label_ts + '_tog_reg.eps'),
-                              bbox_inches="tight")
+                fig63.savefig(os.path.join(folder_plots_reg, col_ler + '_' + label_ts + '_tog_reg.svg'),
+                              format='svg', bbox_inches="tight")
                 plt.close('all')
 
         # check for confidence interval on features
@@ -1561,7 +1561,8 @@ def plot_ITPT(df, folder_main, labels_to_study, shap_experiment_mean):
             ax4.set_ylabel(label)
 
             fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.png'), bbox_inches="tight")
-            fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.eps'), bbox_inches="tight")
+            fig1.savefig(os.path.join(folder_plots_ITPT_f, col_ler + '_' + label + '_ITPT.svg'), format='svg',
+                         bbox_inches="tight")
             plt.close('all')
 
 
