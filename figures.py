@@ -373,8 +373,104 @@ def fig2():
     fx2.set_ylim([0,0.45])
     fig6.tight_layout(pad=0.4, w_pad=1.0, h_pad=1.0)
     
-    
-    fig7 = plt.figure(figsize=(8,4))
+
+
+    # plots evaluating learning on different datasets
+    # requires dfs for each dataset columns = animals, rows = sessions
+
+    to_load_koralek = os.path.join(folder_main, 'df_koralek.hdf5')
+    to_load_clancy = os.path.join(folder_main, 'df_clancy.hdf5')
+    to_load_neely = os.path.join(folder_main, 'df_neely.hdf5')
+    to_load_df = os.path.join(folder_main, 'df_all.hdf5')
+    df_k = pd.read_hdf(to_load_koralek)
+    df_k_early = df_k.loc[0:1].mean()
+    df_k_late = df_k.loc[7:8].mean()
+    df_c = pd.read_hdf(to_load_clancy)
+    df_c_early = df_c.loc[0:1].mean()
+    df_c_late = df_c.loc[7:8].mean()
+    df_n = pd.read_hdf(to_load_neely)
+    df_n_early = df_n.loc[0:1].mean()
+    df_n_late = df_n.loc[7:8].mean()
+    df_v = pd.read_hdf(to_load_df)
+    df_v_IT = df_v[df_v['ITPTlabel'] == 0]
+    df_v_PT = df_v[df_v['ITPTlabel'] == 1]
+    df_v_IT_early_aux = df_v_IT[df_v_IT['session'] <= 1]['totalPC']
+    df_v_IT_late_aux = df_v_IT[np.logical_and(df_v_IT['session']<=8, df_v_IT['session']>=7)]['totalPC']
+    aux_early_IT = df_v_IT[df_v_IT['session'] <= 1]['animal']
+    aux_late_IT = df_v_IT[np.logical_and(df_v_IT['session'] <= 8, df_v_IT['session'] >= 7)]['animal']
+    df_v_IT_early = df_v_IT_early_aux.groupby(aux_early_IT).mean()
+    df_v_IT_late = df_v_IT_late_aux.groupby(aux_late_IT).mean()
+    df_v_PT_early_aux = df_v_PT[df_v_PT['session'] <= 1]['totalPC']
+    df_v_PT_late_aux = df_v_PT[np.logical_and(df_v_PT['session'] <= 8, df_v_PT['session'] >= 7)]['totalPC']
+    aux_early_PT = df_v_PT[df_v_PT['session'] <= 1]['animal']
+    aux_late_PT = df_v_PT[np.logical_and(df_v_PT['session'] <= 8, df_v_PT['session'] >= 7)]['animal']
+    df_v_PT_early = df_v_PT_early_aux.groupby(aux_early_PT).mean()
+    df_v_PT_late = df_v_PT_late_aux.groupby(aux_late_PT).mean()
+    means = np.asarray([df_k_early.mean(), df_k_late.mean(),
+                        df_n_early.mean(), df_n_late.mean(),
+                        df_c_early.mean(), df_c_late.mean(),
+                        df_v_IT_early.mean(), df_v_IT_late.mean(),
+                        df_v_PT_early.mean(), df_v_PT_late.mean()])
+
+    sem = np.asarray([df_k_early.std() / np.sqrt(df_k_early.shape[0]), df_k_late.std() / np.sqrt(df_k_late.shape[0]),
+                      df_n_early.std() / np.sqrt(df_n_early.shape[0]), df_n_late.std() / np.sqrt(df_n_late.shape[0]),
+                      df_c_early.std() / np.sqrt(df_c_early.shape[0]), df_c_late.std() / np.sqrt(df_c_late.shape[0]),
+                      df_v_IT_early.std() / np.sqrt(df_v_IT_early.shape[0]),
+                      df_v_IT_late.std() / np.sqrt(df_v_IT_late.shape[0]),
+                      df_v_PT_early.std() / np.sqrt(df_v_PT_early.shape[0]),
+                      df_v_PT_late.std() / np.sqrt(df_v_PT_late.shape[0])])
+
+    fig7 = plt.figure()
+    plt.errorbar(np.arange(10), means, yerr=sem, ecolor='k', elinewidth=2, linewidth=0)
+    plt.bar(np.arange(10), means)
+    _, p_value_k = stats.ttest_rel(df_k_early, df_k_late)
+    p = calc_pvalue(p_value_k)
+    plt.text(0.4, 0.05+np.nanmean(df_k_late), p, color='grey', alpha=0.6)
+    _, p_value_n = stats.ttest_ind(df_n_early, df_n_late[~np.isnan(df_n_late)])
+    p = calc_pvalue(p_value_n)
+    plt.text(2.4, 0.05+np.nanmean(df_n_late), p, color='grey', alpha=0.6)
+    _, p_value_c = stats.ttest_ind(df_c_early, df_c_late[~np.isnan(df_c_late)])
+    p = calc_pvalue(p_value_c)
+    plt.text(4.4, 0.05+np.nanmean(df_c_late), p, color='grey', alpha=0.6)
+    _, p_value_IT = stats.ttest_rel(df_v_IT_early, df_v_IT_late)
+    p = calc_pvalue(p_value_IT)
+    plt.text(6.4, 0.05+np.nanmean(df_v_IT_late), p, color='grey', alpha=0.6)
+    _, p_value_PT = stats.ttest_rel(df_v_PT_early, df_v_PT_late)
+    p = calc_pvalue(p_value_PT)
+    plt.text(8.4, 0.05+np.nanmean(df_v_PT_late), p, color='grey', alpha=0.6)
+    _, p_value_PT_k = stats.ttest_ind(df_k_early, df_v_PT_early)
+    p = calc_pvalue(p_value_PT_k)
+    plt.text(8, 0.7, p, color='grey', alpha=0.6)
+    _, p_value_PT_n = stats.ttest_ind(df_n_early, df_v_PT_early)
+    p = calc_pvalue(p_value_PT_n)
+    plt.text(8, 0.65, p, color='grey', alpha=0.6)
+    _, p_value_PT_c = stats.ttest_ind(df_c_early, df_v_PT_early)
+    p = calc_pvalue(p_value_PT_c)
+    plt.text(8, 0.6, p, color='grey', alpha=0.6)
+
+
+
+
+
+
+
+
+
+
+    def calc_pvalue(p_value):
+        if p_value <= 0.0005:
+            p = '***'
+        elif p_value <= 0.005:
+            p = '**'
+        elif p_value <= 0.05:
+            p = '*'
+        else:
+            p = 'ns'
+        return p
+
+
+
+
     
     
 
