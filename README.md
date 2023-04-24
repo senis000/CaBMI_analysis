@@ -1,3 +1,6 @@
+[![DOI](https://zenodo.org/badge/161543260.svg)](https://zenodo.org/badge/latestdoi/161543260)
+
+
 # CaBMI_analysis
 
 ## Dependencies
